@@ -60,22 +60,29 @@ class CSharpLSPAdapter:
             return []
 
     def find_method_calls(self, symbol: IndexSymbol) -> list[str]:
-        # Resolve via references: find all outgoing calls from this method's location
-        try:
-            refs = self._ls.find_references(symbol.file_path, symbol.line, 0, include_declaration=False)
-            return [r.full_name for r in (refs or []) if hasattr(r, "full_name")]
-        except Exception:
-            log.exception("Failed to find calls for %s", symbol.full_name)
-            return []
+        # solidlsp exposes outgoing call hierarchy via server.send.prepare_call_hierarchy +
+        # server.send.outgoing_calls (LSP 3.16 callHierarchy/outgoingCalls), but the returned
+        # CallHierarchyItem dicts contain no full_name and would require cross-file symbol
+        # resolution to produce qualified names. This is a known limitation, not a bug.
+        log.warning(
+            "find_method_calls is not implemented: solidlsp call hierarchy returns raw LSP dicts "
+            "without qualified full_names; outgoing call resolution requires cross-file symbol lookup "
+            "not yet supported by this adapter. Returning [] for %s",
+            symbol.full_name,
+        )
+        return []
 
     def find_overridden_method(self, symbol: IndexSymbol) -> str | None:
-        try:
-            result = self._ls.go_to_definition(symbol.file_path, symbol.line, 0)
-            if result and hasattr(result, "full_name"):
-                return result.full_name
-            return None
-        except Exception:
-            return None
+        # LSP has no standard request for "what base method does this override".
+        # go_to_definition resolves to the symbol's own declaration site, not its parent's.
+        # typeHierarchy/supertypes operates on types, not individual methods.
+        # This is a known limitation of the LSP protocol surface exposed by solidlsp.
+        log.warning(
+            "find_overridden_method is not implemented: LSP provides no standard request for "
+            "resolving the base method overridden by a given symbol. Returning None for %s",
+            symbol.full_name,
+        )
+        return None
 
     def shutdown(self) -> None:
         try:
@@ -85,7 +92,10 @@ class CSharpLSPAdapter:
 
     def _convert(self, raw: object, file_path: str) -> IndexSymbol:
         kind_int = getattr(raw, "kind", 0)
-        kind = _LSP_KIND_MAP.get(kind_int, SymbolKind.CLASS)
+        kind = _LSP_KIND_MAP.get(kind_int)
+        if kind is None:
+            log.debug("Unmapped LSP SymbolKind %d for symbol %s, defaulting to CLASS", kind_int, getattr(raw, "name", "?"))
+            kind = SymbolKind.CLASS
         return IndexSymbol(
             name=getattr(raw, "name", ""),
             full_name=getattr(raw, "full_name", "") or getattr(raw, "name", ""),
