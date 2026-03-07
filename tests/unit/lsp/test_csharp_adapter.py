@@ -202,6 +202,34 @@ def test_find_method_calls_returns_callee_full_names() -> None:
     assert result == ["BarNs.BarClass.Helper"]
 
 
+def test_create_uses_csharp_language_enum() -> None:
+    import sys
+    from unittest.mock import patch, MagicMock
+    from synapse.lsp.csharp import CSharpLSPAdapter
+
+    mock_config_class = MagicMock()
+
+    class FakeLanguage:
+        CSHARP = "csharp"
+
+    fake_ls_config = MagicMock()
+    fake_ls_config.Language = FakeLanguage
+    fake_ls_config.LanguageServerConfig = mock_config_class
+
+    fake_csharp_ls = MagicMock()
+    fake_csharp_ls.CSharpLanguageServer.return_value = MagicMock()
+
+    with patch.dict(sys.modules, {
+        "solidlsp.ls_config": fake_ls_config,
+        "solidlsp.settings": MagicMock(),
+        "solidlsp.language_servers.csharp_language_server": fake_csharp_ls,
+    }):
+        CSharpLSPAdapter.create("/some/project")
+
+    _, kwargs = mock_config_class.call_args
+    assert kwargs["language"] is FakeLanguage.CSHARP
+
+
 def test_find_method_calls_exception_returns_empty() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind

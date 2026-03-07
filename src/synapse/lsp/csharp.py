@@ -50,7 +50,7 @@ class CSharpLSPAdapter:
         from solidlsp.settings import SolidLSPSettings
 
         config = LanguageServerConfig(
-            language=Language.CSharp,
+            language=Language.CSHARP,
             project_root=root_path,
         )
         settings = SolidLSPSettings()
