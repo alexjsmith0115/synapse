@@ -1,8 +1,9 @@
+import pytest
 from unittest.mock import MagicMock
 from synapse.graph.queries import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
-    list_projects, get_index_status,
+    list_projects, get_index_status, execute_readonly_query,
 )
 
 
@@ -51,3 +52,33 @@ def test_list_projects_queries_repository_nodes() -> None:
     list_projects(conn)
     cypher = conn.query.call_args[0][0]
     assert "Repository" in cypher
+
+
+def test_execute_readonly_query_allows_match() -> None:
+    conn = _conn([[]])
+    execute_readonly_query(conn, "MATCH (n) RETURN n")
+    conn.query.assert_called_once()
+
+
+def test_execute_readonly_query_blocks_create() -> None:
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        execute_readonly_query(conn, "CREATE (n:Fake) RETURN n")
+
+
+def test_execute_readonly_query_blocks_trailing_delete() -> None:
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        execute_readonly_query(conn, "MATCH (n) DELETE n")
+
+
+def test_execute_readonly_query_blocks_multiline_merge() -> None:
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        execute_readonly_query(conn, "MATCH (n)\nMERGE (n)-[:X]->(m)")
+
+
+def test_search_symbols_rejects_invalid_kind() -> None:
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        search_symbols(conn, "Foo", kind="'; DROP TABLE users; --")
