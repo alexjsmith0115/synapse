@@ -76,17 +76,40 @@ class CSharpLSPAdapter:
             return []
 
     def find_method_calls(self, symbol: IndexSymbol) -> list[str]:
-        # solidlsp exposes outgoing call hierarchy via server.send.prepare_call_hierarchy +
-        # server.send.outgoing_calls (LSP 3.16 callHierarchy/outgoingCalls), but the returned
-        # CallHierarchyItem dicts contain no full_name and would require cross-file symbol
-        # resolution to produce qualified names. This is a known limitation, not a bug.
-        log.warning(
-            "find_method_calls is not implemented: solidlsp call hierarchy returns raw LSP dicts "
-            "without qualified full_names; outgoing call resolution requires cross-file symbol lookup "
-            "not yet supported by this adapter. Returning [] for %s",
-            symbol.full_name,
-        )
-        return []
+        try:
+            root = self._ls.repository_root_path
+            file_uri = Path(symbol.file_path).as_uri()
+
+            items = self._ls.server.send.prepare_call_hierarchy({
+                "textDocument": {"uri": file_uri},
+                "position": {"line": symbol.line, "character": 0},
+            })
+            if not items:
+                return []
+
+            callee_names: set[str] = set()
+            for item in items:
+                outgoing = self._ls.server.send.outgoing_calls({"item": item})
+                if not outgoing:
+                    continue
+                for call in outgoing:
+                    to = call.get("to", {})
+                    to_uri = to.get("uri", "")
+                    to_start = to.get("selectionRange", {}).get("start", {})
+                    abs_path = urlparse(to_uri).path
+                    if not abs_path:
+                        continue
+                    to_rel = os.path.relpath(abs_path, root)
+                    defining = self._ls.request_defining_symbol(
+                        to_rel, to_start.get("line", 0), to_start.get("character", 0)
+                    )
+                    if defining is not None:
+                        callee_names.add(_build_full_name(defining))
+
+            return list(callee_names)
+        except Exception:
+            log.exception("Failed to find method calls for %s", symbol.full_name)
+            return []
 
     def find_overridden_method(self, symbol: IndexSymbol) -> str | None:
         if "override" not in symbol.signature.lower():
