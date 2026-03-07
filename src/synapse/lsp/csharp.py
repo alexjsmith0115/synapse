@@ -116,6 +116,8 @@ class CSharpLSPAdapter:
                     continue
                 for supertype in supertypes:
                     abs_path = urlparse(supertype.get("uri", "")).path
+                    if not abs_path:
+                        continue
                     super_rel = os.path.relpath(abs_path, root)
                     doc_syms = self._ls.request_document_symbols(super_rel)
                     if doc_syms is None:

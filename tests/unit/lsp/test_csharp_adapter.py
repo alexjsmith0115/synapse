@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from synapse.lsp.interface import SymbolKind
 
 
@@ -52,7 +52,6 @@ def test_build_full_name_overload_no_paren_in_detail() -> None:
 
 
 def test_convert_produces_qualified_full_name() -> None:
-    from unittest.mock import MagicMock
     from synapse.lsp.csharp import CSharpLSPAdapter
 
     grandparent = {"name": "MyNs", "kind": 3, "parent": None}
@@ -81,7 +80,6 @@ def test_convert_produces_qualified_full_name() -> None:
 def test_find_overridden_method_non_override_returns_none() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
-    from unittest.mock import MagicMock
 
     adapter = CSharpLSPAdapter(MagicMock())
     symbol = IndexSymbol(
@@ -94,7 +92,6 @@ def test_find_overridden_method_non_override_returns_none() -> None:
 def test_find_overridden_method_returns_base_full_name() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
-    from unittest.mock import MagicMock
 
     mock_ls = MagicMock()
     mock_ls.repository_root_path = "/proj"
@@ -138,7 +135,6 @@ def test_find_overridden_method_returns_base_full_name() -> None:
 def test_find_overridden_method_exception_returns_none() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
-    from unittest.mock import MagicMock
 
     mock_ls = MagicMock()
     mock_ls.repository_root_path = "/proj"
