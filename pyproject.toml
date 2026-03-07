@@ -1,0 +1,32 @@
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[project]
+name = "synapse"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "falkordb>=1.0.0",
+    "mcp>=1.0.0",
+    "typer>=0.12.0",
+    "watchdog>=4.0.0",
+    "pydantic>=2.0.0",
+    "sensai-utils>=1.5.0",
+    "overrides>=7.7.0",
+    "pathspec>=0.12.1",
+    "psutil>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-timeout>=2.0.0",
+]
+
+[project.scripts]
+synapse = "synapse.cli:app"
+synapse-mcp = "synapse.mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/synapse", "src/solidlsp"]
