@@ -146,3 +146,73 @@ def test_find_overridden_method_exception_returns_none() -> None:
         file_path="/proj/Foo.cs", line=10, signature="public override void DoWork()",
     )
     assert adapter.find_overridden_method(symbol) is None
+
+
+def test_find_method_calls_returns_empty_when_no_hierarchy() -> None:
+    from synapse.lsp.csharp import CSharpLSPAdapter
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+
+    mock_ls = MagicMock()
+    mock_ls.repository_root_path = "/proj"
+    mock_ls.server.send.prepare_call_hierarchy.return_value = []
+
+    adapter = CSharpLSPAdapter(mock_ls)
+    symbol = IndexSymbol(
+        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
+        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
+    )
+    assert adapter.find_method_calls(symbol) == []
+
+
+def test_find_method_calls_returns_callee_full_names() -> None:
+    from synapse.lsp.csharp import CSharpLSPAdapter
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+
+    mock_ls = MagicMock()
+    mock_ls.repository_root_path = "/proj"
+
+    hier_item = {
+        "name": "DoWork", "kind": 6,
+        "uri": "file:///proj/Foo.cs",
+        "selectionRange": {"start": {"line": 10, "character": 4}},
+    }
+    mock_ls.server.send.prepare_call_hierarchy.return_value = [hier_item]
+
+    callee_item = {
+        "name": "Helper", "kind": 6,
+        "uri": "file:///proj/Bar.cs",
+        "selectionRange": {"start": {"line": 20, "character": 4}},
+    }
+    mock_ls.server.send.outgoing_calls.return_value = [
+        {"to": callee_item, "fromRanges": [{"start": {"line": 12, "character": 8}}]},
+    ]
+
+    ns_sym = {"name": "BarNs", "kind": 3, "parent": None}
+    cls_sym = {"name": "BarClass", "kind": 5, "parent": ns_sym}
+    callee_sym = {"name": "Helper", "kind": 6, "parent": cls_sym}
+    mock_ls.request_defining_symbol.return_value = callee_sym
+
+    adapter = CSharpLSPAdapter(mock_ls)
+    symbol = IndexSymbol(
+        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
+        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
+    )
+
+    result = adapter.find_method_calls(symbol)
+    assert result == ["BarNs.BarClass.Helper"]
+
+
+def test_find_method_calls_exception_returns_empty() -> None:
+    from synapse.lsp.csharp import CSharpLSPAdapter
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+
+    mock_ls = MagicMock()
+    mock_ls.repository_root_path = "/proj"
+    mock_ls.server.send.prepare_call_hierarchy.side_effect = RuntimeError("LSP down")
+
+    adapter = CSharpLSPAdapter(mock_ls)
+    symbol = IndexSymbol(
+        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
+        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
+    )
+    assert adapter.find_method_calls(symbol) == []
