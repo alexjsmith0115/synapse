@@ -13,6 +13,6 @@ _INDICES = [
 
 
 def ensure_schema(conn: GraphConnection) -> None:
-    """Create graph indices. Safe to call multiple times — FalkorDB ignores duplicate index creation."""
+    """Create graph indices. Assumes FalkorDB silently ignores duplicate index creation on re-runs."""
     for statement in _INDICES:
         conn.execute(statement)
