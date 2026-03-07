@@ -1,4 +1,13 @@
+import re
+
 from synapse.graph.connection import GraphConnection
+
+_MUTATING_PATTERN = re.compile(r"\b(CREATE|MERGE|DELETE|SET|REMOVE|DROP)\b")
+
+_VALID_KINDS = frozenset({
+    "Class", "Method", "Property", "Field", "Namespace",
+    "File", "Directory", "Repository",
+})
 
 
 def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:
@@ -46,6 +55,8 @@ def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:
 
 
 def search_symbols(conn: GraphConnection, query: str, kind: str | None = None) -> list[dict]:
+    if kind and kind not in _VALID_KINDS:
+        raise ValueError(f"Unknown symbol kind: {kind!r}")
     if kind:
         rows = conn.query(
             f"MATCH (n:{kind}) WHERE n.name CONTAINS $query RETURN n",
@@ -109,8 +120,6 @@ def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
 
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
-    normalized = cypher.strip().upper()
-    for mutating in ("CREATE", "MERGE", "DELETE", "SET", "REMOVE", "DROP"):
-        if normalized.startswith(mutating) or f" {mutating} " in normalized:
-            raise ValueError(f"Mutating Cypher statement not allowed: {mutating}")
+    if _MUTATING_PATTERN.search(cypher.upper()):
+        raise ValueError("Mutating Cypher statement not allowed")
     return conn.query(cypher)
