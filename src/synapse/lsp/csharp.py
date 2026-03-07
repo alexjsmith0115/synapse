@@ -54,7 +54,9 @@ class CSharpLSPAdapter:
     def get_document_symbols(self, file_path: str) -> list[IndexSymbol]:
         try:
             raw = self._ls.request_document_symbols(file_path)
-            return [self._convert(s, file_path) for s in (raw or [])]
+            if raw is None:
+                return []
+            return [self._convert(s, file_path) for s in raw.iter_symbols()]
         except Exception:
             log.exception("Failed to get symbols for %s", file_path)
             return []
@@ -90,19 +92,22 @@ class CSharpLSPAdapter:
         except Exception:
             log.warning("Language server did not shut down cleanly")
 
-    def _convert(self, raw: object, file_path: str) -> IndexSymbol:
-        kind_int = getattr(raw, "kind", 0)
+    def _convert(self, raw: dict, file_path: str) -> IndexSymbol:
+        kind_int = raw.get("kind", 0)
         kind = _LSP_KIND_MAP.get(kind_int)
         if kind is None:
-            log.debug("Unmapped LSP SymbolKind %d for symbol %s, defaulting to CLASS", kind_int, getattr(raw, "name", "?"))
+            log.debug("Unmapped LSP SymbolKind %d for symbol %s, defaulting to CLASS", kind_int, raw.get("name", "?"))
             kind = SymbolKind.CLASS
+        name = raw.get("name", "")
+        line = raw.get("location", {}).get("range", {}).get("start", {}).get("line", 0)
+        detail = raw.get("detail", "") or ""
         return IndexSymbol(
-            name=getattr(raw, "name", ""),
-            full_name=getattr(raw, "full_name", "") or getattr(raw, "name", ""),
+            name=name,
+            full_name=name,
             kind=kind,
             file_path=file_path,
-            line=getattr(raw, "line", 0),
-            signature=getattr(raw, "signature", ""),
-            is_abstract="abstract" in getattr(raw, "detail", "").lower(),
-            is_static="static" in getattr(raw, "detail", "").lower(),
+            line=line,
+            signature=raw.get("detail", "") or "",
+            is_abstract="abstract" in detail.lower(),
+            is_static="static" in detail.lower(),
         )
