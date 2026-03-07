@@ -39,8 +39,11 @@ def test_upsert_method_includes_flags() -> None:
 def test_delete_file_nodes_uses_file_path() -> None:
     conn = _conn()
     delete_file_nodes(conn, "/proj/src/Foo.cs")
-    cypher = conn.execute.call_args[0][0]
-    assert "File" in cypher
+    first_call, second_call = conn.execute.call_args_list
+    assert "CONTAINS" in first_call[0][0]   # children deleted first via path traversal
+    assert first_call[0][1]["path"] == "/proj/src/Foo.cs"
+    assert "File" in second_call[0][0]
+    assert second_call[0][1]["path"] == "/proj/src/Foo.cs"
 
 
 def test_set_summary_adds_summarized_label() -> None:

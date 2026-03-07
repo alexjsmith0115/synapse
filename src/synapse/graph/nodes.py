@@ -68,7 +68,7 @@ def upsert_field(conn: GraphConnection, full_name: str, name: str, type_name: st
 
 
 def delete_file_nodes(conn: GraphConnection, file_path: str) -> None:
-    """Delete all nodes that originated from the given file, and their edges."""
+    """Children must be deleted before the file node to keep the CONTAINS* traversal path intact."""
     conn.execute(
         "MATCH (f:File {path: $path})-[:CONTAINS*]->(n) DETACH DELETE n",
         {"path": file_path},
