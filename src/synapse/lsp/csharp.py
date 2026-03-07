@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
@@ -87,16 +89,44 @@ class CSharpLSPAdapter:
         return []
 
     def find_overridden_method(self, symbol: IndexSymbol) -> str | None:
-        # LSP has no standard request for "what base method does this override".
-        # go_to_definition resolves to the symbol's own declaration site, not its parent's.
-        # typeHierarchy/supertypes operates on types, not individual methods.
-        # This is a known limitation of the LSP protocol surface exposed by solidlsp.
-        log.warning(
-            "find_overridden_method is not implemented: LSP provides no standard request for "
-            "resolving the base method overridden by a given symbol. Returning None for %s",
-            symbol.full_name,
-        )
-        return None
+        if "override" not in symbol.signature.lower():
+            return None
+        try:
+            root = self._ls.repository_root_path
+            rel_path = os.path.relpath(symbol.file_path, root)
+
+            class_sym = self._ls.request_containing_symbol(rel_path, symbol.line, 0)
+            if class_sym is None:
+                return None
+
+            class_loc = class_sym.get("location", {})
+            class_uri = class_loc.get("uri", "")
+            class_start = class_loc.get("range", {}).get("start", {})
+
+            items = self._ls.server.send.prepare_type_hierarchy({
+                "textDocument": {"uri": class_uri},
+                "position": class_start,
+            })
+            if not items:
+                return None
+
+            for item in items:
+                supertypes = self._ls.server.send.type_hierarchy_supertypes({"item": item})
+                if not supertypes:
+                    continue
+                for supertype in supertypes:
+                    abs_path = urlparse(supertype.get("uri", "")).path
+                    super_rel = os.path.relpath(abs_path, root)
+                    doc_syms = self._ls.request_document_symbols(super_rel)
+                    if doc_syms is None:
+                        continue
+                    for s in doc_syms.iter_symbols():
+                        if s.get("name") == symbol.name:
+                            return _build_full_name(s)
+            return None
+        except Exception:
+            log.exception("Failed to find overridden method for %s", symbol.full_name)
+            return None
 
     def shutdown(self) -> None:
         try:
