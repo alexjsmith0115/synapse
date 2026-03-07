@@ -1,3 +1,5 @@
+from redis.exceptions import ResponseError
+
 from synapse.graph.connection import GraphConnection
 
 _INDICES = [
@@ -13,6 +15,10 @@ _INDICES = [
 
 
 def ensure_schema(conn: GraphConnection) -> None:
-    """Create graph indices. Assumes FalkorDB silently ignores duplicate index creation on re-runs."""
+    """Create graph indices, tolerating already-exists errors on re-index."""
     for statement in _INDICES:
-        conn.execute(statement)
+        try:
+            conn.execute(statement)
+        except ResponseError as e:
+            if "already indexed" not in str(e):
+                raise
