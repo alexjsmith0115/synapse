@@ -32,6 +32,14 @@ def test_find_implementations_returns_list() -> None:
     assert len(results) == 2
 
 
+def test_find_implementations_queries_interface_label() -> None:
+    conn = _conn([])
+    find_implementations(conn, "MyNs.IService")
+    cypher, params = conn.query.call_args[0][0], conn.query.call_args[0][1]
+    assert ":Interface" in cypher
+    assert params["full_name"] == "MyNs.IService"
+
+
 def test_find_callers_passes_full_name() -> None:
     conn = _conn([])
     find_callers(conn, "MyNs.A.Run()")
