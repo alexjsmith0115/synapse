@@ -77,86 +77,12 @@ def test_convert_produces_qualified_full_name() -> None:
     assert symbols[0].name == "MyMethod"
 
 
-def test_find_overridden_method_non_override_returns_none() -> None:
+def test_find_method_calls_returns_empty() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
+    from unittest.mock import MagicMock
 
     adapter = CSharpLSPAdapter(MagicMock())
-    symbol = IndexSymbol(
-        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
-        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
-    )
-    assert adapter.find_overridden_method(symbol) is None
-
-
-def test_find_overridden_method_returns_base_full_name() -> None:
-    from synapse.lsp.csharp import CSharpLSPAdapter
-    from synapse.lsp.interface import IndexSymbol, SymbolKind
-
-    mock_ls = MagicMock()
-    mock_ls.repository_root_path = "/proj"
-
-    # request_containing_symbol → containing class
-    class_sym = {
-        "name": "MyClass", "kind": 5,
-        "location": {
-            "uri": "file:///proj/Foo.cs",
-            "range": {"start": {"line": 5, "character": 0}},
-        },
-    }
-    mock_ls.request_containing_symbol.return_value = class_sym
-
-    # prepare_type_hierarchy → one hierarchy item
-    hier_item = {"name": "MyClass", "uri": "file:///proj/Foo.cs", "range": {"start": {"line": 5, "character": 0}}}
-    mock_ls.server.send.prepare_type_hierarchy.return_value = [hier_item]
-
-    # type_hierarchy_supertypes → one parent type
-    parent_type = {"name": "BaseClass", "uri": "file:///proj/Base.cs", "range": {"start": {"line": 1, "character": 0}}}
-    mock_ls.server.send.type_hierarchy_supertypes.return_value = [parent_type]
-
-    # request_document_symbols → doc with matching method
-    ns_sym = {"name": "MyNs", "kind": 3, "parent": None}
-    base_class_sym = {"name": "BaseClass", "kind": 5, "parent": ns_sym}
-    base_method_sym = {"name": "DoWork", "kind": 6, "parent": base_class_sym}
-    mock_doc = MagicMock()
-    mock_doc.iter_symbols.return_value = [base_method_sym]
-    mock_ls.request_document_symbols.return_value = mock_doc
-
-    adapter = CSharpLSPAdapter(mock_ls)
-    symbol = IndexSymbol(
-        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
-        file_path="/proj/Foo.cs", line=10, signature="public override void DoWork()",
-    )
-
-    result = adapter.find_overridden_method(symbol)
-    assert result == "MyNs.BaseClass.DoWork"
-
-
-def test_find_overridden_method_exception_returns_none() -> None:
-    from synapse.lsp.csharp import CSharpLSPAdapter
-    from synapse.lsp.interface import IndexSymbol, SymbolKind
-
-    mock_ls = MagicMock()
-    mock_ls.repository_root_path = "/proj"
-    mock_ls.request_containing_symbol.side_effect = RuntimeError("LSP error")
-
-    adapter = CSharpLSPAdapter(mock_ls)
-    symbol = IndexSymbol(
-        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
-        file_path="/proj/Foo.cs", line=10, signature="public override void DoWork()",
-    )
-    assert adapter.find_overridden_method(symbol) is None
-
-
-def test_find_method_calls_returns_empty_when_no_hierarchy() -> None:
-    from synapse.lsp.csharp import CSharpLSPAdapter
-    from synapse.lsp.interface import IndexSymbol, SymbolKind
-
-    mock_ls = MagicMock()
-    mock_ls.repository_root_path = "/proj"
-    mock_ls.server.send.prepare_call_hierarchy.return_value = []
-
-    adapter = CSharpLSPAdapter(mock_ls)
     symbol = IndexSymbol(
         name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
         file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
@@ -164,42 +90,17 @@ def test_find_method_calls_returns_empty_when_no_hierarchy() -> None:
     assert adapter.find_method_calls(symbol) == []
 
 
-def test_find_method_calls_returns_callee_full_names() -> None:
+def test_find_overridden_method_returns_none() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
+    from unittest.mock import MagicMock
 
-    mock_ls = MagicMock()
-    mock_ls.repository_root_path = "/proj"
-
-    hier_item = {
-        "name": "DoWork", "kind": 6,
-        "uri": "file:///proj/Foo.cs",
-        "selectionRange": {"start": {"line": 10, "character": 4}},
-    }
-    mock_ls.server.send.prepare_call_hierarchy.return_value = [hier_item]
-
-    callee_item = {
-        "name": "Helper", "kind": 6,
-        "uri": "file:///proj/Bar.cs",
-        "selectionRange": {"start": {"line": 20, "character": 4}},
-    }
-    mock_ls.server.send.outgoing_calls.return_value = [
-        {"to": callee_item, "fromRanges": [{"start": {"line": 12, "character": 8}}]},
-    ]
-
-    ns_sym = {"name": "BarNs", "kind": 3, "parent": None}
-    cls_sym = {"name": "BarClass", "kind": 5, "parent": ns_sym}
-    callee_sym = {"name": "Helper", "kind": 6, "parent": cls_sym}
-    mock_ls.request_defining_symbol.return_value = callee_sym
-
-    adapter = CSharpLSPAdapter(mock_ls)
+    adapter = CSharpLSPAdapter(MagicMock())
     symbol = IndexSymbol(
-        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
-        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
+        name="Execute", full_name="MyNs.MyClass.Execute", kind=SymbolKind.METHOD,
+        file_path="/proj/Foo.cs", line=5, signature="public override void Execute()",
     )
-
-    result = adapter.find_method_calls(symbol)
-    assert result == ["BarNs.BarClass.Helper"]
+    assert adapter.find_overridden_method(symbol) is None
 
 
 def test_create_uses_csharp_language_enum() -> None:
@@ -227,20 +128,7 @@ def test_create_uses_csharp_language_enum() -> None:
         CSharpLSPAdapter.create("/some/project")
 
     _, kwargs = mock_config_class.call_args
-    assert kwargs["language"] is FakeLanguage.CSHARP
+    assert kwargs["code_language"] is FakeLanguage.CSHARP
 
-
-def test_find_method_calls_exception_returns_empty() -> None:
-    from synapse.lsp.csharp import CSharpLSPAdapter
-    from synapse.lsp.interface import IndexSymbol, SymbolKind
-
-    mock_ls = MagicMock()
-    mock_ls.repository_root_path = "/proj"
-    mock_ls.server.send.prepare_call_hierarchy.side_effect = RuntimeError("LSP down")
-
-    adapter = CSharpLSPAdapter(mock_ls)
-    symbol = IndexSymbol(
-        name="DoWork", full_name="MyNs.MyClass.DoWork", kind=SymbolKind.METHOD,
-        file_path="/proj/Foo.cs", line=10, signature="public void DoWork()",
-    )
-    assert adapter.find_method_calls(symbol) == []
+    _, ls_kwargs = fake_csharp_ls.CSharpLanguageServer.call_args
+    assert ls_kwargs["repository_root_path"] == "/some/project"

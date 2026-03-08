@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
-from urllib.parse import urlparse
 
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
@@ -49,12 +47,9 @@ class CSharpLSPAdapter:
         from solidlsp.ls_config import Language, LanguageServerConfig
         from solidlsp.settings import SolidLSPSettings
 
-        config = LanguageServerConfig(
-            language=Language.CSHARP,
-            project_root=root_path,
-        )
+        config = LanguageServerConfig(code_language=Language.CSHARP)
         settings = SolidLSPSettings()
-        ls = CSharpLanguageServer(config=config, settings=settings)
+        ls = CSharpLanguageServer(config=config, repository_root_path=root_path, solidlsp_settings=settings)
         ls.start()
         return cls(ls)
 
@@ -76,82 +71,10 @@ class CSharpLSPAdapter:
             return []
 
     def find_method_calls(self, symbol: IndexSymbol) -> list[str]:
-        try:
-            root = self._ls.repository_root_path
-            file_uri = Path(symbol.file_path).as_uri()
-
-            items = self._ls.server.send.prepare_call_hierarchy({
-                "textDocument": {"uri": file_uri},
-                "position": {"line": symbol.line, "character": 0},
-            })
-            if not items:
-                return []
-
-            callee_names: set[str] = set()
-            for item in items:
-                outgoing = self._ls.server.send.outgoing_calls({"item": item})
-                if not outgoing:
-                    continue
-                for call in outgoing:
-                    to = call.get("to", {})
-                    to_uri = to.get("uri", "")
-                    to_start = to.get("selectionRange", {}).get("start", {})
-                    abs_path = urlparse(to_uri).path
-                    if not abs_path:
-                        continue
-                    to_rel = os.path.relpath(abs_path, root)
-                    defining = self._ls.request_defining_symbol(
-                        to_rel, to_start.get("line", 0), to_start.get("character", 0)
-                    )
-                    if defining is not None:
-                        callee_names.add(_build_full_name(defining))
-
-            return list(callee_names)
-        except Exception:
-            log.exception("Failed to find method calls for %s", symbol.full_name)
-            return []
+        return []
 
     def find_overridden_method(self, symbol: IndexSymbol) -> str | None:
-        if "override" not in symbol.signature.lower():
-            return None
-        try:
-            root = self._ls.repository_root_path
-            rel_path = os.path.relpath(symbol.file_path, root)
-
-            class_sym = self._ls.request_containing_symbol(rel_path, symbol.line, 0)
-            if class_sym is None:
-                return None
-
-            class_loc = class_sym.get("location", {})
-            class_uri = class_loc.get("uri", "")
-            class_start = class_loc.get("range", {}).get("start", {})
-
-            items = self._ls.server.send.prepare_type_hierarchy({
-                "textDocument": {"uri": class_uri},
-                "position": class_start,
-            })
-            if not items:
-                return None
-
-            for item in items:
-                supertypes = self._ls.server.send.type_hierarchy_supertypes({"item": item})
-                if not supertypes:
-                    continue
-                for supertype in supertypes:
-                    abs_path = urlparse(supertype.get("uri", "")).path
-                    if not abs_path:
-                        continue
-                    super_rel = os.path.relpath(abs_path, root)
-                    doc_syms = self._ls.request_document_symbols(super_rel)
-                    if doc_syms is None:
-                        continue
-                    for s in doc_syms.iter_symbols():
-                        if s.get("name") == symbol.name:
-                            return _build_full_name(s)
-            return None
-        except Exception:
-            log.exception("Failed to find overridden method for %s", symbol.full_name)
-            return None
+        return None
 
     def shutdown(self) -> None:
         try:

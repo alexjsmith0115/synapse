@@ -5,8 +5,8 @@ import os
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
-    upsert_calls, upsert_contains, upsert_contains_symbol,
-    upsert_inherits, upsert_implements, upsert_overrides,
+    upsert_contains, upsert_contains_symbol,
+    upsert_inherits, upsert_implements,
 )
 from synapse.graph.nodes import (
     upsert_class, upsert_directory, upsert_field, upsert_file,
@@ -82,11 +82,3 @@ class Indexer:
                     upsert_inherits(self._conn, symbol.full_name, base_type)
                 else:
                     upsert_implements(self._conn, symbol.full_name, base_type)
-
-            if symbol.kind == SymbolKind.METHOD:
-                for callee_full_name in self._lsp.find_method_calls(symbol):
-                    upsert_calls(self._conn, symbol.full_name, callee_full_name)
-
-                overridden = self._lsp.find_overridden_method(symbol)
-                if overridden:
-                    upsert_overrides(self._conn, symbol.full_name, overridden)

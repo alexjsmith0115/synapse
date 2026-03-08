@@ -33,9 +33,6 @@ def test_index_project_upserts_class_symbol() -> None:
     lsp.get_document_symbols.return_value = [
         _make_symbol("MyClass", SymbolKind.CLASS),
     ]
-    lsp.find_method_calls.return_value = []
-    lsp.find_overridden_method.return_value = None
-
     indexer = Indexer(conn, lsp)
     indexer.index_project("/proj", "csharp")
 
