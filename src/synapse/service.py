@@ -98,7 +98,8 @@ class SynapseService:
         return [_p(item) for item in find_callees(self._conn, method_full_name)]
 
     def get_hierarchy(self, class_name: str) -> dict:
-        return get_hierarchy(self._conn, class_name)
+        raw = get_hierarchy(self._conn, class_name)
+        return {"parents": [_p(n) for n in raw["parents"]], "children": [_p(n) for n in raw["children"]]}
 
     def search_symbols(self, query: str, kind: str | None = None) -> list[dict]:
         return [_p(item) for item in search_symbols(self._conn, query, kind)]
@@ -113,10 +114,10 @@ class SynapseService:
         return execute_readonly_query(self._conn, cypher)
 
     def find_type_references(self, full_name: str) -> list[dict]:
-        return query_find_type_references(self._conn, full_name)
+        return [{"symbol": _p(r["symbol"]), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name)]
 
     def find_dependencies(self, full_name: str) -> list[dict]:
-        return query_find_dependencies(self._conn, full_name)
+        return [{"type": _p(r["type"]), "kind": r["kind"]} for r in query_find_dependencies(self._conn, full_name)]
 
     # --- Summaries ---
 
