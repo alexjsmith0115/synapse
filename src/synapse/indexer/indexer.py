@@ -77,7 +77,7 @@ class Indexer:
             case SymbolKind.CLASS | SymbolKind.INTERFACE | SymbolKind.ABSTRACT_CLASS | SymbolKind.ENUM | SymbolKind.RECORD:
                 upsert_class(self._conn, symbol.full_name, symbol.name, symbol.kind.value)
             case SymbolKind.METHOD:
-                upsert_method(self._conn, symbol.full_name, symbol.name, symbol.signature, symbol.is_abstract, symbol.is_static)
+                upsert_method(self._conn, symbol.full_name, symbol.name, symbol.signature, symbol.is_abstract, symbol.is_static, symbol.line)
             case SymbolKind.PROPERTY:
                 upsert_property(self._conn, symbol.full_name, symbol.name, "")
             case SymbolKind.FIELD:

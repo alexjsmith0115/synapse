@@ -22,7 +22,7 @@ def test_writes_calls_edge_when_lsp_resolves_callee():
     ls.request_defining_symbol.return_value = callee_sym
 
     extractor = MagicMock()
-    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5)]
+    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
 
     indexer = CallIndexer(conn, ls, extractor=extractor)
     indexer._index_file("/proj/Foo.cs", "namespace X{}", {("/proj/Foo.cs", 3): "MyNs.MyClass.Caller"})
@@ -30,8 +30,8 @@ def test_writes_calls_edge_when_lsp_resolves_callee():
     conn.execute.assert_called_once()
     call_args = conn.execute.call_args
     assert "CALLS" in call_args[0][0]
-    assert call_args[1]["caller"] == "MyNs.MyClass.Caller"
-    assert call_args[1]["callee"] == "MyNs.MyClass.Helper"
+    assert call_args[0][1]["caller"] == "MyNs.MyClass.Caller"
+    assert call_args[0][1]["callee"] == "MyNs.MyClass.Helper"
 
 
 def test_skips_edge_when_lsp_returns_none():
@@ -40,7 +40,7 @@ def test_skips_edge_when_lsp_returns_none():
     ls.request_defining_symbol.return_value = None
 
     extractor = MagicMock()
-    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Unknown", 5)]
+    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Unknown", 5, 12)]
 
     indexer = CallIndexer(conn, ls, extractor=extractor)
     indexer._index_file("/proj/Foo.cs", "namespace X{}", {("/proj/Foo.cs", 3): "MyNs.MyClass.Caller"})
@@ -56,7 +56,7 @@ def test_skips_edge_when_callee_is_not_a_method():
     ls.request_defining_symbol.return_value = class_sym
 
     extractor = MagicMock()
-    extractor.extract.return_value = [("MyNs.MyClass.Caller", "MyClass", 5)]
+    extractor.extract.return_value = [("MyNs.MyClass.Caller", "MyClass", 5, 12)]
 
     indexer = CallIndexer(conn, ls, extractor=extractor)
     indexer._index_file("/proj/Foo.cs", "namespace X{}", {("/proj/Foo.cs", 3): "MyNs.MyClass.Caller"})
@@ -93,7 +93,7 @@ def test_skips_self_calls():
     ls.request_defining_symbol.return_value = self_sym
 
     extractor = MagicMock()
-    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Caller", 5)]
+    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Caller", 5, 12)]
 
     indexer = CallIndexer(conn, ls, extractor=extractor)
     indexer._index_file("/proj/Foo.cs", "namespace X{}", {("/proj/Foo.cs", 3): "MyNs.MyClass.Caller"})

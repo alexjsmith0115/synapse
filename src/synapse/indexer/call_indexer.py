@@ -5,8 +5,9 @@ import os
 from pathlib import Path
 
 from synapse.graph.connection import GraphConnection
+from synapse.graph.edges import upsert_calls
 from synapse.indexer.call_extractor import TreeSitterCallExtractor
-from synapse.lsp.csharp import _build_full_name
+from synapse.lsp.util import build_full_name
 
 log = logging.getLogger(__name__)
 
@@ -66,8 +67,8 @@ class CallIndexer:
 
         try:
             with self._ls.open_file(rel_path):
-                for caller_full_name, _callee_simple, call_line_1 in call_sites:
-                    self._resolve_and_write(caller_full_name, rel_path, call_line_1 - 1)
+                for caller_full_name, _callee_simple, call_line_1, call_col_0 in call_sites:
+                    self._resolve_and_write(caller_full_name, rel_path, call_line_1 - 1, call_col_0)
         except Exception:
             log.warning("LSP open_file failed for %s, skipping", rel_path)
 
@@ -76,23 +77,19 @@ class CallIndexer:
         caller_full_name: str,
         rel_path: str,
         line_0: int,
+        col_0: int,
     ) -> None:
         try:
-            symbol = self._ls.request_defining_symbol(rel_path, line_0, 0)
+            symbol = self._ls.request_defining_symbol(rel_path, line_0, col_0)
         except Exception:
             return
         if symbol is None:
             return
         if symbol.get("kind") not in _METHOD_KINDS:
             return
-        callee_full_name = _build_full_name(symbol)
+        callee_full_name = build_full_name(symbol)
         if callee_full_name and callee_full_name != caller_full_name:
-            self._conn.execute(
-                "MATCH (src:Method {full_name: $caller}), (dst:Method {full_name: $callee}) "
-                "MERGE (src)-[:CALLS]->(dst)",
-                caller=caller_full_name,
-                callee=callee_full_name,
-            )
+            upsert_calls(self._conn, caller_full_name, callee_full_name)
 
     @staticmethod
     def _iter_cs_files(root_path: str):

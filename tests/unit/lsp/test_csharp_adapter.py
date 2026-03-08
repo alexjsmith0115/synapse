@@ -18,37 +18,37 @@ def test_csharp_adapter_implements_protocol() -> None:
     assert issubclass(CSharpLSPAdapter, LSPAdapter) or hasattr(CSharpLSPAdapter, "get_workspace_files")
 
 
-from synapse.lsp.csharp import _build_full_name
+from synapse.lsp.util import build_full_name
 
 
 def test_build_full_name_root_symbol() -> None:
     raw = {"name": "MyNamespace", "kind": 3}
-    assert _build_full_name(raw) == "MyNamespace"
+    assert build_full_name(raw) == "MyNamespace"
 
 
 def test_build_full_name_one_parent() -> None:
     parent = {"name": "MyNs", "kind": 3}
     raw = {"name": "MyClass", "kind": 5, "parent": parent}
-    assert _build_full_name(raw) == "MyNs.MyClass"
+    assert build_full_name(raw) == "MyNs.MyClass"
 
 
 def test_build_full_name_two_parents() -> None:
     grandparent = {"name": "MyNs", "kind": 3}
     parent = {"name": "MyClass", "kind": 5, "parent": grandparent}
     raw = {"name": "MyMethod", "kind": 6, "parent": parent}
-    assert _build_full_name(raw) == "MyNs.MyClass.MyMethod"
+    assert build_full_name(raw) == "MyNs.MyClass.MyMethod"
 
 
 def test_build_full_name_overload_appends_params() -> None:
     parent = {"name": "MyClass", "kind": 5}
     raw = {"name": "DoWork", "kind": 6, "parent": parent, "overload_idx": 1, "detail": "void DoWork(int x, string y)"}
-    assert _build_full_name(raw) == "MyClass.DoWork(int x, string y)"
+    assert build_full_name(raw) == "MyClass.DoWork(int x, string y)"
 
 
 def test_build_full_name_overload_no_paren_in_detail() -> None:
     parent = {"name": "MyClass", "kind": 5}
     raw = {"name": "DoWork", "kind": 6, "parent": parent, "overload_idx": 0, "detail": "void DoWork"}
-    assert _build_full_name(raw) == "MyClass.DoWork"
+    assert build_full_name(raw) == "MyClass.DoWork"
 
 
 def test_convert_produces_qualified_full_name() -> None:
@@ -80,7 +80,6 @@ def test_convert_produces_qualified_full_name() -> None:
 def test_find_method_calls_returns_empty() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
-    from unittest.mock import MagicMock
 
     adapter = CSharpLSPAdapter(MagicMock())
     symbol = IndexSymbol(
@@ -93,7 +92,6 @@ def test_find_method_calls_returns_empty() -> None:
 def test_find_overridden_method_returns_none() -> None:
     from synapse.lsp.csharp import CSharpLSPAdapter
     from synapse.lsp.interface import IndexSymbol, SymbolKind
-    from unittest.mock import MagicMock
 
     adapter = CSharpLSPAdapter(MagicMock())
     symbol = IndexSymbol(

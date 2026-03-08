@@ -119,7 +119,7 @@ def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
 
 
 def get_method_symbol_map(conn: GraphConnection) -> dict[tuple[str, int], str]:
-    rows = conn.execute(
+    rows = conn.query(
         "MATCH (m:Method)<-[:CONTAINS]-(f:File) RETURN m.full_name, m.line, f.path"
     )
     return {

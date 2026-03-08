@@ -511,6 +511,7 @@ class CSharpLanguageServer(SolidLanguageServer):
                             "symbolKind": {"valueSet": list(range(1, 27))},
                             "hierarchicalDocumentSymbolSupport": True,
                         },
+                        "callHierarchy": {"dynamicRegistration": True},
                     },
                 },
             },

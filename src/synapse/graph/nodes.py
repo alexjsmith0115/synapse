@@ -45,11 +45,12 @@ def upsert_method(
     signature: str,
     is_abstract: bool,
     is_static: bool,
+    line: int | None = None,
 ) -> None:
     conn.execute(
         "MERGE (n:Method {full_name: $full_name}) "
-        "SET n.name = $name, n.signature = $sig, n.is_abstract = $is_abstract, n.is_static = $is_static",
-        {"full_name": full_name, "name": name, "sig": signature, "is_abstract": is_abstract, "is_static": is_static},
+        "SET n.name = $name, n.signature = $sig, n.is_abstract = $is_abstract, n.is_static = $is_static, n.line = $line",
+        {"full_name": full_name, "name": name, "sig": signature, "is_abstract": is_abstract, "is_static": is_static, "line": line},
     )
 
 
