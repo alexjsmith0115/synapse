@@ -1,6 +1,12 @@
+import pytest
 from unittest.mock import MagicMock, call, mock_open, patch
 from synapse.indexer.indexer import Indexer
-from synapse.lsp.interface import IndexSymbol, SymbolKind
+from synapse.lsp.interface import IndexSymbol, SymbolKind, LSPAdapter
+
+
+@pytest.fixture
+def mock_conn():
+    return MagicMock()
 
 
 def _make_symbol(name: str, kind: SymbolKind, file_path: str = "/proj/Foo.cs") -> IndexSymbol:
@@ -182,3 +188,16 @@ def test_directory_chain_creates_dir_contains_file() -> None:
 
     calls = [str(c) for c in conn.execute.call_args_list]
     assert any("/proj/src" in c and "/proj/src/Foo.cs" in c and "CONTAINS" in c for c in calls)
+
+
+def test_upsert_symbol_passes_end_line(mock_conn):
+    """Verify that _upsert_symbol passes end_line from IndexSymbol to the node upsert."""
+    lsp = MagicMock(spec=LSPAdapter)
+    indexer = Indexer(mock_conn, lsp)
+    sym = IndexSymbol(
+        name="MyMethod", full_name="Ns.C.MyMethod", kind=SymbolKind.METHOD,
+        file_path="/proj/F.cs", line=10, end_line=20, signature="void MyMethod()",
+    )
+    indexer._upsert_symbol(sym)
+    _, params = mock_conn.execute.call_args[0]
+    assert params["end_line"] == 20
