@@ -34,6 +34,7 @@ def test_upsert_contains_symbol_matches_both_by_full_name() -> None:
     cypher, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
     assert "CONTAINS" in cypher
     assert params["from_id"] == "MyNs.MyClass"
+    assert params["to_id"] == "MyNs.MyClass.DoWork()"
 
 
 def test_upsert_calls_uses_full_names() -> None:

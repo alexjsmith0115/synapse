@@ -2,7 +2,6 @@ from synapse.graph.connection import GraphConnection
 
 
 def upsert_dir_contains(conn: GraphConnection, parent_path: str, child_path: str) -> None:
-    """CONTAINS edge between two path-based nodes (Directory→Directory or Directory→File)."""
     conn.execute(
         "MATCH (src {path: $parent}), (dst {path: $child}) "
         "MERGE (src)-[:CONTAINS]->(dst)",
@@ -11,7 +10,6 @@ def upsert_dir_contains(conn: GraphConnection, parent_path: str, child_path: str
 
 
 def upsert_file_contains_symbol(conn: GraphConnection, file_path: str, symbol_full_name: str) -> None:
-    """CONTAINS edge from a File (matched by path) to a symbol (matched by full_name)."""
     conn.execute(
         "MATCH (src:File {path: $file}), (dst {full_name: $sym}) "
         "MERGE (src)-[:CONTAINS]->(dst)",
@@ -20,7 +18,6 @@ def upsert_file_contains_symbol(conn: GraphConnection, file_path: str, symbol_fu
 
 
 def upsert_contains_symbol(conn: GraphConnection, from_full_name: str, to_full_name: str) -> None:
-    """CONTAINS edge between two symbols (e.g. Class→Method, Package→Class)."""
     conn.execute(
         "MATCH (src {full_name: $from_id}), (dst {full_name: $to_id}) "
         "MERGE (src)-[:CONTAINS]->(dst)",
