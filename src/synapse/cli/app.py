@@ -126,6 +126,20 @@ def query(cypher: str) -> None:
         typer.echo(row)
 
 
+@app.command("type-refs")
+def type_refs(full_name: str) -> None:
+    """Find all symbols that reference a type."""
+    for item in _get_service().find_type_references(full_name):
+        typer.echo(item)
+
+
+@app.command()
+def dependencies(full_name: str) -> None:
+    """Find all types referenced by a symbol."""
+    for item in _get_service().find_dependencies(full_name):
+        typer.echo(item)
+
+
 @summary_app.command("get")
 def summary_get(full_name: str) -> None:
     """Get the summary for a symbol."""

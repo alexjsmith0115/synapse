@@ -79,3 +79,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     def unwatch_project(path: str) -> str:
         service.unwatch_project(path)
         return f"Stopped watching {path}"
+
+    @mcp.tool()
+    def find_type_references(full_name: str) -> list[dict]:
+        return service.find_type_references(full_name)
+
+    @mcp.tool()
+    def find_dependencies(full_name: str) -> list[dict]:
+        return service.find_dependencies(full_name)

@@ -9,6 +9,8 @@ from synapse.graph.queries import (
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
+    find_type_references as query_find_type_references,
+    find_dependencies as query_find_dependencies,
 )
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
@@ -31,11 +33,11 @@ class SynapseService:
         indexer.index_project(path, language)
 
     def index_calls(self, path: str) -> None:
-        """Run the call edge indexing pass on an already-structurally-indexed project."""
-        from synapse.indexer.call_indexer import CallIndexer
+        """Run the relationship resolution pass on an already-structurally-indexed project."""
+        from synapse.indexer.symbol_resolver import SymbolResolver
         lsp = CSharpLSPAdapter.create(path)
         symbol_map = get_method_symbol_map(self._conn)
-        CallIndexer(self._conn, lsp.language_server).index_calls(path, symbol_map)
+        SymbolResolver(self._conn, lsp.language_server).resolve(path, symbol_map)
         lsp.shutdown()
 
     def delete_project(self, path: str) -> None:
@@ -97,6 +99,12 @@ class SynapseService:
 
     def execute_query(self, cypher: str) -> list:
         return execute_readonly_query(self._conn, cypher)
+
+    def find_type_references(self, full_name: str) -> list[dict]:
+        return query_find_type_references(self._conn, full_name)
+
+    def find_dependencies(self, full_name: str) -> list[dict]:
+        return query_find_dependencies(self._conn, full_name)
 
     # --- Summaries ---
 
