@@ -13,6 +13,11 @@ from synapse.graph.queries import (
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
+def _p(node) -> dict:
+    """Extract properties from a FalkorDB Node or pass through a plain dict (used in tests)."""
+    return node.properties if hasattr(node, "properties") else node
+
+
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
@@ -157,12 +162,13 @@ class SynapseService:
 
         parent = get_containing_type(self._conn, full_name)
         if parent:
-            parent_fn = parent["full_name"]
+            parent_fn = _p(parent)["full_name"]
             members = get_members_overview(self._conn, parent_fn)
             member_lines = []
             for m in members:
-                sig = m.get("signature") or m.get("type_name") or ""
-                member_lines.append(f"  {m.get('name', '?')}: {sig}")
+                mp = _p(m)
+                sig = mp.get("signature") or mp.get("type_name") or ""
+                member_lines.append(f"  {mp.get('name', '?')}: {sig}")
             sections.append(
                 f"## Containing Type: {parent_fn}\n\n"
                 + "\n".join(member_lines)
@@ -172,15 +178,15 @@ class SynapseService:
             if interfaces:
                 iface_lines = []
                 for iface in interfaces:
-                    iface_fn = iface["full_name"]
+                    iface_fn = _p(iface)["full_name"]
                     iface_members = get_members_overview(self._conn, iface_fn)
-                    iface_sigs = [f"  {m.get('name', '?')}: {m.get('signature', '')}" for m in iface_members]
+                    iface_sigs = [f"  {_p(m).get('name', '?')}: {_p(m).get('signature', '')}" for m in iface_members]
                     iface_lines.append(f"### {iface_fn}\n" + "\n".join(iface_sigs))
                 sections.append("## Implemented Interfaces\n\n" + "\n\n".join(iface_lines))
 
         callees = find_callees(self._conn, full_name)
         if callees:
-            callee_lines = [f"- `{c['full_name']}` — {c.get('signature', '')}" for c in callees]
+            callee_lines = [f"- `{_p(c)['full_name']}` — {_p(c).get('signature', '')}" for c in callees]
             sections.append("## Called Methods\n\n" + "\n".join(callee_lines))
 
         deps = query_find_dependencies(self._conn, full_name)
@@ -188,13 +194,13 @@ class SynapseService:
             dep_lines = []
             seen_types: set[str] = set()
             for dep in deps:
-                type_fn = dep["type"]["full_name"]
+                type_fn = _p(dep["type"])["full_name"]
                 if type_fn in seen_types:
                     continue
                 seen_types.add(type_fn)
                 kind = dep["kind"]
                 type_members = get_members_overview(self._conn, type_fn)
-                member_sigs = [f"  {m.get('name', '?')}: {m.get('signature', '') or m.get('type_name', '')}" for m in type_members]
+                member_sigs = [f"  {_p(m).get('name', '?')}: {_p(m).get('signature', '') or _p(m).get('type_name', '')}" for m in type_members]
                 dep_lines.append(f"### {type_fn} ({kind})\n" + "\n".join(member_sigs))
             sections.append("## Parameter & Return Types\n\n" + "\n\n".join(dep_lines))
 
