@@ -6,6 +6,7 @@ from synapse.graph.queries import (
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
     find_type_references, find_dependencies,
+    get_containing_type, get_members_overview,
 )
 
 
@@ -133,3 +134,24 @@ def test_find_dependencies_returns_referenced_types() -> None:
     assert len(results) == 1
     assert results[0]["type"]["full_name"] == "Ns.UserDto"
     assert results[0]["kind"] == "return_type"
+
+
+def test_get_containing_type_returns_parent() -> None:
+    conn = _conn([[{"full_name": "Ns.MyClass", "name": "MyClass", "kind": "class", "line": 5, "end_line": 50}]])
+    result = get_containing_type(conn, "Ns.MyClass.MyMethod")
+    assert result["full_name"] == "Ns.MyClass"
+
+
+def test_get_containing_type_returns_none_for_top_level() -> None:
+    conn = _conn([])
+    result = get_containing_type(conn, "Ns.MyClass")
+    assert result is None
+
+
+def test_get_members_overview_returns_children() -> None:
+    conn = _conn([
+        [{"full_name": "Ns.C.M()", "name": "M", "signature": "void M()"}],
+        [{"full_name": "Ns.C.P", "name": "P", "type_name": "string"}],
+    ])
+    results = get_members_overview(conn, "Ns.C")
+    assert len(results) == 2

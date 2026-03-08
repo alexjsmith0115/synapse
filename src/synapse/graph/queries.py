@@ -156,6 +156,24 @@ def find_dependencies(conn: GraphConnection, full_name: str) -> list[dict]:
     return [{"type": row[0], "kind": row[1]} for row in rows]
 
 
+def get_containing_type(conn: GraphConnection, full_name: str) -> dict | None:
+    rows = conn.query(
+        "MATCH (parent)-[:CONTAINS]->(n {full_name: $full_name}) "
+        "WHERE parent:Class OR parent:Interface "
+        "RETURN parent",
+        {"full_name": full_name},
+    )
+    return rows[0][0] if rows else None
+
+
+def get_members_overview(conn: GraphConnection, full_name: str) -> list[dict]:
+    rows = conn.query(
+        "MATCH (n {full_name: $full_name})-[:CONTAINS]->(child) RETURN child",
+        {"full_name": full_name},
+    )
+    return [r[0] for r in rows]
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
