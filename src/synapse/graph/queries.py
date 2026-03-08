@@ -118,6 +118,17 @@ def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
     }
 
 
+def get_method_symbol_map(conn: GraphConnection) -> dict[tuple[str, int], str]:
+    rows = conn.execute(
+        "MATCH (m:Method)<-[:CONTAINS]-(f:File) RETURN m.full_name, m.line, f.path"
+    )
+    return {
+        (row[2], row[1]): row[0]
+        for row in rows
+        if row[0] and row[1] is not None and row[2]
+    }
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):

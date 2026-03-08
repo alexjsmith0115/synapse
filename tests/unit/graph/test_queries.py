@@ -4,6 +4,7 @@ from synapse.graph.queries import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
+    get_method_symbol_map,
 )
 
 
@@ -82,3 +83,10 @@ def test_search_symbols_rejects_invalid_kind() -> None:
     conn = _conn([])
     with pytest.raises(ValueError):
         search_symbols(conn, "Foo", kind="'; DROP TABLE users; --")
+
+
+def test_get_method_symbol_map_returns_correct_dict() -> None:
+    conn = MagicMock()
+    conn.execute.return_value = [["Ns.C.M", 5, "/proj/C.cs"]]
+    result = get_method_symbol_map(conn)
+    assert result == {("/proj/C.cs", 5): "Ns.C.M"}
