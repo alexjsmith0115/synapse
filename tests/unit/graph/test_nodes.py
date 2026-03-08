@@ -82,3 +82,38 @@ def test_upsert_class_does_not_use_namespace_label() -> None:
     upsert_class(conn, "MyApp.Foo", "Foo", "class")
     cypher = conn.execute.call_args[0][0]
     assert ":Namespace" not in cypher
+
+
+def test_upsert_method_includes_end_line() -> None:
+    conn = _conn()
+    upsert_method(conn, "Ns.C.M()", "M", "void M()", is_abstract=False, is_static=False, line=5, end_line=15)
+    _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert params["end_line"] == 15
+
+
+def test_upsert_class_includes_end_line() -> None:
+    conn = _conn()
+    upsert_class(conn, "Ns.C", "C", "class", end_line=50)
+    _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert params["end_line"] == 50
+
+
+def test_upsert_interface_includes_end_line() -> None:
+    conn = _conn()
+    upsert_interface(conn, "Ns.I", "I", end_line=30)
+    _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert params["end_line"] == 30
+
+
+def test_upsert_property_includes_end_line() -> None:
+    conn = _conn()
+    upsert_property(conn, "Ns.C.P", "P", "string", end_line=12)
+    _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert params["end_line"] == 12
+
+
+def test_upsert_field_includes_end_line() -> None:
+    conn = _conn()
+    upsert_field(conn, "Ns.C._f", "_f", "int", end_line=8)
+    _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert params["end_line"] == 8
