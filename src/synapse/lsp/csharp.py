@@ -91,7 +91,7 @@ class CSharpLSPAdapter:
         except Exception:
             log.warning("Language server did not shut down cleanly")
 
-    def _convert(self, raw: dict, file_path: str, parent_full_name: str | None = None) -> IndexSymbol:
+    def _convert(self, raw: dict, file_path: str, parent_full_name: str | None) -> IndexSymbol:
         kind_int = raw.get("kind", 0)
         kind = _LSP_KIND_MAP.get(kind_int)
         if kind is None:
