@@ -174,6 +174,14 @@ def get_members_overview(conn: GraphConnection, full_name: str) -> list[dict]:
     return [r[0] for r in rows]
 
 
+def get_implemented_interfaces(conn: GraphConnection, class_full_name: str) -> list[dict]:
+    rows = conn.query(
+        "MATCH (c:Class {full_name: $full_name})-[:IMPLEMENTS]->(i:Interface) RETURN i",
+        {"full_name": class_full_name},
+    )
+    return [r[0] for r in rows]
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
