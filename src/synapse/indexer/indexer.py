@@ -16,6 +16,7 @@ from synapse.graph.nodes import (
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
 from synapse.indexer.import_extractor import CSharpImportExtractor
+from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
 log = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ class Indexer:
             for sym in syms
             if sym.kind == SymbolKind.METHOD
         }
-        CallIndexer(self._conn, self._lsp.language_server).index_calls(root_path, symbol_map)
+        SymbolResolver(self._conn, self._lsp.language_server).resolve(root_path, symbol_map)
 
         if not keep_lsp_running:
             self._lsp.shutdown()
@@ -84,6 +85,13 @@ class Indexer:
             self._index_base_types(file_path, source, name_to_full_names, kind_map)
         except OSError:
             log.warning("Could not read %s for base type extraction", file_path)
+
+        symbol_map = {
+            (sym.file_path, sym.line): sym.full_name
+            for sym in symbols
+            if sym.kind == SymbolKind.METHOD
+        }
+        SymbolResolver(self._conn, self._lsp.language_server).resolve_single_file(file_path, symbol_map)
 
     def delete_file(self, file_path: str) -> None:
         delete_file_nodes(self._conn, file_path)
