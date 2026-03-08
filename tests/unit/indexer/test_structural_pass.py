@@ -68,21 +68,17 @@ def test_index_project_does_not_shut_down_lsp_in_watch_mode() -> None:
     lsp.shutdown.assert_not_called()
 
 
-def test_index_project_runs_call_indexer_after_structural_pass() -> None:
+def test_index_project_runs_symbol_resolver_after_structural_pass() -> None:
     conn = MagicMock()
     lsp = MagicMock()
     lsp.get_workspace_files.return_value = ["/proj/Foo.cs"]
     lsp.get_document_symbols.return_value = []
 
-    mock_call_indexer_cls = MagicMock()
-    mock_call_indexer_instance = MagicMock()
-    mock_call_indexer_cls.return_value = mock_call_indexer_instance
-
-    with patch("synapse.indexer.indexer.CallIndexer", mock_call_indexer_cls):
+    with patch("synapse.indexer.indexer.SymbolResolver") as MockResolver:
         indexer = Indexer(conn, lsp)
         indexer.index_project("/proj", "csharp")
 
-    args, _ = mock_call_indexer_instance.index_calls.call_args
+    args, _ = MockResolver.return_value.resolve.call_args
     assert args[0] == "/proj"
 
 
@@ -188,6 +184,18 @@ def test_directory_chain_creates_dir_contains_file() -> None:
 
     calls = [str(c) for c in conn.execute.call_args_list]
     assert any("/proj/src" in c and "/proj/src/Foo.cs" in c and "CONTAINS" in c for c in calls)
+
+
+def test_index_project_uses_symbol_resolver(mock_conn):
+    """Verify that index_project delegates to SymbolResolver instead of CallIndexer."""
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = []
+
+    with patch("synapse.indexer.indexer.SymbolResolver") as MockResolver:
+        indexer = Indexer(mock_conn, lsp)
+        indexer.index_project("/proj", "csharp")
+        MockResolver.assert_called_once()
+        MockResolver.return_value.resolve.assert_called_once()
 
 
 def test_upsert_symbol_passes_end_line(mock_conn):
