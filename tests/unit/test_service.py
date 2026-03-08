@@ -1,5 +1,10 @@
 from unittest.mock import MagicMock, patch
 from synapse.service import SynapseService
+from falkordb.node import Node as FalkorNode
+
+
+def _node(labels: list[str], props: dict) -> FalkorNode:
+    return FalkorNode(node_id=1, labels=labels, properties=props)
 
 
 def _service() -> SynapseService:
@@ -137,4 +142,48 @@ def test_get_context_for_returns_none_when_symbol_not_found():
     with patch("synapse.service.get_symbol", return_value=None):
         result = svc.get_context_for("Ns.Missing")
 
+    assert result is None
+
+
+def test_p_extracts_properties_and_labels_from_falkordb_node():
+    from synapse.service import _p
+    node = _node(["Method"], {"full_name": "A.B", "signature": "B() : void"})
+    result = _p(node)
+    assert result == {"full_name": "A.B", "signature": "B() : void", "_labels": ["Method"]}
+
+
+def test_p_passes_through_plain_dict():
+    from synapse.service import _p
+    d = {"full_name": "A.B"}
+    assert _p(d) is d
+
+
+def test_find_callers_returns_plain_dicts():
+    svc = _service()
+    node = _node(["Method"], {"full_name": "A.Caller", "signature": "Caller() : void"})
+    with patch("synapse.service.find_callers", return_value=[node]):
+        result = svc.find_callers("A.B")
+    assert result == [{"full_name": "A.Caller", "signature": "Caller() : void", "_labels": ["Method"]}]
+
+
+def test_find_implementations_returns_plain_dicts():
+    svc = _service()
+    node = _node(["Class"], {"full_name": "A.Impl"})
+    with patch("synapse.service.find_implementations", return_value=[node]):
+        result = svc.find_implementations("A.IService")
+    assert result == [{"full_name": "A.Impl", "_labels": ["Class"]}]
+
+
+def test_get_symbol_returns_plain_dict_with_labels():
+    svc = _service()
+    node = _node(["Class"], {"full_name": "A.Cls"})
+    with patch("synapse.service.get_symbol", return_value=node):
+        result = svc.get_symbol("A.Cls")
+    assert result == {"full_name": "A.Cls", "_labels": ["Class"]}
+
+
+def test_get_symbol_returns_none_when_not_found():
+    svc = _service()
+    with patch("synapse.service.get_symbol", return_value=None):
+        result = svc.get_symbol("Missing")
     assert result is None
