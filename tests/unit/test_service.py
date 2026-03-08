@@ -86,3 +86,55 @@ def test_get_symbol_source_returns_error_when_end_line_missing(tmp_path):
 
     assert result is not None
     assert "re-index" in result.lower()
+
+
+def test_get_context_for_method_includes_all_sections(tmp_path):
+    source_file = tmp_path / "Foo.cs"
+    source_file.write_text(
+        "namespace Ns {\n"
+        "    class MyClass : IFoo {\n"
+        "        public UserDto GetUser(int id) {\n"
+        "            return _repo.Find(id);\n"
+        "        }\n"
+        "    }\n"
+        "}\n"
+    )
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value={"full_name": "Ns.MyClass.GetUser", "name": "GetUser", "line": 2, "end_line": 4}),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 2, "end_line": 4}),
+        get_containing_type=MagicMock(return_value={"full_name": "Ns.MyClass", "name": "MyClass", "kind": "class", "line": 1, "end_line": 5}),
+        get_members_overview=MagicMock(return_value=[
+            {"full_name": "Ns.MyClass.GetUser", "name": "GetUser", "signature": "UserDto GetUser(int)"},
+        ]),
+        get_implemented_interfaces=MagicMock(return_value=[
+            {"full_name": "Ns.IFoo", "name": "IFoo"},
+        ]),
+        find_callees=MagicMock(return_value=[
+            {"full_name": "Ns.Repo.Find", "name": "Find", "signature": "User Find(int)"},
+        ]),
+        query_find_dependencies=MagicMock(return_value=[
+            {"type": {"full_name": "Ns.UserDto", "name": "UserDto"}, "kind": "return_type"},
+        ]),
+    ):
+        result = svc.get_context_for("Ns.MyClass.GetUser")
+
+    assert "## Target:" in result
+    assert "## Containing Type:" in result
+    assert "## Implemented Interfaces" in result
+    assert "## Called Methods" in result
+    assert "## Parameter & Return Types" in result
+
+
+def test_get_context_for_returns_none_when_symbol_not_found():
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch("synapse.service.get_symbol", return_value=None):
+        result = svc.get_context_for("Ns.Missing")
+
+    assert result is None

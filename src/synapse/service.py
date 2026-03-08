@@ -9,6 +9,7 @@ from synapse.graph.queries import (
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
+    get_containing_type, get_members_overview, get_implemented_interfaces,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
@@ -143,6 +144,61 @@ class SynapseService:
             if parent:
                 result = parent + "\n\n" + result
         return result
+
+    def get_context_for(self, full_name: str) -> str | None:
+        symbol = get_symbol(self._conn, full_name)
+        if symbol is None:
+            return None
+
+        sections: list[str] = []
+
+        source = self.get_symbol_source(full_name)
+        sections.append(f"## Target: {full_name}\n\n{source or 'Source not available (re-index may be required)'}")
+
+        parent = get_containing_type(self._conn, full_name)
+        if parent:
+            parent_fn = parent["full_name"]
+            members = get_members_overview(self._conn, parent_fn)
+            member_lines = []
+            for m in members:
+                sig = m.get("signature") or m.get("type_name") or ""
+                member_lines.append(f"  {m.get('name', '?')}: {sig}")
+            sections.append(
+                f"## Containing Type: {parent_fn}\n\n"
+                + "\n".join(member_lines)
+            )
+
+            interfaces = get_implemented_interfaces(self._conn, parent_fn)
+            if interfaces:
+                iface_lines = []
+                for iface in interfaces:
+                    iface_fn = iface["full_name"]
+                    iface_members = get_members_overview(self._conn, iface_fn)
+                    iface_sigs = [f"  {m.get('name', '?')}: {m.get('signature', '')}" for m in iface_members]
+                    iface_lines.append(f"### {iface_fn}\n" + "\n".join(iface_sigs))
+                sections.append("## Implemented Interfaces\n\n" + "\n\n".join(iface_lines))
+
+        callees = find_callees(self._conn, full_name)
+        if callees:
+            callee_lines = [f"- `{c['full_name']}` — {c.get('signature', '')}" for c in callees]
+            sections.append("## Called Methods\n\n" + "\n".join(callee_lines))
+
+        deps = query_find_dependencies(self._conn, full_name)
+        if deps:
+            dep_lines = []
+            seen_types: set[str] = set()
+            for dep in deps:
+                type_fn = dep["type"]["full_name"]
+                if type_fn in seen_types:
+                    continue
+                seen_types.add(type_fn)
+                kind = dep["kind"]
+                type_members = get_members_overview(self._conn, type_fn)
+                member_sigs = [f"  {m.get('name', '?')}: {m.get('signature', '') or m.get('type_name', '')}" for m in type_members]
+                dep_lines.append(f"### {type_fn} ({kind})\n" + "\n".join(member_sigs))
+            sections.append("## Parameter & Return Types\n\n" + "\n\n".join(dep_lines))
+
+        return "\n\n---\n\n".join(sections)
 
     def _get_parent_signature(self, full_name: str) -> str | None:
         """Get the declaration line of the containing class/interface."""
