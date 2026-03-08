@@ -1,17 +1,26 @@
 from synapse.graph.connection import GraphConnection
 
 
-def upsert_contains(conn: GraphConnection, from_path: str, to_full_name: str) -> None:
-    """Create CONTAINS edge. from_path is a file or directory path; to_full_name is any symbol."""
+def upsert_dir_contains(conn: GraphConnection, parent_path: str, child_path: str) -> None:
+    """CONTAINS edge between two path-based nodes (Directory→Directory or Directory→File)."""
     conn.execute(
-        "MATCH (src {path: $from_id}), (dst {full_name: $to_id}) "
+        "MATCH (src {path: $parent}), (dst {path: $child}) "
         "MERGE (src)-[:CONTAINS]->(dst)",
-        {"from_id": from_path, "to_id": to_full_name},
+        {"parent": parent_path, "child": child_path},
+    )
+
+
+def upsert_file_contains_symbol(conn: GraphConnection, file_path: str, symbol_full_name: str) -> None:
+    """CONTAINS edge from a File (matched by path) to a symbol (matched by full_name)."""
+    conn.execute(
+        "MATCH (src:File {path: $file}), (dst {full_name: $sym}) "
+        "MERGE (src)-[:CONTAINS]->(dst)",
+        {"file": file_path, "sym": symbol_full_name},
     )
 
 
 def upsert_contains_symbol(conn: GraphConnection, from_full_name: str, to_full_name: str) -> None:
-    """Create CONTAINS edge between two symbols (e.g. Class -> Method)."""
+    """CONTAINS edge between two symbols (e.g. Class→Method, Package→Class)."""
     conn.execute(
         "MATCH (src {full_name: $from_id}), (dst {full_name: $to_id}) "
         "MERGE (src)-[:CONTAINS]->(dst)",
@@ -35,9 +44,17 @@ def upsert_inherits(conn: GraphConnection, child_full_name: str, parent_full_nam
     )
 
 
+def upsert_interface_inherits(conn: GraphConnection, child_full_name: str, parent_full_name: str) -> None:
+    conn.execute(
+        "MATCH (src:Interface {full_name: $child}), (dst:Interface {full_name: $parent}) "
+        "MERGE (src)-[:INHERITS]->(dst)",
+        {"child": child_full_name, "parent": parent_full_name},
+    )
+
+
 def upsert_implements(conn: GraphConnection, class_full_name: str, interface_full_name: str) -> None:
     conn.execute(
-        "MATCH (src:Class {full_name: $cls}), (dst:Class {full_name: $iface}) "
+        "MATCH (src:Class {full_name: $cls}), (dst:Interface {full_name: $iface}) "
         "MERGE (src)-[:IMPLEMENTS]->(dst)",
         {"cls": class_full_name, "iface": interface_full_name},
     )
@@ -51,9 +68,9 @@ def upsert_overrides(conn: GraphConnection, method_full_name: str, base_method_f
     )
 
 
-def upsert_references(conn: GraphConnection, from_full_name: str, type_full_name: str) -> None:
+def upsert_imports(conn: GraphConnection, file_path: str, package_full_name: str) -> None:
     conn.execute(
-        "MATCH (src {full_name: $from_id}), (dst:Class {full_name: $to_id}) "
-        "MERGE (src)-[:REFERENCES]->(dst)",
-        {"from_id": from_full_name, "to_id": type_full_name},
+        "MATCH (src:File {path: $file}), (dst:Package {full_name: $pkg}) "
+        "MERGE (src)-[:IMPORTS]->(dst)",
+        {"file": file_path, "pkg": package_full_name},
     )
