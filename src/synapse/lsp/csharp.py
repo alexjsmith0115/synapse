@@ -59,10 +59,25 @@ class CSharpLSPAdapter:
             raw = self._ls.request_document_symbols(file_path)
             if raw is None:
                 return []
-            return [self._convert(s, file_path) for s in raw.iter_symbols()]
+            result: list[IndexSymbol] = []
+            for root in raw.root_symbols:
+                self._traverse(root, file_path, parent_full_name=None, result=result)
+            return result
         except Exception:
             log.exception("Failed to get symbols for %s", file_path)
             return []
+
+    def _traverse(
+        self,
+        raw: dict,
+        file_path: str,
+        parent_full_name: str | None,
+        result: list[IndexSymbol],
+    ) -> None:
+        sym = self._convert(raw, file_path, parent_full_name)
+        result.append(sym)
+        for child in raw.get("children", []):
+            self._traverse(child, file_path, parent_full_name=sym.full_name, result=result)
 
     def find_method_calls(self, symbol: IndexSymbol) -> list[str]:
         return []
@@ -76,7 +91,7 @@ class CSharpLSPAdapter:
         except Exception:
             log.warning("Language server did not shut down cleanly")
 
-    def _convert(self, raw: dict, file_path: str) -> IndexSymbol:
+    def _convert(self, raw: dict, file_path: str, parent_full_name: str | None = None) -> IndexSymbol:
         kind_int = raw.get("kind", 0)
         kind = _LSP_KIND_MAP.get(kind_int)
         if kind is None:
@@ -91,7 +106,8 @@ class CSharpLSPAdapter:
             kind=kind,
             file_path=file_path,
             line=line,
-            signature=raw.get("detail", "") or "",
+            signature=detail,
             is_abstract="abstract" in detail.lower(),
             is_static="static" in detail.lower(),
+            parent_full_name=parent_full_name,
         )
