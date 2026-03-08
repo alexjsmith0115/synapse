@@ -168,6 +168,25 @@ def test_index_symbol_has_end_line_default():
     assert sym.end_line == 0
 
 
+def test_convert_captures_end_line():
+    from synapse.lsp.csharp import CSharpLSPAdapter
+    ls = MagicMock()
+    adapter = CSharpLSPAdapter(ls)
+    raw = {
+        "name": "MyMethod",
+        "kind": 6,  # Method
+        "detail": "void MyMethod()",
+        "location": {
+            "range": {
+                "start": {"line": 10, "character": 4},
+                "end": {"line": 25, "character": 5},
+            }
+        },
+    }
+    sym = adapter._convert(raw, "/proj/Foo.cs", parent_full_name="MyNs.MyClass")
+    assert sym.end_line == 25
+
+
 def test_create_uses_csharp_language_enum() -> None:
     import sys
     from unittest.mock import patch, MagicMock

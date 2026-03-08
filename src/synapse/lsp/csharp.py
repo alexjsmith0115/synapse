@@ -98,7 +98,9 @@ class CSharpLSPAdapter:
             log.debug("Unmapped LSP SymbolKind %d for symbol %s, defaulting to CLASS", kind_int, raw.get("name", "?"))
             kind = SymbolKind.CLASS
         name = raw.get("name", "")
-        line = raw.get("location", {}).get("range", {}).get("start", {}).get("line", 0)
+        range_obj = raw.get("location", {}).get("range", {})
+        line = range_obj.get("start", {}).get("line", 0)
+        end_line = range_obj.get("end", {}).get("line", 0)
         detail = raw.get("detail", "") or ""
         return IndexSymbol(
             name=name,
@@ -106,6 +108,7 @@ class CSharpLSPAdapter:
             kind=kind,
             file_path=file_path,
             line=line,
+            end_line=end_line,
             signature=detail,
             is_abstract="abstract" in detail.lower(),
             is_static="static" in detail.lower(),
