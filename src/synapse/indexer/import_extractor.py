@@ -6,8 +6,6 @@ log = logging.getLogger(__name__)
 
 
 class CSharpImportExtractor:
-    """Parses C# source files and returns package names from non-static using directives."""
-
     def __init__(self) -> None:
         import tree_sitter_c_sharp
         from tree_sitter import Language, Parser

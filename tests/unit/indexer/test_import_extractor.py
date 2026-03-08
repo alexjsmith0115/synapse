@@ -34,3 +34,9 @@ def test_extract_no_duplicates(extractor: CSharpImportExtractor) -> None:
     source = "using System;\nusing System;\nclass Foo {}"
     result = extractor.extract("/proj/Foo.cs", source)
     assert result.count("System") == 1
+
+
+def test_extract_ignores_alias_using(extractor: CSharpImportExtractor) -> None:
+    source = "using Alias = System.IO;\nclass Foo {}"
+    result = extractor.extract("/proj/Foo.cs", source)
+    assert result == []

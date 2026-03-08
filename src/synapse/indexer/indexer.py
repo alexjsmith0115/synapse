@@ -80,6 +80,8 @@ class Indexer:
         except OSError:
             log.warning("Could not read %s for import extraction", file_path)
             return
+        # IMPORTS edges only write when the Package node exists; external namespaces (e.g. System)
+        # are not indexed, so their using directives are tracked but produce no graph edge.
         for pkg_name in self._import_extractor.extract(file_path, source):
             upsert_imports(self._conn, file_path, pkg_name)
 
