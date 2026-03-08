@@ -14,8 +14,13 @@ from synapse.graph.queries import (
     find_dependencies as query_find_dependencies,
 )
 def _p(node) -> dict:
-    """Extract properties from a FalkorDB Node or pass through a plain dict (used in tests)."""
-    return node.properties if hasattr(node, "properties") else node
+    """Extract properties from a FalkorDB Node (including labels) or pass through a plain dict."""
+    if hasattr(node, "properties"):
+        result = dict(node.properties)
+        if node.labels:
+            result["_labels"] = list(node.labels)
+        return result
+    return node
 
 
 from synapse.indexer.indexer import Indexer
@@ -80,25 +85,26 @@ class SynapseService:
     # --- Queries ---
 
     def get_symbol(self, full_name: str) -> dict | None:
-        return get_symbol(self._conn, full_name)
+        result = get_symbol(self._conn, full_name)
+        return _p(result) if result is not None else None
 
     def find_implementations(self, interface_name: str) -> list[dict]:
-        return find_implementations(self._conn, interface_name)
+        return [_p(item) for item in find_implementations(self._conn, interface_name)]
 
     def find_callers(self, method_full_name: str) -> list[dict]:
-        return find_callers(self._conn, method_full_name)
+        return [_p(item) for item in find_callers(self._conn, method_full_name)]
 
     def find_callees(self, method_full_name: str) -> list[dict]:
-        return find_callees(self._conn, method_full_name)
+        return [_p(item) for item in find_callees(self._conn, method_full_name)]
 
     def get_hierarchy(self, class_name: str) -> dict:
         return get_hierarchy(self._conn, class_name)
 
     def search_symbols(self, query: str, kind: str | None = None) -> list[dict]:
-        return search_symbols(self._conn, query, kind)
+        return [_p(item) for item in search_symbols(self._conn, query, kind)]
 
     def list_projects(self) -> list[dict]:
-        return list_projects(self._conn)
+        return [_p(item) for item in list_projects(self._conn)]
 
     def get_index_status(self, path: str) -> dict | None:
         return get_index_status(self._conn, path)
@@ -121,7 +127,7 @@ class SynapseService:
         return get_summary(self._conn, full_name)
 
     def list_summarized(self, project_path: str | None = None) -> list[dict]:
-        return list_summarized(self._conn, project_path)
+        return [_p(item) for item in list_summarized(self._conn, project_path)]
 
     def remove_summary(self, full_name: str) -> None:
         remove_summary(self._conn, full_name)
@@ -135,7 +141,7 @@ class SynapseService:
         file_path = info["file_path"]
         line = info["line"]
         end_line = info["end_line"]
-        if not end_line:
+        if line is None or not end_line:
             return f"Symbol '{full_name}' was indexed without line ranges. Re-index the project to enable source retrieval."
         try:
             with open(file_path, encoding="utf-8", errors="ignore") as f:
