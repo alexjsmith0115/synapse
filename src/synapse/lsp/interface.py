@@ -24,6 +24,7 @@ class IndexSymbol:
     kind: SymbolKind
     file_path: str
     line: int
+    end_line: int = 0
     signature: str = ""
     is_abstract: bool = False
     is_static: bool = False

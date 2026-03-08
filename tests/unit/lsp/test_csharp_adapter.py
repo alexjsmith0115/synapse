@@ -162,6 +162,12 @@ def test_get_document_symbols_sets_none_parent_for_top_level() -> None:
     assert symbols[0].parent_full_name is None
 
 
+def test_index_symbol_has_end_line_default():
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+    sym = IndexSymbol(name="Foo", full_name="Ns.Foo", kind=SymbolKind.CLASS, file_path="/f.cs", line=0)
+    assert sym.end_line == 0
+
+
 def test_create_uses_csharp_language_enum() -> None:
     import sys
     from unittest.mock import patch, MagicMock
