@@ -65,7 +65,7 @@ def test_convert_produces_qualified_full_name() -> None:
     }
 
     mock_doc_syms = MagicMock()
-    mock_doc_syms.iter_symbols.return_value = [symbol_raw]
+    mock_doc_syms.root_symbols = [symbol_raw]
     mock_ls = MagicMock()
     mock_ls.request_document_symbols.return_value = mock_doc_syms
 
@@ -99,6 +99,67 @@ def test_find_overridden_method_returns_none() -> None:
         file_path="/proj/Foo.cs", line=5, signature="public override void Execute()",
     )
     assert adapter.find_overridden_method(symbol) is None
+
+
+def test_index_symbol_has_parent_full_name_field() -> None:
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+    sym = IndexSymbol(
+        name="DoWork", full_name="MyNs.MyClass.DoWork",
+        kind=SymbolKind.METHOD, file_path="/proj/Foo.cs", line=10,
+        parent_full_name="MyNs.MyClass",
+    )
+    assert sym.parent_full_name == "MyNs.MyClass"
+
+
+def test_index_symbol_parent_full_name_defaults_to_none() -> None:
+    from synapse.lsp.interface import IndexSymbol, SymbolKind
+    sym = IndexSymbol(
+        name="MyClass", full_name="MyNs.MyClass",
+        kind=SymbolKind.CLASS, file_path="/proj/Foo.cs", line=1,
+    )
+    assert sym.parent_full_name is None
+
+
+def test_get_document_symbols_sets_parent_full_name_on_nested_symbol() -> None:
+    from synapse.lsp.csharp import CSharpLSPAdapter
+
+    grandparent = {"name": "MyNs", "kind": 3, "parent": None}
+    parent_raw = {"name": "MyClass", "kind": 5, "parent": grandparent, "children": []}
+    method_raw = {
+        "name": "DoWork", "kind": 6, "parent": parent_raw, "children": [],
+        "detail": "void DoWork()", "location": {"range": {"start": {"line": 5}}},
+    }
+    parent_raw["children"] = [method_raw]
+
+    mock_doc_syms = MagicMock()
+    mock_doc_syms.root_symbols = [parent_raw]
+    mock_ls = MagicMock()
+    mock_ls.request_document_symbols.return_value = mock_doc_syms
+
+    adapter = CSharpLSPAdapter(mock_ls)
+    symbols = adapter.get_document_symbols("/proj/Foo.cs")
+
+    method = next(s for s in symbols if s.name == "DoWork")
+    assert method.parent_full_name == "MyNs.MyClass"
+
+
+def test_get_document_symbols_sets_none_parent_for_top_level() -> None:
+    from synapse.lsp.csharp import CSharpLSPAdapter
+
+    class_raw = {
+        "name": "MyClass", "kind": 5, "parent": None, "children": [],
+        "detail": "class MyClass", "location": {"range": {"start": {"line": 1}}},
+    }
+
+    mock_doc_syms = MagicMock()
+    mock_doc_syms.root_symbols = [class_raw]
+    mock_ls = MagicMock()
+    mock_ls.request_document_symbols.return_value = mock_doc_syms
+
+    adapter = CSharpLSPAdapter(mock_ls)
+    symbols = adapter.get_document_symbols("/proj/Foo.cs")
+
+    assert symbols[0].parent_full_name is None
 
 
 def test_create_uses_csharp_language_enum() -> None:
