@@ -5,6 +5,7 @@ from synapse.graph.queries import (
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
+    find_type_references, find_dependencies,
 )
 
 
@@ -110,3 +111,25 @@ def test_get_symbol_source_info_returns_none_when_not_found() -> None:
     conn = _conn([])
     result = get_symbol_source_info(conn, "Ns.Missing")
     assert result is None
+
+
+def test_find_type_references_returns_referencing_symbols() -> None:
+    conn = _conn([[{"full_name": "Ns.C.M()", "name": "M"}, "parameter"]])
+    results = find_type_references(conn, "Ns.UserDto")
+    assert len(results) == 1
+    assert results[0]["symbol"]["full_name"] == "Ns.C.M()"
+    assert results[0]["kind"] == "parameter"
+
+
+def test_find_type_references_returns_empty_for_no_refs() -> None:
+    conn = _conn([])
+    results = find_type_references(conn, "Ns.Orphan")
+    assert results == []
+
+
+def test_find_dependencies_returns_referenced_types() -> None:
+    conn = _conn([[{"full_name": "Ns.UserDto", "name": "UserDto"}, "return_type"]])
+    results = find_dependencies(conn, "Ns.C.M()")
+    assert len(results) == 1
+    assert results[0]["type"]["full_name"] == "Ns.UserDto"
+    assert results[0]["kind"] == "return_type"
