@@ -6,7 +6,7 @@ import os
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
     upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
-    upsert_inherits, upsert_interface_inherits, upsert_implements,
+    upsert_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
 )
 from synapse.graph.nodes import (
     upsert_class, upsert_directory, upsert_field, upsert_file,
@@ -14,6 +14,7 @@ from synapse.graph.nodes import (
     upsert_repository, delete_file_nodes,
 )
 from synapse.indexer.call_indexer import CallIndexer
+from synapse.indexer.import_extractor import CSharpImportExtractor
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Indexer:
     def __init__(self, conn: GraphConnection, lsp: LSPAdapter) -> None:
         self._conn = conn
         self._lsp = lsp
+        self._import_extractor = CSharpImportExtractor()
 
     def index_project(self, root_path: str, language: str, keep_lsp_running: bool = False) -> None:
         files = self._lsp.get_workspace_files(root_path)
@@ -62,6 +64,7 @@ class Indexer:
     def _index_file_structure(self, file_path: str, root_path: str, symbols: list[IndexSymbol]) -> None:
         self._upsert_directory_chain(file_path, root_path)
         upsert_file(self._conn, file_path, os.path.basename(file_path), "csharp")
+        self._index_file_imports(file_path)
 
         for symbol in symbols:
             self._upsert_symbol(symbol)
@@ -69,6 +72,16 @@ class Indexer:
                 upsert_file_contains_symbol(self._conn, file_path, symbol.full_name)
             else:
                 upsert_contains_symbol(self._conn, symbol.parent_full_name, symbol.full_name)
+
+    def _index_file_imports(self, file_path: str) -> None:
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                source = f.read()
+        except OSError:
+            log.warning("Could not read %s for import extraction", file_path)
+            return
+        for pkg_name in self._import_extractor.extract(file_path, source):
+            upsert_imports(self._conn, file_path, pkg_name)
 
     def _upsert_directory_chain(self, file_path: str, root_path: str) -> None:
         dirs: list[str] = []
