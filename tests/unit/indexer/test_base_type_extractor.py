@@ -47,5 +47,11 @@ def test_extract_generic_base_class(extractor: CSharpBaseTypeExtractor) -> None:
     assert "List" in names
 
 
+def test_extract_record_with_base(extractor: CSharpBaseTypeExtractor) -> None:
+    source = "record Dog : Animal {}"
+    result = extractor.extract("/proj/Dog.cs", source)
+    assert ("Dog", "Animal", True) in result
+
+
 def test_extract_empty_file(extractor: CSharpBaseTypeExtractor) -> None:
     assert extractor.extract("/proj/Foo.cs", "") == []

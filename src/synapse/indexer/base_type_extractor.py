@@ -4,7 +4,12 @@ import logging
 
 log = logging.getLogger(__name__)
 
-_DECL_TYPES = frozenset({"class_declaration", "interface_declaration"})
+_DECL_TYPES = frozenset({
+    "class_declaration",
+    "interface_declaration",
+    "record_declaration",
+    "struct_declaration",
+})
 
 
 class CSharpBaseTypeExtractor:

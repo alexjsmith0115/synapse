@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call, mock_open, patch
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.interface import IndexSymbol, SymbolKind
 
@@ -150,6 +150,25 @@ def test_interface_symbol_creates_interface_node() -> None:
 
     calls = [str(c) for c in conn.execute.call_args_list]
     assert any(":Interface" in c and "IMyService" in c for c in calls)
+
+
+def test_index_project_runs_base_type_extractor() -> None:
+    conn = MagicMock()
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = ["/proj/Foo.cs"]
+    lsp.get_document_symbols.return_value = []
+
+    mock_extractor_cls = MagicMock()
+    mock_extractor_instance = MagicMock()
+    mock_extractor_cls.return_value = mock_extractor_instance
+    mock_extractor_instance.extract.return_value = []
+
+    with patch("synapse.indexer.indexer.CSharpBaseTypeExtractor", mock_extractor_cls):
+        indexer = Indexer(conn, lsp)
+        with patch("builtins.open", mock_open(read_data="")):
+            indexer.index_project("/proj", "csharp")
+
+    mock_extractor_instance.extract.assert_called()
 
 
 def test_directory_chain_creates_dir_contains_file() -> None:

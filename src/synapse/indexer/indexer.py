@@ -145,7 +145,6 @@ class Indexer:
                 if symbol.kind == SymbolKind.INTERFACE:
                     upsert_interface_inherits(self._conn, symbol.full_name, base_type)
                 elif symbol.kind in (SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.RECORD):
-                    # base_types are resolved to full names by the caller (Task 8).
                     # Both edge functions' MATCH labels ensure only valid edges are written.
                     upsert_inherits(self._conn, symbol.full_name, base_type)
                     upsert_implements(self._conn, symbol.full_name, base_type)
