@@ -10,7 +10,7 @@ from synapse.graph.edges import (
 )
 from synapse.graph.nodes import (
     upsert_class, upsert_directory, upsert_field, upsert_file,
-    upsert_method, upsert_namespace, upsert_property, upsert_repository,
+    upsert_method, upsert_package, upsert_property, upsert_repository,
     delete_file_nodes,
 )
 from synapse.indexer.call_indexer import CallIndexer
@@ -73,7 +73,7 @@ class Indexer:
     def _upsert_symbol(self, symbol: IndexSymbol) -> None:
         match symbol.kind:
             case SymbolKind.NAMESPACE:
-                upsert_namespace(self._conn, symbol.full_name, symbol.name)
+                upsert_package(self._conn, symbol.full_name, symbol.name)
             case SymbolKind.CLASS | SymbolKind.INTERFACE | SymbolKind.ABSTRACT_CLASS | SymbolKind.ENUM | SymbolKind.RECORD:
                 upsert_class(self._conn, symbol.full_name, symbol.name, symbol.kind.value)
             case SymbolKind.METHOD:

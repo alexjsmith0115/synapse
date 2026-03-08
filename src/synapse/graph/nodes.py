@@ -24,9 +24,16 @@ def upsert_file(conn: GraphConnection, path: str, name: str, language: str) -> N
     )
 
 
-def upsert_namespace(conn: GraphConnection, full_name: str, name: str) -> None:
+def upsert_package(conn: GraphConnection, full_name: str, name: str) -> None:
     conn.execute(
-        "MERGE (n:Namespace {full_name: $full_name}) SET n.name = $name",
+        "MERGE (n:Package {full_name: $full_name}) SET n.name = $name",
+        {"full_name": full_name, "name": name},
+    )
+
+
+def upsert_interface(conn: GraphConnection, full_name: str, name: str) -> None:
+    conn.execute(
+        "MERGE (n:Interface {full_name: $full_name}) SET n.name = $name",
         {"full_name": full_name, "name": name},
     )
 
