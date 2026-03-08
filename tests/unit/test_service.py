@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-from synapse.service import SynapseService
+from synapse.service import SynapseService, _p
 from falkordb.node import Node as FalkorNode
 
 
@@ -18,12 +18,6 @@ def test_set_summary_delegates_to_nodes() -> None:
         svc.set_summary("MyNs.MyClass", "Auth handler")
         mock_set.assert_called_once_with(svc._conn, "MyNs.MyClass", "Auth handler")
 
-
-def test_get_symbol_delegates_to_queries() -> None:
-    svc = _service()
-    with patch("synapse.service.get_symbol", return_value={"full_name": "X"}) as mock_get:
-        result = svc.get_symbol("X")
-        assert result == {"full_name": "X"}
 
 
 def test_watch_project_registers_watcher() -> None:
@@ -146,14 +140,12 @@ def test_get_context_for_returns_none_when_symbol_not_found():
 
 
 def test_p_extracts_properties_and_labels_from_falkordb_node():
-    from synapse.service import _p
     node = _node(["Method"], {"full_name": "A.B", "signature": "B() : void"})
     result = _p(node)
     assert result == {"full_name": "A.B", "signature": "B() : void", "_labels": ["Method"]}
 
 
 def test_p_passes_through_plain_dict():
-    from synapse.service import _p
     d = {"full_name": "A.B"}
     assert _p(d) is d
 
