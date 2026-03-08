@@ -89,8 +89,8 @@ class Indexer:
         delete_file_nodes(self._conn, file_path)
 
     def _index_file_structure(self, file_path: str, root_path: str, symbols: list[IndexSymbol]) -> None:
-        self._upsert_directory_chain(file_path, root_path)
         upsert_file(self._conn, file_path, os.path.basename(file_path), "csharp")
+        self._upsert_directory_chain(file_path, root_path)
         self._index_file_imports(file_path)
 
         for symbol in symbols:
