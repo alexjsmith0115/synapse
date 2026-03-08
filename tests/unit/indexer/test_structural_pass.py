@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.interface import IndexSymbol, SymbolKind
 
@@ -62,9 +62,7 @@ def test_index_project_does_not_shut_down_lsp_in_watch_mode() -> None:
     lsp.shutdown.assert_not_called()
 
 
-def test_index_project_runs_call_indexer_after_structural_pass():
-    from unittest.mock import MagicMock, patch
-
+def test_index_project_runs_call_indexer_after_structural_pass() -> None:
     conn = MagicMock()
     lsp = MagicMock()
     lsp.get_workspace_files.return_value = ["/proj/Foo.cs"]
@@ -78,4 +76,5 @@ def test_index_project_runs_call_indexer_after_structural_pass():
         indexer = Indexer(conn, lsp)
         indexer.index_project("/proj", "csharp")
 
-    mock_call_indexer_instance.index_calls.assert_called_once()
+    args, _ = mock_call_indexer_instance.index_calls.call_args
+    assert args[0] == "/proj"

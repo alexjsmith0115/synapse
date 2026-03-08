@@ -8,6 +8,7 @@ from synapse.graph.queries import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
+    get_method_symbol_map,
 )
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
@@ -33,15 +34,8 @@ class SynapseService:
         """Run the call edge indexing pass on an already-structurally-indexed project."""
         from synapse.indexer.call_indexer import CallIndexer
         lsp = CSharpLSPAdapter.create(path)
-        result = self._conn.execute(
-            "MATCH (m:Method)<-[:CONTAINS]-(f:File) RETURN m.full_name, m.line, f.path"
-        )
-        symbol_map = {
-            (row[2], row[1]): row[0]
-            for row in result
-            if row[0] and row[1] is not None and row[2]
-        }
-        CallIndexer(self._conn, lsp._ls).index_calls(path, symbol_map)
+        symbol_map = get_method_symbol_map(self._conn)
+        CallIndexer(self._conn, lsp.language_server).index_calls(path, symbol_map)
         lsp.shutdown()
 
     def delete_project(self, path: str) -> None:

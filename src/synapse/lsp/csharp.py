@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
+from synapse.lsp.util import build_full_name
 
 log = logging.getLogger(__name__)
 
@@ -22,23 +23,16 @@ _LSP_KIND_MAP: dict[int, SymbolKind] = {
 }
 
 
-def _build_full_name(raw: dict) -> str:
-    """Build a fully-qualified name by walking the parent chain of a UnifiedSymbolInformation."""
-    name = raw.get("name", "")
-    parent = raw.get("parent")
-    base = f"{_build_full_name(parent)}.{name}" if parent is not None else name
-    if "overload_idx" in raw:
-        detail = raw.get("detail", "") or ""
-        if "(" in detail:
-            return f"{base}{detail[detail.index('('):]}"
-    return base
-
 
 class CSharpLSPAdapter:
     """Wraps a SolidLanguageServer instance to provide the LSPAdapter interface for C#."""
 
     def __init__(self, language_server: object) -> None:
         self._ls = language_server
+
+    @property
+    def language_server(self) -> object:
+        return self._ls
 
     @classmethod
     def create(cls, root_path: str) -> CSharpLSPAdapter:
@@ -93,7 +87,7 @@ class CSharpLSPAdapter:
         detail = raw.get("detail", "") or ""
         return IndexSymbol(
             name=name,
-            full_name=_build_full_name(raw),
+            full_name=build_full_name(raw),
             kind=kind,
             file_path=file_path,
             line=line,

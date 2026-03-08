@@ -38,14 +38,14 @@ class Indexer:
 
         upsert_repository(self._conn, root_path, language)
 
-        # Phase 2: index CALLS edges now that all Method nodes exist
+        # CALLS resolution requires all Method nodes to be present; must run after the structural pass
         symbol_map = {
             (sym.file_path, sym.line): sym.full_name
             for syms in symbols_by_file.values()
             for sym in syms
-            if sym.kind.value == "method"
+            if sym.kind == SymbolKind.METHOD
         }
-        CallIndexer(self._conn, self._lsp._ls).index_calls(root_path, symbol_map)
+        CallIndexer(self._conn, self._lsp.language_server).index_calls(root_path, symbol_map)
 
         if not keep_lsp_running:
             self._lsp.shutdown()
