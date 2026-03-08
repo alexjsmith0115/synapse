@@ -37,9 +37,6 @@ class Indexer:
             symbols_by_file[file_path] = symbols
             self._index_file_structure(file_path, root_path, symbols)
 
-        for symbols in symbols_by_file.values():
-            self._index_file_relationships(symbols)
-
         upsert_repository(self._conn, root_path, language)
 
         # Build lookup tables for the base type resolution pass
@@ -74,7 +71,19 @@ class Indexer:
         delete_file_nodes(self._conn, file_path)
         symbols = self._lsp.get_document_symbols(file_path)
         self._index_file_structure(file_path, root_path, symbols)
-        self._index_file_relationships(symbols)
+
+        name_to_full_names: dict[str, list[str]] = {}
+        kind_map: dict[str, SymbolKind] = {}
+        for sym in symbols:
+            name_to_full_names.setdefault(sym.name, []).append(sym.full_name)
+            kind_map[sym.full_name] = sym.kind
+
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                source = f.read()
+            self._index_base_types(file_path, source, name_to_full_names, kind_map)
+        except OSError:
+            log.warning("Could not read %s for base type extraction", file_path)
 
     def delete_file(self, file_path: str) -> None:
         delete_file_nodes(self._conn, file_path)
@@ -138,16 +147,6 @@ class Indexer:
                 upsert_field(self._conn, symbol.full_name, symbol.name, "")
             case _:
                 log.debug("Skipping symbol of unhandled kind: %s", symbol.kind)
-
-    def _index_file_relationships(self, symbols: list[IndexSymbol]) -> None:
-        for symbol in symbols:
-            for base_type in symbol.base_types:
-                if symbol.kind == SymbolKind.INTERFACE:
-                    upsert_interface_inherits(self._conn, symbol.full_name, base_type)
-                elif symbol.kind in (SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.RECORD):
-                    # Both edge functions' MATCH labels ensure only valid edges are written.
-                    upsert_inherits(self._conn, symbol.full_name, base_type)
-                    upsert_implements(self._conn, symbol.full_name, base_type)
 
     def _index_base_types(
         self,
