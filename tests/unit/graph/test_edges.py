@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 from synapse.graph.edges import (
-    upsert_dir_contains, upsert_file_contains_symbol, upsert_contains_symbol,
-    upsert_calls, upsert_inherits, upsert_implements, upsert_overrides,
-    upsert_interface_inherits, upsert_references,
+    upsert_repo_contains_dir, upsert_dir_contains, upsert_file_contains_symbol,
+    upsert_contains_symbol, upsert_calls, upsert_inherits, upsert_implements,
+    upsert_overrides, upsert_interface_inherits, upsert_references,
 )
 
 
@@ -84,3 +84,13 @@ def test_upsert_references_creates_edge_with_kind():
     assert params["source"] == "Ns.C.M()"
     assert params["target"] == "Ns.UserDto"
     assert params["kind"] == "parameter"
+
+
+def test_upsert_repo_contains_dir_matches_repo_by_path() -> None:
+    conn = MagicMock()
+    upsert_repo_contains_dir(conn, "/proj", "/proj")
+    cypher, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert "Repository" in cypher
+    assert "CONTAINS" in cypher
+    assert params["repo"] == "/proj"
+    assert params["dir"] == "/proj"

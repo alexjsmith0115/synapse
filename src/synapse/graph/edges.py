@@ -1,6 +1,14 @@
 from synapse.graph.connection import GraphConnection
 
 
+def upsert_repo_contains_dir(conn: GraphConnection, repo_path: str, dir_path: str) -> None:
+    conn.execute(
+        "MATCH (src:Repository {path: $repo}), (dst:Directory {path: $dir}) "
+        "MERGE (src)-[:CONTAINS]->(dst)",
+        {"repo": repo_path, "dir": dir_path},
+    )
+
+
 def upsert_dir_contains(conn: GraphConnection, parent_path: str, child_path: str) -> None:
     conn.execute(
         "MATCH (src {path: $parent}), (dst {path: $child}) "

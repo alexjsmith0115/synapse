@@ -7,6 +7,7 @@ from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
     upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
     upsert_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
+    upsert_repo_contains_dir,
 )
 from synapse.graph.nodes import (
     upsert_class, upsert_directory, upsert_field, upsert_file,
@@ -39,6 +40,7 @@ class Indexer:
             self._index_file_structure(file_path, root_path, symbols)
 
         upsert_repository(self._conn, root_path, language)
+        upsert_repo_contains_dir(self._conn, root_path, root_path)
 
         # Build lookup tables for the base type resolution pass
         name_to_full_names: dict[str, list[str]] = {}
