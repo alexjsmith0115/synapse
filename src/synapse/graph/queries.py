@@ -129,6 +129,17 @@ def get_method_symbol_map(conn: GraphConnection) -> dict[tuple[str, int], str]:
     }
 
 
+def get_symbol_source_info(conn: GraphConnection, full_name: str) -> dict | None:
+    rows = conn.query(
+        "MATCH (f:File)-[:CONTAINS*]->(n {full_name: $full_name}) "
+        "RETURN f.path, n.line, n.end_line",
+        {"full_name": full_name},
+    )
+    if not rows:
+        return None
+    return {"file_path": rows[0][0], "line": rows[0][1], "end_line": rows[0][2]}
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):

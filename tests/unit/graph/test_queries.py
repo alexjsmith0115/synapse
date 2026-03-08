@@ -4,7 +4,7 @@ from synapse.graph.queries import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
-    get_method_symbol_map,
+    get_method_symbol_map, get_symbol_source_info,
 )
 
 
@@ -98,3 +98,15 @@ def test_get_method_symbol_map_returns_correct_dict() -> None:
     conn.query.return_value = [["Ns.C.M", 5, "/proj/C.cs"]]
     result = get_method_symbol_map(conn)
     assert result == {("/proj/C.cs", 5): "Ns.C.M"}
+
+
+def test_get_symbol_source_info_returns_location() -> None:
+    conn = _conn([["/proj/Foo.cs", 10, 25]])
+    result = get_symbol_source_info(conn, "Ns.C.MyMethod")
+    assert result == {"file_path": "/proj/Foo.cs", "line": 10, "end_line": 25}
+
+
+def test_get_symbol_source_info_returns_none_when_not_found() -> None:
+    conn = _conn([])
+    result = get_symbol_source_info(conn, "Ns.Missing")
+    assert result is None
