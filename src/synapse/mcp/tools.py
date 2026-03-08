@@ -87,3 +87,8 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     @mcp.tool()
     def find_dependencies(full_name: str) -> list[dict]:
         return service.find_dependencies(full_name)
+
+    @mcp.tool()
+    def get_context_for(full_name: str) -> str:
+        result = service.get_context_for(full_name)
+        return result or f"Symbol not found: {full_name}"
