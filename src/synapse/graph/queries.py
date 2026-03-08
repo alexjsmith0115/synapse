@@ -140,6 +140,22 @@ def get_symbol_source_info(conn: GraphConnection, full_name: str) -> dict | None
     return {"file_path": rows[0][0], "line": rows[0][1], "end_line": rows[0][2]}
 
 
+def find_type_references(conn: GraphConnection, full_name: str) -> list[dict]:
+    rows = conn.query(
+        "MATCH (src)-[r:REFERENCES]->(t {full_name: $full_name}) RETURN src, r.kind",
+        {"full_name": full_name},
+    )
+    return [{"symbol": row[0], "kind": row[1]} for row in rows]
+
+
+def find_dependencies(conn: GraphConnection, full_name: str) -> list[dict]:
+    rows = conn.query(
+        "MATCH (n {full_name: $full_name})-[r:REFERENCES]->(t) RETURN t, r.kind",
+        {"full_name": full_name},
+    )
+    return [{"type": row[0], "kind": row[1]} for row in rows]
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
