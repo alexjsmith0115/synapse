@@ -87,6 +87,6 @@ def test_search_symbols_rejects_invalid_kind() -> None:
 
 def test_get_method_symbol_map_returns_correct_dict() -> None:
     conn = MagicMock()
-    conn.execute.return_value = [["Ns.C.M", 5, "/proj/C.cs"]]
+    conn.query.return_value = [["Ns.C.M", 5, "/proj/C.cs"]]
     result = get_method_symbol_map(conn)
     assert result == {("/proj/C.cs", 5): "Ns.C.M"}
