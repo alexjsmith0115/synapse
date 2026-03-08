@@ -53,7 +53,8 @@ synapse <command> [args]
 
 | Command | Description |
 |---|---|
-| `synapse index <path> [--language csharp]` | Index a project into the graph |
+| `synapse index <path> [--language csharp]` | Index a project into the graph (structural pass) |
+| `synapse index-calls <path>` | Index CALLS edges for an already-structurally-indexed project |
 | `synapse watch <path>` | Watch a project for file changes and keep the graph updated (runs until Ctrl+C) |
 | `synapse delete <path>` | Remove a project and all its graph data |
 | `synapse status [path]` | Show index status for one project, or list all indexed projects |
@@ -143,19 +144,35 @@ These tools are available to any MCP client connected to `synapse-mcp`.
 
 ## Graph model
 
-Symbols are stored as nodes with these labels:
+### Node labels
 
-- `:Method` — methods and functions
-- `:Class` — classes, interfaces, abstract classes, enums, and records (distinguished by the `kind` property)
+Structural nodes (identified by `path`):
 
-Relationships between nodes:
+- `:Repository` — the indexed project root
+- `:Directory` — a directory within the project
+- `:File` — a source file
 
+Symbol nodes (identified by `full_name`):
+
+- `:Package` — a namespace or package
+- `:Class` — classes, abstract classes, enums, and records (distinguished by the `kind` property)
+- `:Interface` — interfaces
+- `:Method` — methods (with `signature`, `is_abstract`, `is_static`, `line` properties)
+- `:Property` — properties (with `type_name`)
+- `:Field` — fields (with `type_name`)
+
+A `:Summarized` label is added to any node that has a user-attached summary.
+
+### Relationships
+
+- `CONTAINS` — structural containment: Repository→Directory, Directory→File, File→Symbol, and Class/Package→nested symbols
+- `IMPORTS` — file imports a package/namespace
 - `CALLS` — method calls another method
 - `OVERRIDES` — method overrides a base method
 - `IMPLEMENTS` — class implements an interface
-- `INHERITS` — class inherits from another class
+- `INHERITS` — class inherits from another class, or interface extends another interface
 
-Fully-qualified names (e.g. `MyNamespace.MyClass.DoWork`) are used as node identifiers throughout.
+Fully-qualified names (e.g. `MyNamespace.MyClass.DoWork`) are used as symbol identifiers throughout.
 
 ---
 
