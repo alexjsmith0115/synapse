@@ -140,6 +140,13 @@ def dependencies(full_name: str) -> None:
         typer.echo(item)
 
 
+@app.command()
+def context(full_name: str) -> None:
+    """Get the full context needed to understand or modify a symbol."""
+    result = _get_service().get_context_for(full_name)
+    typer.echo(result or "Not found")
+
+
 @summary_app.command("get")
 def summary_get(full_name: str) -> None:
     """Get the summary for a symbol."""
