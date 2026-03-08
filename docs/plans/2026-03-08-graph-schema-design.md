@@ -77,6 +77,18 @@ Method  -[CALLS]->  Method
 
 Resolved via Phase 2 (tree-sitter + LSP `request_defining_symbol`). Existing implementation unchanged.
 
+### Type references
+
+```
+Method    -[REFERENCES {kind}]-> Class | Interface
+Property  -[REFERENCES {kind}]-> Class | Interface
+Field     -[REFERENCES {kind}]-> Class | Interface
+```
+
+`kind` values: `"return_type"`, `"parameter"`, `"property_type"`, `"field_type"`.
+
+Extracted by `TreeSitterTypeRefExtractor` and resolved via LSP in the `SymbolResolver` Phase 2 pass.
+
 ---
 
 ## Design Decisions
@@ -93,5 +105,5 @@ Resolved via Phase 2 (tree-sitter + LSP `request_defining_symbol`). Existing imp
 
 ## Out of Scope
 
-- `REFERENCES` edge (field/parameter type dependencies) — defined in `edges.py` but excluded from this design; revisit if type dependency queries become needed.
+- External package/dependency nodes (e.g. NuGet, npm) — `File -[IMPORTS]-> Package` targets only packages within the indexed repository.
 - External package/dependency nodes (e.g. NuGet, npm) — `File -[IMPORTS]-> Package` targets only packages within the indexed repository.
