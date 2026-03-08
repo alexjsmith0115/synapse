@@ -71,7 +71,6 @@ class Indexer:
                 upsert_contains_symbol(self._conn, symbol.parent_full_name, symbol.full_name)
 
     def _upsert_directory_chain(self, file_path: str, root_path: str) -> None:
-        """Walk from file's directory up to root_path, upserting directories and CONTAINS edges."""
         dirs: list[str] = []
         current = os.path.dirname(file_path)
         while True:

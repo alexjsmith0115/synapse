@@ -150,3 +150,16 @@ def test_interface_symbol_creates_interface_node() -> None:
 
     calls = [str(c) for c in conn.execute.call_args_list]
     assert any(":Interface" in c and "IMyService" in c for c in calls)
+
+
+def test_directory_chain_creates_dir_contains_file() -> None:
+    conn = MagicMock()
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = ["/proj/src/Foo.cs"]
+    lsp.get_document_symbols.return_value = []
+
+    indexer = Indexer(conn, lsp)
+    indexer.index_project("/proj", "csharp")
+
+    calls = [str(c) for c in conn.execute.call_args_list]
+    assert any("/proj/src" in c and "/proj/src/Foo.cs" in c and "CONTAINS" in c for c in calls)
