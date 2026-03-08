@@ -7,6 +7,7 @@ from synapse.graph.queries import (
     get_method_symbol_map, get_symbol_source_info,
     find_type_references, find_dependencies,
     get_containing_type, get_members_overview,
+    get_implemented_interfaces,
 )
 
 
@@ -154,4 +155,13 @@ def test_get_members_overview_returns_children() -> None:
         [{"full_name": "Ns.C.P", "name": "P", "type_name": "string"}],
     ])
     results = get_members_overview(conn, "Ns.C")
+    assert len(results) == 2
+
+
+def test_get_implemented_interfaces_returns_interfaces() -> None:
+    conn = _conn([
+        [{"full_name": "Ns.IFoo", "name": "IFoo"}],
+        [{"full_name": "Ns.IBar", "name": "IBar"}],
+    ])
+    results = get_implemented_interfaces(conn, "Ns.MyClass")
     assert len(results) == 2
