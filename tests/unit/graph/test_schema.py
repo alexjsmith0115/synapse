@@ -19,3 +19,24 @@ def test_ensure_schema_tolerates_already_indexed_error() -> None:
     mock_conn.execute.side_effect = ResponseError("Attribute 'path' is already indexed")
     # Should not raise
     ensure_schema(mock_conn)
+
+
+def test_schema_includes_package_index() -> None:
+    conn = MagicMock()
+    ensure_schema(conn)
+    calls = [c[0][0] for c in conn.execute.call_args_list]
+    assert any(":Package" in c for c in calls)
+
+
+def test_schema_includes_interface_index() -> None:
+    conn = MagicMock()
+    ensure_schema(conn)
+    calls = [c[0][0] for c in conn.execute.call_args_list]
+    assert any(":Interface" in c for c in calls)
+
+
+def test_schema_does_not_include_namespace_index() -> None:
+    conn = MagicMock()
+    ensure_schema(conn)
+    calls = [c[0][0] for c in conn.execute.call_args_list]
+    assert not any(":Namespace" in c for c in calls)
