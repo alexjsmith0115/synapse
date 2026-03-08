@@ -78,6 +78,13 @@ def symbol(full_name: str) -> None:
 
 
 @app.command()
+def source(full_name: str, include_class: bool = False) -> None:
+    """Print the source code of a symbol."""
+    result = _get_service().get_symbol_source(full_name, include_class_signature=include_class)
+    typer.echo(result or "Not found")
+
+
+@app.command()
 def callers(method_full_name: str) -> None:
     """Find all methods that call a given method."""
     for item in _get_service().find_callers(method_full_name):
