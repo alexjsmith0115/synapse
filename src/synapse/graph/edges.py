@@ -71,3 +71,12 @@ def upsert_imports(conn: GraphConnection, file_path: str, package_full_name: str
         "MERGE (src)-[:IMPORTS]->(dst)",
         {"file": file_path, "pkg": package_full_name},
     )
+
+
+def upsert_references(conn: GraphConnection, source_full_name: str, target_full_name: str, kind: str) -> None:
+    conn.execute(
+        "MATCH (src {full_name: $source}), (dst {full_name: $target}) "
+        "WHERE dst:Class OR dst:Interface "
+        "MERGE (src)-[r:REFERENCES {kind: $kind}]->(dst)",
+        {"source": source_full_name, "target": target_full_name, "kind": kind},
+    )

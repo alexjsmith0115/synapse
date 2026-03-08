@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 from synapse.graph.edges import (
     upsert_dir_contains, upsert_file_contains_symbol, upsert_contains_symbol,
     upsert_calls, upsert_inherits, upsert_implements, upsert_overrides,
-    upsert_interface_inherits,
+    upsert_interface_inherits, upsert_references,
 )
 
 
@@ -74,3 +74,13 @@ def test_upsert_interface_inherits_creates_edge() -> None:
     cypher = conn.execute.call_args[0][0]
     assert "INHERITS" in cypher
     assert ":Interface" in cypher
+
+
+def test_upsert_references_creates_edge_with_kind():
+    conn = MagicMock()
+    upsert_references(conn, "Ns.C.M()", "Ns.UserDto", "parameter")
+    cypher, params = conn.execute.call_args[0]
+    assert "REFERENCES" in cypher
+    assert params["source"] == "Ns.C.M()"
+    assert params["target"] == "Ns.UserDto"
+    assert params["kind"] == "parameter"
