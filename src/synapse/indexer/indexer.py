@@ -13,6 +13,7 @@ from synapse.graph.nodes import (
     upsert_interface, upsert_method, upsert_package, upsert_property,
     upsert_repository, delete_file_nodes,
 )
+from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
 from synapse.indexer.import_extractor import CSharpImportExtractor
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
@@ -25,6 +26,7 @@ class Indexer:
         self._conn = conn
         self._lsp = lsp
         self._import_extractor = CSharpImportExtractor()
+        self._base_type_extractor = CSharpBaseTypeExtractor()
 
     def index_project(self, root_path: str, language: str, keep_lsp_running: bool = False) -> None:
         files = self._lsp.get_workspace_files(root_path)
@@ -39,6 +41,22 @@ class Indexer:
             self._index_file_relationships(symbols)
 
         upsert_repository(self._conn, root_path, language)
+
+        # Build lookup tables for the base type resolution pass
+        name_to_full_names: dict[str, list[str]] = {}
+        kind_map: dict[str, SymbolKind] = {}
+        for syms in symbols_by_file.values():
+            for sym in syms:
+                name_to_full_names.setdefault(sym.name, []).append(sym.full_name)
+                kind_map[sym.full_name] = sym.kind
+
+        for file_path in files:
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    source = f.read()
+                self._index_base_types(file_path, source, name_to_full_names, kind_map)
+            except OSError:
+                log.warning("Could not read %s for base type extraction", file_path)
 
         # CALLS resolution requires all Method nodes to be present; must run after the structural pass
         symbol_map = {
@@ -131,3 +149,30 @@ class Indexer:
                     # Both edge functions' MATCH labels ensure only valid edges are written.
                     upsert_inherits(self._conn, symbol.full_name, base_type)
                     upsert_implements(self._conn, symbol.full_name, base_type)
+
+    def _index_base_types(
+        self,
+        file_path: str,
+        source: str,
+        name_to_full_names: dict[str, list[str]],
+        kind_map: dict[str, SymbolKind],
+    ) -> None:
+        triples = self._base_type_extractor.extract(file_path, source)
+        for type_simple, base_simple, is_first in triples:
+            type_candidates = name_to_full_names.get(type_simple, [])
+            base_candidates = name_to_full_names.get(base_simple, [])
+            for type_full in type_candidates:
+                type_kind = kind_map.get(type_full)
+                for base_full in base_candidates:
+                    if type_kind == SymbolKind.INTERFACE:
+                        # Interfaces only extend other interfaces
+                        upsert_interface_inherits(self._conn, type_full, base_full)
+                    elif is_first:
+                        # C# rule: first base of a class is the base class (INHERITS) if it's a
+                        # class, or an interface (IMPLEMENTS) if it's an interface. Attempt both;
+                        # typed MATCH labels ensure only the semantically correct edge writes.
+                        upsert_inherits(self._conn, type_full, base_full)
+                        upsert_implements(self._conn, type_full, base_full)
+                    else:
+                        # Non-first entries in a class base list are always interfaces
+                        upsert_implements(self._conn, type_full, base_full)
