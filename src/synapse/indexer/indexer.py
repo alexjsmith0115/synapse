@@ -5,7 +5,7 @@ import os
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
-    upsert_contains, upsert_contains_symbol,
+    upsert_dir_contains, upsert_file_contains_symbol,
     upsert_inherits, upsert_implements,
 )
 from synapse.graph.nodes import (
@@ -64,11 +64,11 @@ class Indexer:
         dir_name = os.path.basename(dir_path)
         upsert_directory(self._conn, dir_path, dir_name)
         upsert_file(self._conn, file_path, os.path.basename(file_path), "csharp")
-        upsert_contains(self._conn, from_path=dir_path, to_full_name=file_path)
+        upsert_dir_contains(self._conn, dir_path, file_path)
 
         for symbol in symbols:
             self._upsert_symbol(symbol)
-            upsert_contains(self._conn, from_path=file_path, to_full_name=symbol.full_name)
+            upsert_file_contains_symbol(self._conn, file_path, symbol.full_name)
 
     def _upsert_symbol(self, symbol: IndexSymbol) -> None:
         match symbol.kind:
