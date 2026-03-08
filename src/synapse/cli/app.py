@@ -31,6 +31,13 @@ def index(path: str, language: str = "csharp") -> None:
     typer.echo(f"Indexed {path}")
 
 
+@app.command("index-calls")
+def index_calls(path: str) -> None:
+    """Index CALLS edges for an already-structurally-indexed project."""
+    _get_service().index_calls(path)
+    typer.echo(f"Call edges indexed for {path}")
+
+
 @app.command()
 def watch(path: str) -> None:
     """Watch a project for changes and keep the graph updated."""

@@ -13,6 +13,7 @@ from synapse.graph.nodes import (
     upsert_method, upsert_namespace, upsert_property, upsert_repository,
     delete_file_nodes,
 )
+from synapse.indexer.call_indexer import CallIndexer
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
 log = logging.getLogger(__name__)
@@ -36,6 +37,15 @@ class Indexer:
             self._index_file_relationships(symbols)
 
         upsert_repository(self._conn, root_path, language)
+
+        # Phase 2: index CALLS edges now that all Method nodes exist
+        symbol_map = {
+            (sym.file_path, sym.line): sym.full_name
+            for syms in symbols_by_file.values()
+            for sym in syms
+            if sym.kind.value == "method"
+        }
+        CallIndexer(self._conn, self._lsp._ls).index_calls(root_path, symbol_map)
 
         if not keep_lsp_running:
             self._lsp.shutdown()

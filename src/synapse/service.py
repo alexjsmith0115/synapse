@@ -29,6 +29,21 @@ class SynapseService:
         indexer = Indexer(self._conn, lsp)
         indexer.index_project(path, language)
 
+    def index_calls(self, path: str) -> None:
+        """Run the call edge indexing pass on an already-structurally-indexed project."""
+        from synapse.indexer.call_indexer import CallIndexer
+        lsp = CSharpLSPAdapter.create(path)
+        result = self._conn.execute(
+            "MATCH (m:Method)<-[:CONTAINS]-(f:File) RETURN m.full_name, m.line, f.path"
+        )
+        symbol_map = {
+            (row[2], row[1]): row[0]
+            for row in result
+            if row[0] and row[1] is not None and row[2]
+        }
+        CallIndexer(self._conn, lsp._ls).index_calls(path, symbol_map)
+        lsp.shutdown()
+
     def delete_project(self, path: str) -> None:
         self._conn.execute(
             "MATCH (r:Repository {path: $path})-[:CONTAINS*]->(n) DETACH DELETE n",
