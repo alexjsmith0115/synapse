@@ -8,7 +8,7 @@ from synapse.graph.queries import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
-    get_method_symbol_map,
+    get_method_symbol_map, get_symbol_source_info,
 )
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
@@ -111,3 +111,51 @@ class SynapseService:
 
     def remove_summary(self, full_name: str) -> None:
         remove_summary(self._conn, full_name)
+
+    # --- Source retrieval ---
+
+    def get_symbol_source(self, full_name: str, include_class_signature: bool = False) -> str | None:
+        info = get_symbol_source_info(self._conn, full_name)
+        if info is None:
+            return None
+        file_path = info["file_path"]
+        line = info["line"]
+        end_line = info["end_line"]
+        if not end_line:
+            return f"Symbol '{full_name}' was indexed without line ranges. Re-index the project to enable source retrieval."
+        try:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
+                all_lines = f.readlines()
+        except OSError:
+            return f"Source file not found: {file_path}"
+        source_lines = all_lines[line:end_line + 1]
+        result = f"// {file_path}:{line + 1}\n{''.join(source_lines)}"
+        if include_class_signature:
+            parent = self._get_parent_signature(full_name)
+            if parent:
+                result = parent + "\n\n" + result
+        return result
+
+    def _get_parent_signature(self, full_name: str) -> str | None:
+        """Get the declaration line of the containing class/interface."""
+        rows = self._conn.query(
+            "MATCH (parent)-[:CONTAINS]->(n {full_name: $full_name}) "
+            "WHERE parent:Class OR parent:Interface "
+            "RETURN parent.full_name, parent.line, parent.end_line",
+            {"full_name": full_name},
+        )
+        if not rows:
+            return None
+        parent_full_name = rows[0][0]
+        parent_line = rows[0][1]
+        if parent_line is None:
+            return f"// Containing type: {parent_full_name}"
+        parent_info = get_symbol_source_info(self._conn, parent_full_name)
+        if not parent_info or not parent_info["file_path"]:
+            return f"// Containing type: {parent_full_name}"
+        try:
+            with open(parent_info["file_path"], encoding="utf-8", errors="ignore") as f:
+                all_lines = f.readlines()
+            return f"// {parent_info['file_path']}:{parent_line + 1}\n{all_lines[parent_line].rstrip()}"
+        except (OSError, IndexError):
+            return f"// Containing type: {parent_full_name}"

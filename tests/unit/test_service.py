@@ -44,3 +44,45 @@ def test_unwatch_project_stops_watcher() -> None:
 
     mock_watcher.stop.assert_called_once()
     assert "/proj" not in svc._watchers
+
+
+def test_get_symbol_source_reads_file_and_returns_lines(tmp_path):
+    """Service reads the file from disk using line range from the graph."""
+    source_file = tmp_path / "Foo.cs"
+    source_file.write_text("line0\nline1\nline2\nline3\nline4\nline5\n")
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch("synapse.service.get_symbol_source_info") as mock_query:
+        mock_query.return_value = {"file_path": str(source_file), "line": 1, "end_line": 3}
+        result = svc.get_symbol_source("Ns.C.M")
+
+    assert "line1" in result
+    assert "line2" in result
+    assert "line3" in result
+    assert "line0" not in result
+
+
+def test_get_symbol_source_returns_none_when_symbol_not_found():
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch("synapse.service.get_symbol_source_info") as mock_query:
+        mock_query.return_value = None
+        result = svc.get_symbol_source("Ns.Missing")
+
+    assert result is None
+
+
+def test_get_symbol_source_returns_error_when_end_line_missing(tmp_path):
+    """When end_line is 0, the symbol was indexed before line ranges were added."""
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch("synapse.service.get_symbol_source_info") as mock_query:
+        mock_query.return_value = {"file_path": str(tmp_path / "F.cs"), "line": 5, "end_line": 0}
+        result = svc.get_symbol_source("Ns.C.M")
+
+    assert result is not None
+    assert "re-index" in result.lower()
