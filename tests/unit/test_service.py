@@ -179,3 +179,29 @@ def test_get_symbol_returns_none_when_not_found():
     with patch("synapse.service.get_symbol", return_value=None):
         result = svc.get_symbol("Missing")
     assert result is None
+
+
+def test_find_type_references_unwraps_nested_nodes():
+    svc = _service()
+    node = _node(["Method"], {"full_name": "A.Caller"})
+    with patch("synapse.service.query_find_type_references", return_value=[{"symbol": node, "kind": "parameter"}]):
+        result = svc.find_type_references("A.IService")
+    assert result == [{"symbol": {"full_name": "A.Caller", "_labels": ["Method"]}, "kind": "parameter"}]
+
+
+def test_find_dependencies_unwraps_nested_nodes():
+    svc = _service()
+    node = _node(["Class"], {"full_name": "A.Dep"})
+    with patch("synapse.service.query_find_dependencies", return_value=[{"type": node, "kind": "return_type"}]):
+        result = svc.find_dependencies("A.Method")
+    assert result == [{"type": {"full_name": "A.Dep", "_labels": ["Class"]}, "kind": "return_type"}]
+
+
+def test_get_hierarchy_unwraps_nodes():
+    svc = _service()
+    parent = _node(["Class"], {"full_name": "A.Base"})
+    child = _node(["Class"], {"full_name": "A.Child"})
+    with patch("synapse.service.get_hierarchy", return_value={"parents": [parent], "children": [child]}):
+        result = svc.get_hierarchy("A.Middle")
+    assert result["parents"] == [{"full_name": "A.Base", "_labels": ["Class"]}]
+    assert result["children"] == [{"full_name": "A.Child", "_labels": ["Class"]}]
