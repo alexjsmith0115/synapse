@@ -19,6 +19,21 @@ def _make_symbol(name: str, kind: SymbolKind, file_path: str = "/proj/Foo.cs") -
     )
 
 
+def test_index_project_links_repository_to_root_directory() -> None:
+    conn = MagicMock()
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = ["/proj/Foo.cs"]
+    lsp.get_document_symbols.return_value = []
+
+    indexer = Indexer(conn, lsp)
+    indexer.index_project("/proj", "csharp")
+
+    calls = [str(c) for c in conn.execute.call_args_list]
+    assert any("Repository" in c and "Directory" in c and "CONTAINS" in c for c in calls), (
+        "index_project must create a Repository-[CONTAINS]->Directory edge so delete_project can traverse the full graph"
+    )
+
+
 def test_index_project_upserts_file_node() -> None:
     conn = MagicMock()
     lsp = MagicMock()
