@@ -175,19 +175,21 @@ def test_find_implementations(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_callers(mcp_server: FastMCP) -> None:
-    result = _run(mcp_server.call_tool("find_callers", {"method_full_name": "SynapseTest.IAnimal.Speak"}))
+    # Direct static call (Greeter.Greet -> Formatter.Format) is resolvable by the LSP
+    result = _run(mcp_server.call_tool("find_callers", {"method_full_name": "SynapseTest.Formatter.Format"}))
     callers = _json(result)
-    # CALLS edges may not be resolved for interface dispatch — assert non-exception
-    assert isinstance(callers, list)
+    names = [c.get("full_name", "") for c in callers]
+    assert any("Greet" in n for n in names), f"Expected Greeter.Greet in callers, got: {names}"
 
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_callees(mcp_server: FastMCP) -> None:
-    result = _run(mcp_server.call_tool("find_callees", {"method_full_name": "SynapseTest.AnimalService.MakeNoise"}))
+    # Direct static call (Greeter.Greet -> Formatter.Format) is resolvable by the LSP
+    result = _run(mcp_server.call_tool("find_callees", {"method_full_name": "SynapseTest.Greeter.Greet"}))
     callees = _json(result)
-    # CALLS edges may not be resolved for interface dispatch — assert non-exception
-    assert isinstance(callees, list)
+    names = [c.get("full_name", "") for c in callees]
+    assert any("Format" in n for n in names), f"Expected Formatter.Format in callees, got: {names}"
 
 
 @pytest.mark.integration
@@ -204,7 +206,7 @@ def test_get_hierarchy(mcp_server: FastMCP) -> None:
 def test_find_type_references(mcp_server: FastMCP) -> None:
     result = _run(mcp_server.call_tool("find_type_references", {"full_name": "SynapseTest.IAnimal"}))
     refs = _json(result)
-    names = [r.get("full_name", "") for r in refs]
+    names = [r["symbol"].get("full_name", "") for r in refs]
     assert any("AnimalService" in n for n in names)
 
 
@@ -213,7 +215,7 @@ def test_find_type_references(mcp_server: FastMCP) -> None:
 def test_find_dependencies(mcp_server: FastMCP) -> None:
     result = _run(mcp_server.call_tool("find_dependencies", {"full_name": "SynapseTest.AnimalService"}))
     deps = _json(result)
-    names = [d.get("full_name", "") for d in deps]
+    names = [d["type"].get("full_name", "") for d in deps]
     assert any("IAnimal" in n for n in names)
 
 
@@ -266,6 +268,7 @@ def test_execute_valid_query(mcp_server: FastMCP) -> None:
     }))
     rows = _json(result)
     assert isinstance(rows, list)
+    assert len(rows) > 0, "Expected at least one Class node after indexing"
 
 
 @pytest.mark.integration
