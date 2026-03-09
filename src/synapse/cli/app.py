@@ -125,14 +125,16 @@ def hierarchy(class_name: str) -> None:
     parents = result["parents"]
     children = result["children"]
     typer.echo("Parents:")
-    for p in parents:
-        typer.echo(f"  {p.get('full_name', '?')}")
-    if not parents:
+    if parents:
+        for p in parents:
+            typer.echo(f"  {p.get('full_name', '?')}")
+    else:
         typer.echo("  (none)")
     typer.echo("Children:")
-    for c in children:
-        typer.echo(f"  {c.get('full_name', '?')}")
-    if not children:
+    if children:
+        for c in children:
+            typer.echo(f"  {c.get('full_name', '?')}")
+    else:
         typer.echo("  (none)")
 
 

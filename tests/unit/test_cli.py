@@ -23,7 +23,6 @@ def _svc(overrides: dict | None = None):
 
 def test_callers_prints_full_name_and_signature():
     svc = _svc({"find_callers": [{"full_name": "A.Caller", "signature": "Caller() : void"}]})
-    svc.get_symbol.return_value = {"full_name": "A.Method", "_labels": ["Method"]}
     with patch("synapse.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["callers", "A.Method"])
     assert result.exit_code == 0
@@ -33,10 +32,18 @@ def test_callers_prints_full_name_and_signature():
 
 def test_callers_prints_no_results_when_empty():
     svc = _svc()
-    svc.get_symbol.return_value = {"full_name": "A.Method", "_labels": ["Method"]}
     with patch("synapse.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["callers", "A.Method"])
     assert "No results" in result.output
+
+
+def test_callees_prints_full_name_and_signature():
+    svc = _svc({"find_callees": [{"full_name": "A.Dep", "signature": "Dep() : void"}]})
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["callees", "A.Method"])
+    assert result.exit_code == 0
+    assert "A.Dep" in result.output
+    assert "Dep() : void" in result.output
 
 
 def test_search_prints_full_name():
@@ -58,6 +65,15 @@ def test_hierarchy_prints_labeled_sections():
     assert "A.Base" in result.output
     assert "Children:" in result.output
     assert "A.Child" in result.output
+
+
+def test_hierarchy_prints_none_for_empty_sections():
+    svc = _svc()
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["hierarchy", "A.Leaf"])
+    assert "Parents:" in result.output
+    assert "Children:" in result.output
+    assert "(none)" in result.output
 
 
 def test_type_refs_prints_full_name_and_kind():
