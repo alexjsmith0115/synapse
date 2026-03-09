@@ -252,3 +252,40 @@ def test_list_summarized(mcp_server: FastMCP) -> None:
     items = _json(result)
     names = [i.get("full_name") for i in items]
     assert "SynapseTest.Dog" in names
+
+
+# ---------------------------------------------------------------------------
+# execute_query
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_execute_valid_query(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("execute_query", {
+        "cypher": "MATCH (n:Class) RETURN n.name LIMIT 5"
+    }))
+    rows = _json(result)
+    assert isinstance(rows, list)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_execute_mutating_query_raises(mcp_server: FastMCP) -> None:
+    with pytest.raises(Exception):
+        _run(mcp_server.call_tool("execute_query", {
+            "cypher": "CREATE (n:Fake) RETURN n"
+        }))
+
+
+# ---------------------------------------------------------------------------
+# Watch tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_watch_and_unwatch_project(mcp_server: FastMCP) -> None:
+    watch_result = _run(mcp_server.call_tool("watch_project", {"path": FIXTURE_PATH}))
+    assert FIXTURE_PATH in _text(watch_result)
+
+    unwatch_result = _run(mcp_server.call_tool("unwatch_project", {"path": FIXTURE_PATH}))
+    assert FIXTURE_PATH in _text(unwatch_result)
