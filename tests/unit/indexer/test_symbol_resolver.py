@@ -182,3 +182,38 @@ def test_resolver_skips_references_when_name_map_ambiguous():
     resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
 
     assert not any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
+
+
+def test_resolve_call_resolves_overloaded_callee_name() -> None:
+    """If graph stores 'X.M(int)' but LSP returns 'X.M', the CALLS edge must use the stored overloaded name."""
+    from unittest.mock import MagicMock
+    from synapse.indexer.symbol_resolver import SymbolResolver
+
+    conn = MagicMock()
+    # Graph has the overloaded full_name (one unambiguous match)
+    conn.query.return_value = [["Ns.C.M(int)"]]
+
+    ls = MagicMock()
+    ls.repository_root_path = "/repo"
+    ls.request_defining_symbol.return_value = {
+        "name": "M",
+        "kind": 6,
+        "parent": {"name": "C", "parent": {"name": "Ns", "parent": None}},
+        # No overload_idx — LSP gives plain name
+    }
+
+    resolver = SymbolResolver(conn, ls)
+    resolver._resolve_call("Ns.C.Caller", "file.cs", 10, 5, "M")
+
+    # Should have written CALLS edge using the resolved overloaded name, not the plain 'Ns.C.M'
+    execute_calls = conn.execute.call_args_list
+    assert execute_calls, "Expected conn.execute to be called for CALLS edge"
+    _, kwargs = execute_calls[-1]
+    params = kwargs if kwargs else execute_calls[-1][0][1] if len(execute_calls[-1][0]) > 1 else {}
+    # upsert_calls passes params as second positional arg: conn.execute(query, params)
+    last_call_args = execute_calls[-1][0]
+    assert len(last_call_args) >= 2, f"Expected (query, params) positional args, got: {last_call_args}"
+    callee_used = last_call_args[1].get("callee")
+    assert callee_used == "Ns.C.M(int)", (
+        f"Expected overloaded name 'Ns.C.M(int)' to be used, but got: {callee_used!r}"
+    )

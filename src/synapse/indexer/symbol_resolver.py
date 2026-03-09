@@ -125,8 +125,27 @@ class SymbolResolver:
                 return
             symbol = method_children[0]
         callee_full_name = build_full_name(symbol)
+        callee_full_name = self._resolve_callee_name(callee_full_name)
         if callee_full_name and callee_full_name != caller_full_name:
             upsert_calls(self._conn, caller_full_name, callee_full_name)
+
+    def _resolve_callee_name(self, full_name: str) -> str:
+        """
+        Resolve the callee full_name to the actual stored value, handling overloaded variants.
+
+        Phase 1 may store methods as "X.M(int)" when overload_idx is set, but
+        request_defining_symbol returns "X.M" without it. We do a graph lookup to
+        find the unique stored variant (if unambiguous).
+        """
+        rows = self._conn.query(
+            "MATCH (m:Method) "
+            "WHERE m.full_name = $name OR m.full_name STARTS WITH $prefix "
+            "RETURN m.full_name LIMIT 2",
+            {"name": full_name, "prefix": full_name + "("},
+        )
+        if len(rows) == 1:
+            return rows[0][0]
+        return full_name
 
     def _resolve_type_ref(self, ref: TypeRef, rel_path: str) -> None:
         if not ref.owner_full_name:
