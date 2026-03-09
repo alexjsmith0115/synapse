@@ -46,12 +46,14 @@ def test_upsert_calls_uses_full_names() -> None:
     assert params["callee"] == "MyNs.B.Run()"
 
 
-def test_upsert_implements_targets_interface_label() -> None:
+def test_upsert_implements_accepts_class_or_interface_label() -> None:
+    """Must accept interface nodes stored as :Class (Roslyn fallback) as well as :Interface."""
     conn = MagicMock()
     upsert_implements(conn, "MyNs.ConcreteClass", "MyNs.IService")
     cypher = conn.execute.call_args[0][0]
     assert "IMPLEMENTS" in cypher
-    assert ":Interface" in cypher
+    # Query must tolerate dst being either :Interface or :Class — not require :Interface exclusively
+    assert "dst:Interface OR dst:Class" in cypher or "dst:Class OR dst:Interface" in cypher
 
 
 def test_upsert_inherits_creates_edge() -> None:
