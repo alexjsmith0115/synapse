@@ -117,3 +117,28 @@ def test_upsert_field_includes_end_line() -> None:
     upsert_field(conn, "Ns.C._f", "_f", "int", end_line=8)
     _, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
     assert params["end_line"] == 8
+
+
+def test_upsert_class_stores_file_path() -> None:
+    conn = MagicMock()
+    upsert_class(conn, "Ns.MyClass", "MyClass", "class", file_path="/proj/MyClass.cs", line=1, end_line=20)
+    cypher, params = conn.execute.call_args[0]
+    assert "file_path" in cypher
+    assert params["file_path"] == "/proj/MyClass.cs"
+
+
+def test_upsert_interface_stores_file_path() -> None:
+    conn = MagicMock()
+    upsert_interface(conn, "Ns.IFoo", "IFoo", file_path="/proj/IFoo.cs", line=1, end_line=10)
+    cypher, params = conn.execute.call_args[0]
+    assert "file_path" in cypher
+    assert params["file_path"] == "/proj/IFoo.cs"
+
+
+def test_upsert_method_stores_file_path() -> None:
+    conn = MagicMock()
+    upsert_method(conn, "Ns.C.M()", "M", "void M()", False, False,
+                  file_path="/proj/C.cs", line=5, end_line=10)
+    cypher, params = conn.execute.call_args[0]
+    assert "file_path" in cypher
+    assert params["file_path"] == "/proj/C.cs"
