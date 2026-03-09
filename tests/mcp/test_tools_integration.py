@@ -111,3 +111,43 @@ def test_get_index_status(mcp_server: FastMCP) -> None:
     status = _json(result)
     assert status["file_count"] > 0
     assert status["symbol_count"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Symbol query tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_symbol(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_symbol", {"full_name": "SynapseTest.Dog"}))
+    symbol = _json(result)
+    assert symbol is not None
+    assert symbol["full_name"] == "SynapseTest.Dog"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_symbol_not_found(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_symbol", {"full_name": "DoesNotExist.Nope"}))
+    assert _json(result) is None
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_symbol_source(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_symbol_source", {"full_name": "SynapseTest.Animal"}))
+    source = _text(result)
+    assert "Animal" in source
+    assert "abstract" in source.lower() or "IAnimal" in source
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_search_symbols(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("search_symbols", {"query": "Animal"}))
+    symbols = _json(result)
+    names = [s["full_name"] for s in symbols]
+    assert any("Dog" in n for n in names)
+    assert any("Cat" in n for n in names)
+    assert any("Animal" in n for n in names)
