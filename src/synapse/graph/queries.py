@@ -20,7 +20,9 @@ def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:
 
 def find_implementations(conn: GraphConnection, interface_full_name: str) -> list[dict]:
     rows = conn.query(
-        "MATCH (c:Class)-[:IMPLEMENTS]->(i:Interface {full_name: $full_name}) RETURN c",
+        "MATCH (c:Class)-[:IMPLEMENTS]->(i:Interface {full_name: $full_name}) RETURN c "
+        "UNION "
+        "MATCH (c:Class)-[:INHERITS*]->(base:Class)-[:IMPLEMENTS]->(i:Interface {full_name: $full_name}) RETURN c",
         {"full_name": interface_full_name},
     )
     return [r[0] for r in rows]
@@ -64,7 +66,7 @@ def search_symbols(conn: GraphConnection, query: str, kind: str | None = None) -
         )
     else:
         rows = conn.query(
-            "MATCH (n) WHERE n.name CONTAINS $query RETURN n",
+            "MATCH (n) WHERE n.full_name IS NOT NULL AND n.name CONTAINS $query RETURN n",
             {"query": query},
         )
     return [r[0] for r in rows]
