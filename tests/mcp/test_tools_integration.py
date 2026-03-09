@@ -244,7 +244,10 @@ def test_set_and_get_summary(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_list_summarized(mcp_server: FastMCP) -> None:
-    # Depends on test_set_and_get_summary having run first (module scope preserves state)
+    _run(mcp_server.call_tool("set_summary", {
+        "full_name": "SynapseTest.Dog",
+        "content": "Represents a dog in the test fixture.",
+    }))
     result = _run(mcp_server.call_tool("list_summarized", {}))
     items = _json(result)
     names = [i.get("full_name") for i in items]
