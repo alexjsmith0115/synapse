@@ -20,9 +20,9 @@ def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:
 
 def find_implementations(conn: GraphConnection, interface_full_name: str) -> list[dict]:
     rows = conn.query(
-        "MATCH (c:Class)-[:IMPLEMENTS]->(i:Interface {full_name: $full_name}) RETURN c "
+        "MATCH (c:Class)-[:IMPLEMENTS]->(i {full_name: $full_name}) RETURN c "
         "UNION "
-        "MATCH (c:Class)-[:INHERITS*]->(base:Class)-[:IMPLEMENTS]->(i:Interface {full_name: $full_name}) RETURN c",
+        "MATCH (c:Class)-[:INHERITS*]->(base:Class)-[:IMPLEMENTS]->(i {full_name: $full_name}) RETURN c",
         {"full_name": interface_full_name},
     )
     return [r[0] for r in rows]

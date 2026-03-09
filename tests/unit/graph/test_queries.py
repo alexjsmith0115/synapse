@@ -35,12 +35,17 @@ def test_find_implementations_returns_list() -> None:
     assert len(results) == 2
 
 
-def test_find_implementations_queries_interface_label() -> None:
+
+def test_find_implementations_does_not_require_interface_label() -> None:
+    """Query must work even if interface node is stored as :Class (Roslyn fallback)."""
     conn = _conn([])
-    find_implementations(conn, "MyNs.IService")
-    cypher, params = conn.query.call_args[0][0], conn.query.call_args[0][1]
-    assert ":Interface" in cypher
-    assert params["full_name"] == "MyNs.IService"
+    find_implementations(conn, "Ns.IService")
+    cypher = conn.query.call_args[0][0]
+    # The interface node match must not enforce :Interface label
+    assert "i:Interface" not in cypher, (
+        "Must not constrain interface node to :Interface label — "
+        "Roslyn may return non-interface SymbolKind for some interfaces"
+    )
 
 
 def test_find_callers_passes_full_name() -> None:
