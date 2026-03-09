@@ -191,17 +191,17 @@ class SynapseService:
                     iface_lines.append(f"### {iface_fn}\n" + "\n".join(iface_sigs))
                 sections.append("## Implemented Interfaces\n\n" + "\n\n".join(iface_lines))
 
-        callees = find_callees(self._conn, full_name)
+        callees = self.find_callees(full_name)
         if callees:
-            callee_lines = [f"- `{_p(c)['full_name']}` — {_p(c).get('signature', '')}" for c in callees]
+            callee_lines = [f"- `{c['full_name']}` — {c.get('signature', '')}" for c in callees]
             sections.append("## Called Methods\n\n" + "\n".join(callee_lines))
 
-        deps = query_find_dependencies(self._conn, full_name)
+        deps = self.find_dependencies(full_name)
         if deps:
             dep_lines = []
             seen_types: set[str] = set()
             for dep in deps:
-                type_fn = _p(dep["type"])["full_name"]
+                type_fn = dep["type"]["full_name"]
                 if type_fn in seen_types:
                     continue
                 seen_types.add(type_fn)
