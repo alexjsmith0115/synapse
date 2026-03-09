@@ -205,8 +205,6 @@ def test_resolve_call_resolves_overloaded_callee_name() -> None:
     # Should have written CALLS edge using the resolved overloaded name, not the plain 'Ns.C.M'
     execute_calls = conn.execute.call_args_list
     assert execute_calls, "Expected conn.execute to be called for CALLS edge"
-    _, kwargs = execute_calls[-1]
-    params = kwargs if kwargs else execute_calls[-1][0][1] if len(execute_calls[-1][0]) > 1 else {}
     # upsert_calls passes params as second positional arg: conn.execute(query, params)
     last_call_args = execute_calls[-1][0]
     assert len(last_call_args) >= 2, f"Expected (query, params) positional args, got: {last_call_args}"

@@ -59,7 +59,8 @@ def upsert_interface_inherits(conn: GraphConnection, child_full_name: str, paren
 
 def upsert_implements(conn: GraphConnection, class_full_name: str, interface_full_name: str) -> None:
     conn.execute(
-        "MATCH (src:Class {full_name: $cls}), (dst:Interface {full_name: $iface}) "
+        "MATCH (src:Class {full_name: $cls}), (dst {full_name: $iface}) "
+        "WHERE dst:Interface OR dst:Class "
         "MERGE (src)-[:IMPLEMENTS]->(dst)",
         {"cls": class_full_name, "iface": interface_full_name},
     )
