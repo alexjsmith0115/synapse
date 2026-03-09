@@ -224,3 +224,28 @@ def test_get_context_for(mcp_server: FastMCP) -> None:
     context = _text(result)
     assert len(context) > 0
     assert "AnimalService" in context
+
+
+# ---------------------------------------------------------------------------
+# Summary tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_set_and_get_summary(mcp_server: FastMCP) -> None:
+    _run(mcp_server.call_tool("set_summary", {
+        "full_name": "SynapseTest.Dog",
+        "content": "Represents a dog in the test fixture.",
+    }))
+    result = _run(mcp_server.call_tool("get_summary", {"full_name": "SynapseTest.Dog"}))
+    assert _text(result) == "Represents a dog in the test fixture."
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_list_summarized(mcp_server: FastMCP) -> None:
+    # Depends on test_set_and_get_summary having run first (module scope preserves state)
+    result = _run(mcp_server.call_tool("list_summarized", {}))
+    items = _json(result)
+    names = [i.get("full_name") for i in items]
+    assert "SynapseTest.Dog" in names
