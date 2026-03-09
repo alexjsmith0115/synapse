@@ -67,3 +67,47 @@ def mcp_server():
 
     conn.execute("MATCH (n) DETACH DELETE n")  # scoped to synapse_test_mcp graph
     # GraphConnection has no close() — connection released by GC
+
+
+# ---------------------------------------------------------------------------
+# Tool registration
+# ---------------------------------------------------------------------------
+
+EXPECTED_TOOLS = {
+    "index_project", "list_projects", "delete_project", "get_index_status",
+    "get_symbol", "get_symbol_source", "find_implementations", "find_callers",
+    "find_callees", "get_hierarchy", "search_symbols", "set_summary",
+    "get_summary", "list_summarized", "execute_query", "watch_project",
+    "unwatch_project", "find_type_references", "find_dependencies",
+    "get_context_for",
+}
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_all_tools_registered(mcp_server: FastMCP) -> None:
+    tools = _run(mcp_server.list_tools())
+    names = {t.name for t in tools}
+    assert EXPECTED_TOOLS == names
+
+
+# ---------------------------------------------------------------------------
+# Project-level tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_list_projects(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("list_projects", {}))
+    projects = _json(result)
+    paths = [p["path"] for p in projects]
+    assert FIXTURE_PATH in paths
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_index_status(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_index_status", {"path": FIXTURE_PATH}))
+    status = _json(result)
+    assert status["file_count"] > 0
+    assert status["symbol_count"] > 0
