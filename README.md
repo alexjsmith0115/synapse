@@ -1,5 +1,7 @@
 # Synapse
 
+> **Work in progress.** Synapse is under active development. APIs, CLI commands, and graph schema may change without notice.
+
 Synapse is an LSP-powered, FalkorDB-backed tool that builds a queryable graph of a C# codebase. It indexes symbols, inheritance, interface implementations, method calls, and override relationships, then exposes them via an MCP server (for AI assistants) and a CLI (for humans).
 
 ## Prerequisites
@@ -53,8 +55,7 @@ synapse <command> [args]
 
 | Command | Description |
 |---|---|
-| `synapse index <path> [--language csharp]` | Index a project into the graph (structural pass) |
-| `synapse index-calls <path>` | Index CALLS edges for an already-structurally-indexed project |
+| `synapse index <path> [--language csharp]` | Index a project into the graph |
 | `synapse watch <path>` | Watch a project for file changes and keep the graph updated (runs until Ctrl+C) |
 | `synapse delete <path>` | Remove a project and all its graph data |
 | `synapse status [path]` | Show index status for one project, or list all indexed projects |
@@ -64,11 +65,15 @@ synapse <command> [args]
 | Command | Description |
 |---|---|
 | `synapse symbol <full_name>` | Get a symbol's node and its relationships |
+| `synapse source <full_name> [--include-class]` | Print the source code of a symbol |
 | `synapse callers <method_full_name>` | Find all methods that call a given method |
 | `synapse callees <method_full_name>` | Find all methods called by a given method |
 | `synapse implementations <interface_name>` | Find all concrete implementations of an interface |
 | `synapse hierarchy <class_name>` | Show the full inheritance chain for a class |
 | `synapse search <query> [--kind <kind>]` | Search symbols by name, optionally filtered by kind (e.g. `method`, `class`) |
+| `synapse type-refs <full_name>` | Find all symbols that reference a given type |
+| `synapse dependencies <full_name>` | Find all types referenced by a given symbol |
+| `synapse context <full_name>` | Get the full context needed to understand or modify a symbol |
 | `synapse query <cypher>` | Execute a raw read-only Cypher query against the graph |
 
 ### Summaries
@@ -99,6 +104,12 @@ synapse hierarchy "MyNamespace.BaseController"
 # Search for all methods containing "Payment"
 synapse search "Payment" --kind method
 
+# Get the source code for a method
+synapse source "MyNamespace.MyClass.DoWork"
+
+# Get all context needed to understand a symbol
+synapse context "MyNamespace.MyClass"
+
 # Watch for live updates while developing
 synapse watch /path/to/my/project
 ```
@@ -125,11 +136,15 @@ These tools are available to any MCP client connected to `synapse-mcp`.
 | Tool | Parameters | Description |
 |---|---|---|
 | `get_symbol` | `full_name: str` | Get a symbol's node and relationships by fully-qualified name |
+| `get_symbol_source` | `full_name: str`, `include_class_signature: bool = False` | Get the source code of a symbol |
 | `find_implementations` | `interface_name: str` | Find all concrete implementations of an interface |
 | `find_callers` | `method_full_name: str` | Find all methods that call a given method |
 | `find_callees` | `method_full_name: str` | Find all methods called by a given method |
 | `get_hierarchy` | `class_name: str` | Get the full inheritance chain for a class |
 | `search_symbols` | `query: str`, `kind: str \| None = None` | Search symbols by name, optionally filtered by kind |
+| `find_type_references` | `full_name: str` | Find all symbols that reference a given type |
+| `find_dependencies` | `full_name: str` | Find all types referenced by a given symbol |
+| `get_context_for` | `full_name: str` | Get the full context needed to understand or modify a symbol |
 | `execute_query` | `cypher: str` | Execute a read-only Cypher query (mutating statements are blocked) |
 
 ### Summaries
