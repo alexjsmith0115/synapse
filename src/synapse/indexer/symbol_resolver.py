@@ -137,6 +137,8 @@ class SymbolResolver:
         request_defining_symbol returns "X.M" without it. We do a graph lookup to
         find the unique stored variant (if unambiguous).
         """
+        if not full_name:
+            return full_name
         rows = self._conn.query(
             "MATCH (m:Method) "
             "WHERE m.full_name = $name OR m.full_name STARTS WITH $prefix "

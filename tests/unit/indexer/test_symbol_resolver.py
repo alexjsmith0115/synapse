@@ -186,9 +186,6 @@ def test_resolver_skips_references_when_name_map_ambiguous():
 
 def test_resolve_call_resolves_overloaded_callee_name() -> None:
     """If graph stores 'X.M(int)' but LSP returns 'X.M', the CALLS edge must use the stored overloaded name."""
-    from unittest.mock import MagicMock
-    from synapse.indexer.symbol_resolver import SymbolResolver
-
     conn = MagicMock()
     # Graph has the overloaded full_name (one unambiguous match)
     conn.query.return_value = [["Ns.C.M(int)"]]
