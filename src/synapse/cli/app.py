@@ -24,18 +24,19 @@ def _get_service() -> SynapseService:
     return _svc
 
 
+def _fmt(sym: dict) -> str:
+    """Format a symbol dict as 'full_name — signature' for methods, or just 'full_name' for types."""
+    fn = sym.get("full_name", "?")
+    sig = sym.get("signature")
+    return f"{fn} — {sig}" if sig else fn
+
+
 @app.command()
 def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
     _get_service().index_project(path, language)
     typer.echo(f"Indexed {path}")
 
-
-@app.command("index-calls")
-def index_calls(path: str) -> None:
-    """Index CALLS edges for an already-structurally-indexed project."""
-    _get_service().index_calls(path)
-    typer.echo(f"Call edges indexed for {path}")
 
 
 @app.command()
@@ -87,36 +88,63 @@ def source(full_name: str, include_class: bool = False) -> None:
 @app.command()
 def callers(method_full_name: str) -> None:
     """Find all methods that call a given method."""
-    for item in _get_service().find_callers(method_full_name):
-        typer.echo(item)
+    results = _get_service().find_callers(method_full_name)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        typer.echo(_fmt(item))
 
 
 @app.command()
 def callees(method_full_name: str) -> None:
     """Find all methods called by a given method."""
-    for item in _get_service().find_callees(method_full_name):
-        typer.echo(item)
+    results = _get_service().find_callees(method_full_name)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        typer.echo(_fmt(item))
 
 
 @app.command()
 def implementations(interface_name: str) -> None:
     """Find all concrete implementations of an interface."""
-    for item in _get_service().find_implementations(interface_name):
-        typer.echo(item)
+    results = _get_service().find_implementations(interface_name)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        typer.echo(_fmt(item))
 
 
 @app.command()
 def hierarchy(class_name: str) -> None:
     """Show the full inheritance chain for a class."""
     result = _get_service().get_hierarchy(class_name)
-    typer.echo(result)
+    parents = result["parents"]
+    children = result["children"]
+    typer.echo("Parents:")
+    for p in parents:
+        typer.echo(f"  {p.get('full_name', '?')}")
+    if not parents:
+        typer.echo("  (none)")
+    typer.echo("Children:")
+    for c in children:
+        typer.echo(f"  {c.get('full_name', '?')}")
+    if not children:
+        typer.echo("  (none)")
 
 
 @app.command()
 def search(query: str, kind: Optional[str] = None) -> None:
     """Search symbols by name."""
-    for item in _get_service().search_symbols(query, kind):
-        typer.echo(item)
+    results = _get_service().search_symbols(query, kind)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        typer.echo(_fmt(item))
 
 
 @app.command()
@@ -129,15 +157,27 @@ def query(cypher: str) -> None:
 @app.command("type-refs")
 def type_refs(full_name: str) -> None:
     """Find all symbols that reference a type."""
-    for item in _get_service().find_type_references(full_name):
-        typer.echo(item)
+    results = _get_service().find_type_references(full_name)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        fn = item["symbol"].get("full_name", "?")
+        kind = item.get("kind", "")
+        typer.echo(f"{fn} ({kind})")
 
 
 @app.command()
 def dependencies(full_name: str) -> None:
     """Find all types referenced by a symbol."""
-    for item in _get_service().find_dependencies(full_name):
-        typer.echo(item)
+    results = _get_service().find_dependencies(full_name)
+    if not results:
+        typer.echo("No results.")
+        return
+    for item in results:
+        fn = item["type"].get("full_name", "?")
+        kind = item.get("kind", "")
+        typer.echo(f"{fn} ({kind})")
 
 
 @app.command()
