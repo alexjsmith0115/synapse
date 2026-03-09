@@ -146,15 +146,15 @@ class Indexer:
             case SymbolKind.NAMESPACE:
                 upsert_package(self._conn, symbol.full_name, symbol.name)
             case SymbolKind.INTERFACE:
-                upsert_interface(self._conn, symbol.full_name, symbol.name, end_line=symbol.end_line)
+                upsert_interface(self._conn, symbol.full_name, symbol.name, line=symbol.line, end_line=symbol.end_line)
             case SymbolKind.CLASS | SymbolKind.ABSTRACT_CLASS | SymbolKind.ENUM | SymbolKind.RECORD:
-                upsert_class(self._conn, symbol.full_name, symbol.name, symbol.kind.value, end_line=symbol.end_line)
+                upsert_class(self._conn, symbol.full_name, symbol.name, symbol.kind.value, line=symbol.line, end_line=symbol.end_line)
             case SymbolKind.METHOD:
                 upsert_method(self._conn, symbol.full_name, symbol.name, symbol.signature, symbol.is_abstract, symbol.is_static, symbol.line, end_line=symbol.end_line)
             case SymbolKind.PROPERTY:
-                upsert_property(self._conn, symbol.full_name, symbol.name, "", end_line=symbol.end_line)
+                upsert_property(self._conn, symbol.full_name, symbol.name, "", line=symbol.line, end_line=symbol.end_line)
             case SymbolKind.FIELD:
-                upsert_field(self._conn, symbol.full_name, symbol.name, "", end_line=symbol.end_line)
+                upsert_field(self._conn, symbol.full_name, symbol.name, "", line=symbol.line, end_line=symbol.end_line)
             case _:
                 log.debug("Skipping symbol of unhandled kind: %s", symbol.kind)
 

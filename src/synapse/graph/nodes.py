@@ -31,17 +31,17 @@ def upsert_package(conn: GraphConnection, full_name: str, name: str) -> None:
     )
 
 
-def upsert_interface(conn: GraphConnection, full_name: str, name: str, end_line: int = 0) -> None:
+def upsert_interface(conn: GraphConnection, full_name: str, name: str, line: int | None = None, end_line: int = 0) -> None:
     conn.execute(
-        "MERGE (n:Interface {full_name: $full_name}) SET n.name = $name, n.end_line = $end_line",
-        {"full_name": full_name, "name": name, "end_line": end_line},
+        "MERGE (n:Interface {full_name: $full_name}) SET n.name = $name, n.line = $line, n.end_line = $end_line",
+        {"full_name": full_name, "name": name, "line": line, "end_line": end_line},
     )
 
 
-def upsert_class(conn: GraphConnection, full_name: str, name: str, kind: str, end_line: int = 0) -> None:
+def upsert_class(conn: GraphConnection, full_name: str, name: str, kind: str, line: int | None = None, end_line: int = 0) -> None:
     conn.execute(
-        "MERGE (n:Class {full_name: $full_name}) SET n.name = $name, n.kind = $kind, n.end_line = $end_line",
-        {"full_name": full_name, "name": name, "kind": kind, "end_line": end_line},
+        "MERGE (n:Class {full_name: $full_name}) SET n.name = $name, n.kind = $kind, n.line = $line, n.end_line = $end_line",
+        {"full_name": full_name, "name": name, "kind": kind, "line": line, "end_line": end_line},
     )
 
 
@@ -62,17 +62,17 @@ def upsert_method(
     )
 
 
-def upsert_property(conn: GraphConnection, full_name: str, name: str, type_name: str, end_line: int = 0) -> None:
+def upsert_property(conn: GraphConnection, full_name: str, name: str, type_name: str, line: int | None = None, end_line: int = 0) -> None:
     conn.execute(
-        "MERGE (n:Property {full_name: $full_name}) SET n.name = $name, n.type_name = $type_name, n.end_line = $end_line",
-        {"full_name": full_name, "name": name, "type_name": type_name, "end_line": end_line},
+        "MERGE (n:Property {full_name: $full_name}) SET n.name = $name, n.type_name = $type_name, n.line = $line, n.end_line = $end_line",
+        {"full_name": full_name, "name": name, "type_name": type_name, "line": line, "end_line": end_line},
     )
 
 
-def upsert_field(conn: GraphConnection, full_name: str, name: str, type_name: str, end_line: int = 0) -> None:
+def upsert_field(conn: GraphConnection, full_name: str, name: str, type_name: str, line: int | None = None, end_line: int = 0) -> None:
     conn.execute(
-        "MERGE (n:Field {full_name: $full_name}) SET n.name = $name, n.type_name = $type_name, n.end_line = $end_line",
-        {"full_name": full_name, "name": name, "type_name": type_name, "end_line": end_line},
+        "MERGE (n:Field {full_name: $full_name}) SET n.name = $name, n.type_name = $type_name, n.line = $line, n.end_line = $end_line",
+        {"full_name": full_name, "name": name, "type_name": type_name, "line": line, "end_line": end_line},
     )
 
 
