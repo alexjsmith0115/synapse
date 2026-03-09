@@ -31,6 +31,20 @@ def _fmt(sym: dict) -> str:
     return f"{fn} — {sig}" if sig else fn
 
 
+def _require_label(svc, full_name: str, required: str, hint: str) -> bool:
+    """Check that a symbol exists and has the required node label. Prints an error and returns False if not."""
+    sym = svc.get_symbol(full_name)
+    if sym is None:
+        typer.echo(f"Symbol not found: {full_name}", err=True)
+        return False
+    labels = sym.get("_labels", [])
+    if required not in labels:
+        actual = labels[0] if labels else "Unknown"
+        typer.echo(hint.format(name=full_name, actual=actual), err=True)
+        return False
+    return True
+
+
 @app.command()
 def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
@@ -88,7 +102,13 @@ def source(full_name: str, include_class: bool = False) -> None:
 @app.command()
 def callers(method_full_name: str) -> None:
     """Find all methods that call a given method."""
-    results = _get_service().find_callers(method_full_name)
+    svc = _get_service()
+    if not _require_label(
+        svc, method_full_name, "Method",
+        "'{name}' is a {actual}, not a Method. Try a specific method like '{name}.MethodName'.",
+    ):
+        raise typer.Exit(1)
+    results = svc.find_callers(method_full_name)
     if not results:
         typer.echo("No results.")
         return
@@ -99,7 +119,13 @@ def callers(method_full_name: str) -> None:
 @app.command()
 def callees(method_full_name: str) -> None:
     """Find all methods called by a given method."""
-    results = _get_service().find_callees(method_full_name)
+    svc = _get_service()
+    if not _require_label(
+        svc, method_full_name, "Method",
+        "'{name}' is a {actual}, not a Method. Try a specific method like '{name}.MethodName'.",
+    ):
+        raise typer.Exit(1)
+    results = svc.find_callees(method_full_name)
     if not results:
         typer.echo("No results.")
         return
@@ -110,7 +136,13 @@ def callees(method_full_name: str) -> None:
 @app.command()
 def implementations(interface_name: str) -> None:
     """Find all concrete implementations of an interface."""
-    results = _get_service().find_implementations(interface_name)
+    svc = _get_service()
+    if not _require_label(
+        svc, interface_name, "Interface",
+        "'{name}' is a {actual}. To find what interfaces it implements, use: synapse hierarchy {name}",
+    ):
+        raise typer.Exit(1)
+    results = svc.find_implementations(interface_name)
     if not results:
         typer.echo("No results.")
         return

@@ -15,6 +15,8 @@ def _svc(overrides: dict | None = None):
     svc.find_type_references.return_value = []
     svc.find_dependencies.return_value = []
     svc.get_hierarchy.return_value = {"parents": [], "children": []}
+    # Default: get_symbol returns a Method so callers/callees pass label validation
+    svc.get_symbol.return_value = {"full_name": "A.Method", "_labels": ["Method"]}
     if overrides:
         for k, v in overrides.items():
             setattr(svc, k, MagicMock(return_value=v))
@@ -95,3 +97,40 @@ def test_dependencies_prints_full_name_and_kind():
 def test_index_calls_command_does_not_exist():
     result = runner.invoke(app, ["index-calls", "/some/path"])
     assert result.exit_code != 0
+
+
+def test_callers_errors_when_given_a_class():
+    svc = MagicMock()
+    svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["callers", "A.MyClass"])
+    assert result.exit_code != 0
+    assert "Class" in result.output
+    assert "not a Method" in result.output
+
+
+def test_callees_errors_when_given_a_class():
+    svc = MagicMock()
+    svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["callees", "A.MyClass"])
+    assert result.exit_code != 0
+    assert "not a Method" in result.output
+
+
+def test_implementations_errors_when_given_a_class():
+    svc = MagicMock()
+    svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["implementations", "A.MyClass"])
+    assert result.exit_code != 0
+    assert "synapse hierarchy" in result.output
+
+
+def test_callers_errors_when_symbol_not_found():
+    svc = MagicMock()
+    svc.get_symbol.return_value = None
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["callers", "A.Missing"])
+    assert result.exit_code != 0
+    assert "not found" in result.output.lower()
