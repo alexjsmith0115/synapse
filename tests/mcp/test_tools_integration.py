@@ -55,7 +55,7 @@ def _json(result):
 def mcp_server():
     conn = GraphConnection.create(graph_name="synapse_test_mcp")
     ensure_schema(conn)
-    conn.execute("MATCH (n) DETACH DELETE n")
+    conn.execute("MATCH (n) DETACH DELETE n")  # scoped to synapse_test_mcp graph
 
     service = SynapseService(conn=conn)
     mcp = FastMCP("synapse-test")
@@ -65,4 +65,5 @@ def mcp_server():
 
     yield mcp
 
-    conn.execute("MATCH (n) DETACH DELETE n")
+    conn.execute("MATCH (n) DETACH DELETE n")  # scoped to synapse_test_mcp graph
+    # GraphConnection has no close() — connection released by GC
