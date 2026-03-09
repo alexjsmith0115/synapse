@@ -110,8 +110,9 @@ class SynapseService:
     def get_index_status(self, path: str) -> dict | None:
         return get_index_status(self._conn, path)
 
-    def execute_query(self, cypher: str) -> list:
-        return execute_readonly_query(self._conn, cypher)
+    def execute_query(self, cypher: str) -> list[dict]:
+        raw = execute_readonly_query(self._conn, cypher)
+        return [{"row": [_p(cell) if hasattr(cell, "properties") else cell for cell in row]} for row in raw]
 
     def find_type_references(self, full_name: str) -> list[dict]:
         return [{"symbol": _p(r["symbol"]), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name)]

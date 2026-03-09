@@ -67,7 +67,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.list_summarized(project_path)
 
     @mcp.tool()
-    def execute_query(cypher: str) -> list:
+    def execute_query(cypher: str) -> list[dict]:
         return service.execute_query(cypher)
 
     @mcp.tool()
