@@ -133,8 +133,9 @@ def get_method_symbol_map(conn: GraphConnection) -> dict[tuple[str, int], str]:
 
 def get_symbol_source_info(conn: GraphConnection, full_name: str) -> dict | None:
     rows = conn.query(
-        "MATCH (f:File)-[:CONTAINS*]->(n {full_name: $full_name}) "
-        "RETURN f.path, n.line, n.end_line",
+        "MATCH (n {full_name: $full_name}) "
+        "WHERE n.file_path IS NOT NULL "
+        "RETURN n.file_path, n.line, n.end_line",
         {"full_name": full_name},
     )
     if not rows:

@@ -115,6 +115,16 @@ def test_get_symbol_source_info_returns_none_when_not_found() -> None:
     assert result is None
 
 
+def test_get_symbol_source_info_uses_stored_file_path() -> None:
+    """Query must read n.file_path, not traverse CONTAINS* from File."""
+    conn = _conn([["/proj/Actual.cs", 5, 20]])
+    result = get_symbol_source_info(conn, "Ns.MyClass")
+    assert result == {"file_path": "/proj/Actual.cs", "line": 5, "end_line": 20}
+    # Verify the Cypher does NOT do a CONTAINS* traversal from File
+    cypher = conn.query.call_args[0][0]
+    assert "CONTAINS" not in cypher, "Must not traverse CONTAINS — use n.file_path property"
+
+
 def test_find_type_references_returns_referencing_symbols() -> None:
     conn = _conn([[{"full_name": "Ns.C.M()", "name": "M"}, "parameter"]])
     results = find_type_references(conn, "Ns.UserDto")
