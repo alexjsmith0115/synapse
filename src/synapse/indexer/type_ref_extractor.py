@@ -56,6 +56,7 @@ class TreeSitterTypeRefExtractor:
         file_path: str,
         source: str,
         symbol_map: dict[tuple[str, int], str],
+        class_lines: list[tuple[int, str]] = (),
     ) -> list[TypeRef]:
         if not source.strip():
             return []
@@ -75,8 +76,8 @@ class TreeSitterTypeRefExtractor:
         results: list[TypeRef] = []
         self._extract_return_types(tree, file_path, method_lines, results)
         self._extract_param_types(tree, file_path, method_lines, results)
-        self._extract_property_types(tree, file_path, source, results)
-        self._extract_field_types(tree, file_path, source, results)
+        self._extract_property_types(tree, file_path, class_lines, results)
+        self._extract_field_types(tree, file_path, class_lines, results)
         return results
 
     def _extract_return_types(self, tree, file_path, method_lines, results):
@@ -111,35 +112,39 @@ class TreeSitterTypeRefExtractor:
                             ref_kind="parameter",
                         ))
 
-    def _extract_property_types(self, tree, file_path, source, results):
+    def _extract_property_types(self, tree, file_path, class_lines, results):
         cursor = self._QueryCursor(self._property_query)
         for _pattern_idx, captures in cursor.matches(tree.root_node):
             type_nodes = captures.get("prop_type", [])
-            name_nodes = captures.get("prop_name", [])
-            for type_node, name_node in zip(type_nodes, name_nodes):
+            for type_node in type_nodes:
                 type_name = self._get_type_name(type_node)
-                prop_name = name_node.text.decode("utf-8") if isinstance(name_node.text, bytes) else name_node.text
                 if type_name and type_name not in _PRIMITIVE_TYPES:
-                    results.append(TypeRef(
-                        owner_full_name=prop_name,  # Placeholder — resolved by SymbolResolver
-                        type_name=type_name,
-                        line=type_node.start_point[0], col=type_node.start_point[1],
-                        ref_kind="property_type",
-                    ))
+                    line_0 = type_node.start_point[0]
+                    owner = self._find_enclosing_class(line_0, class_lines)
+                    if owner:
+                        results.append(TypeRef(
+                            owner_full_name=owner,
+                            type_name=type_name,
+                            line=line_0, col=type_node.start_point[1],
+                            ref_kind="property_type",
+                        ))
 
-    def _extract_field_types(self, tree, file_path, source, results):
+    def _extract_field_types(self, tree, file_path, class_lines, results):
         cursor = self._QueryCursor(self._field_query)
         for _pattern_idx, captures in cursor.matches(tree.root_node):
             type_nodes = captures.get("field_type", [])
             for node in type_nodes:
                 type_name = self._get_type_name(node)
                 if type_name and type_name not in _PRIMITIVE_TYPES:
-                    results.append(TypeRef(
-                        owner_full_name="",  # Placeholder — resolved by SymbolResolver
-                        type_name=type_name,
-                        line=node.start_point[0], col=node.start_point[1],
-                        ref_kind="field_type",
-                    ))
+                    line_0 = node.start_point[0]
+                    owner = self._find_enclosing_class(line_0, class_lines)
+                    if owner:
+                        results.append(TypeRef(
+                            owner_full_name=owner,
+                            type_name=type_name,
+                            line=line_0, col=node.start_point[1],
+                            ref_kind="field_type",
+                        ))
 
     def _get_type_name(self, node) -> str | None:
         """Extract the simple type name from a type node, handling generic and qualified types."""
@@ -162,6 +167,15 @@ class TreeSitterTypeRefExtractor:
         best: str | None = None
         for method_line, full_name in method_lines:
             if method_line <= line_0:
+                best = full_name
+            else:
+                break
+        return best
+
+    def _find_enclosing_class(self, line_0: int, class_lines: list[tuple[int, str]]) -> str | None:
+        best: str | None = None
+        for class_line, full_name in class_lines:
+            if class_line <= line_0:
                 best = full_name
             else:
                 break

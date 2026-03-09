@@ -88,3 +88,97 @@ def test_resolver_writes_references_edge():
     resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
 
     assert any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
+
+
+def test_resolver_writes_calls_edge_when_lsp_returns_class():
+    """Roslyn often returns the containing class rather than the method for a call site.
+    The resolver must fall back to matching method children by callee simple name."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    method_child = {
+        "name": "Helper", "kind": 6,
+        "parent": {"name": "MyClass", "kind": 5, "parent": {"name": "MyNs", "kind": 3, "parent": None}},
+    }
+    # LSP returns the class, not the method
+    class_sym = {"name": "MyClass", "kind": 5, "children": [method_child], "parent": None}
+    ls.request_defining_symbol.return_value = class_sym
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+
+    assert any("CALLS" in str(c) for c in conn.execute.call_args_list)
+
+
+def test_resolver_skips_call_when_lsp_returns_class_without_matching_child():
+    conn = MagicMock()
+    ls = _make_ls()
+
+    # LSP returns a class whose children don't include the callee
+    class_sym = {"name": "MyClass", "kind": 5, "children": [], "parent": None}
+    ls.request_defining_symbol.return_value = class_sym
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+
+    assert not any("CALLS" in str(c) for c in conn.execute.call_args_list)
+
+
+def test_resolver_writes_references_edge_via_name_map_fallback():
+    """When LSP cannot resolve a type reference (returns None), the name map is used."""
+    conn = MagicMock()
+    ls = _make_ls()
+    ls.request_defining_symbol.return_value = None
+
+    from synapse.indexer.type_ref_extractor import TypeRef
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = [
+        TypeRef(owner_full_name="Ns.AnimalService", type_name="IAnimal", line=4, col=21, ref_kind="field_type")
+    ]
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        name_to_full_names={"IAnimal": ["Ns.IAnimal"]},
+    )
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+
+    assert any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
+
+
+def test_resolver_skips_references_when_name_map_ambiguous():
+    """Ambiguous type names (multiple full_names) must not produce a REFERENCES edge."""
+    conn = MagicMock()
+    ls = _make_ls()
+    ls.request_defining_symbol.return_value = None
+
+    from synapse.indexer.type_ref_extractor import TypeRef
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = [
+        TypeRef(owner_full_name="Ns.C", type_name="Item", line=3, col=10, ref_kind="field_type")
+    ]
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        name_to_full_names={"Item": ["Ns.A.Item", "Ns.B.Item"]},
+    )
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+
+    assert not any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
