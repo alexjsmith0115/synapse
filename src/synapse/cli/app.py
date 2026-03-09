@@ -25,14 +25,13 @@ def _get_service() -> SynapseService:
 
 
 def _fmt(sym: dict) -> str:
-    """Format a symbol dict as 'full_name — signature' for methods, or just 'full_name' for types."""
     fn = sym.get("full_name", "?")
     sig = sym.get("signature")
     return f"{fn} — {sig}" if sig else fn
 
 
-def _require_label(svc, full_name: str, required: str, hint: str) -> bool:
-    """Check that a symbol exists and has the required node label. Prints an error and returns False if not."""
+def _require_label(svc: SynapseService, full_name: str, required: str, hint: str) -> bool:
+    # Caller raises Exit so that commands control their own exit code.
     sym = svc.get_symbol(full_name)
     if sym is None:
         typer.echo(f"Symbol not found: {full_name}", err=True)
@@ -50,7 +49,6 @@ def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
     _get_service().index_project(path, language)
     typer.echo(f"Indexed {path}")
-
 
 
 @app.command()
