@@ -112,7 +112,7 @@ def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
     )
     return {
         "path": project_path,
-        "last_indexed": repo.get("last_indexed"),
+        "last_indexed": repo.properties.get("last_indexed"),
         "file_count": file_count[0][0] if file_count else 0,
         "symbol_count": symbol_count[0][0] if symbol_count else 0,
     }
