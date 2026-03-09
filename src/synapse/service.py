@@ -13,6 +13,14 @@ from synapse.graph.queries import (
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
+from synapse.indexer.indexer import Indexer
+from synapse.lsp.csharp import CSharpLSPAdapter
+from synapse.lsp.interface import LSPAdapter
+from synapse.watcher.watcher import FileWatcher
+
+log = logging.getLogger(__name__)
+
+
 def _p(node) -> dict:
     """Extract properties from a FalkorDB Node (including labels) or pass through a plain dict."""
     if hasattr(node, "properties"):
@@ -21,14 +29,6 @@ def _p(node) -> dict:
             result["_labels"] = list(node.labels)
         return result
     return node
-
-
-from synapse.indexer.indexer import Indexer
-from synapse.lsp.csharp import CSharpLSPAdapter
-from synapse.lsp.interface import LSPAdapter
-from synapse.watcher.watcher import FileWatcher
-
-log = logging.getLogger(__name__)
 
 
 class SynapseService:
