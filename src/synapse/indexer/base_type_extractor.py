@@ -72,6 +72,18 @@ def _extract_base_name(node) -> str | None:
         for child in node.children:
             if child.type == "identifier":
                 return _text(child)
+    if node.type == "qualified_name":
+        # Walk right-to-left: the rightmost identifier is the simple type name.
+        # Example: "Services.IMeetingService" → last non-dot child is "IMeetingService"
+        # Example: "A.B.IService" (left-recursive) → recurse into final child
+        last: str | None = None
+        for child in node.children:
+            if child.type == ".":
+                continue
+            candidate = _extract_base_name(child)
+            if candidate:
+                last = candidate
+        return last
     return None
 
 
