@@ -58,14 +58,25 @@ class Indexer:
             except OSError:
                 log.warning("Could not read %s for base type extraction", file_path)
 
-        # CALLS resolution requires all Method nodes to be present; must run after the structural pass
+        # CALLS and REFERENCES resolution requires all nodes to be present; must run after structural pass
+        _CLASS_KINDS = {SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.INTERFACE}
         symbol_map = {
             (sym.file_path, sym.line): sym.full_name
             for syms in symbols_by_file.values()
             for sym in syms
             if sym.kind == SymbolKind.METHOD
         }
-        SymbolResolver(self._conn, self._lsp.language_server).resolve(root_path, symbol_map)
+        class_symbol_map = {
+            (sym.file_path, sym.line): sym.full_name
+            for syms in symbols_by_file.values()
+            for sym in syms
+            if sym.kind in _CLASS_KINDS
+        }
+        SymbolResolver(
+            self._conn,
+            self._lsp.language_server,
+            name_to_full_names=name_to_full_names,
+        ).resolve(root_path, symbol_map, class_symbol_map=class_symbol_map)
 
         if not keep_lsp_running:
             self._lsp.shutdown()
@@ -88,12 +99,22 @@ class Indexer:
         except OSError:
             log.warning("Could not read %s for base type extraction", file_path)
 
+        _CLASS_KINDS = {SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.INTERFACE}
         symbol_map = {
             (sym.file_path, sym.line): sym.full_name
             for sym in symbols
             if sym.kind == SymbolKind.METHOD
         }
-        SymbolResolver(self._conn, self._lsp.language_server).resolve_single_file(file_path, symbol_map)
+        class_symbol_map = {
+            (sym.file_path, sym.line): sym.full_name
+            for sym in symbols
+            if sym.kind in _CLASS_KINDS
+        }
+        SymbolResolver(
+            self._conn,
+            self._lsp.language_server,
+            name_to_full_names=name_to_full_names,
+        ).resolve_single_file(file_path, symbol_map, class_symbol_map=class_symbol_map)
 
     def delete_file(self, file_path: str) -> None:
         delete_file_nodes(self._conn, file_path)
