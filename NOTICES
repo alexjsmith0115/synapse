@@ -1,0 +1,15 @@
+Third-Party Notices
+===================
+
+This project includes code from the following open-source projects:
+
+--------------------------------------------------------------------------------
+solidlsp (from Serena)
+Source: https://github.com/oraios/serena
+License: MIT License
+Copyright (c) 2025 Oraios AI
+
+The solidlsp package (src/solidlsp/) is copied from the Serena project with
+minor modifications (import paths updated to reference synapse.util).
+The full MIT license text is included in src/solidlsp/LICENSE.
+--------------------------------------------------------------------------------
