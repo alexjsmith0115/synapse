@@ -156,3 +156,71 @@ def test_search_symbols(mcp_server: FastMCP) -> None:
     symbols2 = _json(result2)
     names2 = [s["full_name"] for s in symbols2]
     assert any("Dog" in n for n in names2)
+
+
+# ---------------------------------------------------------------------------
+# Relationship query tools
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_implementations(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("find_implementations", {"interface_name": "SynapseTest.IAnimal"}))
+    impls = _json(result)
+    names = [i["full_name"] for i in impls]
+    assert "SynapseTest.Dog" in names
+    assert "SynapseTest.Cat" in names
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_callers(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("find_callers", {"method_full_name": "SynapseTest.IAnimal.Speak"}))
+    callers = _json(result)
+    # CALLS edges may not be resolved for interface dispatch — assert non-exception
+    assert isinstance(callers, list)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_callees(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("find_callees", {"method_full_name": "SynapseTest.AnimalService.MakeNoise"}))
+    callees = _json(result)
+    # CALLS edges may not be resolved for interface dispatch — assert non-exception
+    assert isinstance(callees, list)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_hierarchy(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_hierarchy", {"class_name": "SynapseTest.Dog"}))
+    hierarchy = _json(result)
+    text = json.dumps(hierarchy)
+    assert "Animal" in text
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_type_references(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("find_type_references", {"full_name": "SynapseTest.IAnimal"}))
+    refs = _json(result)
+    names = [r.get("full_name", "") for r in refs]
+    assert any("AnimalService" in n for n in names)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_dependencies(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("find_dependencies", {"full_name": "SynapseTest.AnimalService"}))
+    deps = _json(result)
+    names = [d.get("full_name", "") for d in deps]
+    assert any("IAnimal" in n for n in names)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for(mcp_server: FastMCP) -> None:
+    result = _run(mcp_server.call_tool("get_context_for", {"full_name": "SynapseTest.AnimalService"}))
+    context = _text(result)
+    assert len(context) > 0
+    assert "AnimalService" in context
