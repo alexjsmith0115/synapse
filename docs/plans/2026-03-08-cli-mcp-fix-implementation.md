@@ -624,33 +624,31 @@ git commit -m "fix: add semantic validation to callers, callees, implementations
 
 ### Task 5: Smoke-test against live graph
 
-Verify the fixes work end-to-end against the indexed `oneonone` project.
+Verify the fixes work end-to-end against an indexed C# project.
 
 **Step 1: Run smoke tests**
 
 ```bash
-cd /Users/alex/Dev/oneonone/backend
-
 # Should list implementations of the interface
-synapse implementations OneOnOne.API.Services.IEncryptionService
+synapse implementations <Namespace>.IEncryptionService
 
 # Should list callers of a specific method
-synapse callers OneOnOne.API.Services.EncryptionService.Encrypt
+synapse callers <Namespace>.EncryptionService.Encrypt
 
 # Should print helpful error when given a class name
-synapse callers OneOnOne.API.Services.EncryptionService
+synapse callers <Namespace>.EncryptionService
 
 # Should print helpful error when given a class for implementations
-synapse implementations OneOnOne.API.Services.EncryptionService
+synapse implementations <Namespace>.EncryptionService
 
 # Should show hierarchy sections
-synapse hierarchy OneOnOne.API.Services.EncryptionService
+synapse hierarchy <Namespace>.EncryptionService
 
 # Should list symbols by name
 synapse search Encryption
 
 # Should show type references
-synapse type-refs OneOnOne.API.Services.IEncryptionService
+synapse type-refs <Namespace>.IEncryptionService
 
 # Should confirm index-calls is gone
 synapse index-calls /path 2>&1 | grep -i "no such command"
@@ -658,12 +656,11 @@ synapse index-calls /path 2>&1 | grep -i "no such command"
 
 **Step 2: Re-index if needed**
 
-If any command returns "No results." unexpectedly (e.g. `callers`, `type-refs`), the graph may need re-indexing to pick up the `line` fix from the previous session:
+If any command returns "No results." unexpectedly (e.g. `callers`, `type-refs`), the graph may need re-indexing:
 
 ```bash
-cd /Users/alex/Dev/oneonone/backend
-synapse delete /Users/alex/Dev/oneonone/backend
-synapse index /Users/alex/Dev/oneonone/backend
+synapse delete <path/to/csharp/project>
+synapse index <path/to/csharp/project>
 ```
 
 Then re-run the smoke tests.

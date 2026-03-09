@@ -75,4 +75,4 @@ Wrapped in `try/except Exception` — returns `[]` on failure. Skips callees whe
 
 Unit tests mock `self._ls` and `self._ls.server.send` to verify the data pipeline without a live language server. The existing 2 protocol conformance tests remain unchanged.
 
-Integration validation: run `pytest tests/integration/ -v -m integration` against the oneonone project with FalkorDB running.
+Integration validation: run `pytest tests/integration/ -v -m integration` with FalkorDB running.

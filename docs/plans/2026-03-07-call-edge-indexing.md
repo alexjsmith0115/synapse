@@ -770,7 +770,7 @@ If not running: `docker run -p 6379:6379 -it --rm falkordb/falkordb:latest`
 **Step 2: Re-index the project (includes call pass)**
 
 ```bash
-synapse index /Users/alex/Dev/oneonone
+synapse index <path/to/csharp/project>
 ```
 
 Expected: completes without Python tracebacks. May show LSP warnings but no `log.exception` output.
@@ -786,7 +786,7 @@ Expected: a non-zero count.
 **Step 4: Spot-check a specific method**
 
 ```bash
-synapse callees "OneOnOne.API.Controllers.MeetingsController.CreateMeeting()"
+synapse callees "<Namespace>.<ClassName>.<MethodName>()"
 ```
 
 Or use a method name that is known to call other methods. If unsure, find one:
@@ -800,7 +800,7 @@ Expected: real caller → callee pairs that make sense for the codebase.
 **Step 5: Also test `index-calls` standalone command**
 
 ```bash
-synapse index-calls /Users/alex/Dev/oneonone
+synapse index-calls <path/to/csharp/project>
 synapse query "MATCH ()-[r:CALLS]->() RETURN count(r)"
 ```
 

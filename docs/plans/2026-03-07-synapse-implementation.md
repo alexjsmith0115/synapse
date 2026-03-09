@@ -2051,10 +2051,10 @@ git commit -m "feat: add Typer CLI for all Synapse operations"
 
 ---
 
-## Task 14: Integration Test — Index oneonone C# Project
+## Task 14: Integration Test — Index C# Project
 
 **Files:**
-- Create: `tests/integration/test_index_oneonone.py`
+- Create: `tests/integration/test_index_project.py`
 
 **Prerequisites:** FalkorDB running locally. Start with:
 ```bash
@@ -2064,9 +2064,9 @@ docker run -p 6379:6379 -it --rm falkordb/falkordb:latest
 **Step 1: Write the integration test**
 
 ```python
-# tests/integration/test_index_oneonone.py
+# tests/integration/test_index_project.py
 """
-Integration tests against the oneonone C# project.
+Integration tests against a C# project.
 Requires FalkorDB running on localhost:6379.
 Run with: pytest tests/integration/ -v -m integration
 """
@@ -2076,8 +2076,7 @@ from synapse.graph.connection import GraphConnection
 from synapse.graph.schema import ensure_schema
 from synapse.service import SynapseService
 
-ONEONONE_PATH = "/Users/alex/Dev/oneonone"
-CSHARP_BACKEND_PATH = f"{ONEONONE_PATH}/backend"  # adjust if needed
+CSHARP_BACKEND_PATH = "<path/to/csharp/project>"
 
 
 @pytest.fixture(scope="module")

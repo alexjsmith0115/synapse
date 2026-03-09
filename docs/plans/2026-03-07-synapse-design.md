@@ -15,7 +15,7 @@ Summaries and learned context are stored as first-class graph data, written by t
 |---|---|---|
 | Graph database | FalkorDB | Lighter than Neo4j, no external server required, Cypher-compatible |
 | LSP integration | Copy `solidlsp` from Serena (MIT) | Battle-tested C# support, avoids Serena's full dependency footprint |
-| Language support | C# (POC), TypeScript (next) | Validate architecture on `oneonone` project |
+| Language support | C# (POC), TypeScript (next) | Validate architecture on a real C# codebase |
 | Indexing strategy | Eager (LSP at index time, shut down after) | Queries are pure graph reads; no LSP latency at query time |
 | Summary storage | Properties on node + `:Summarized` label | Single source of truth; queryable by type and by "has summary" |
 | LLM integration | None | Agent drives all summarization; tool is pure infrastructure |
@@ -146,7 +146,7 @@ synapse query <cypher>
 
 - **Global timeout:** `pytest-timeout` with a 10s default on all tests; integration tests opt in to longer timeouts explicitly (`@pytest.mark.timeout(60)`)
 - **Unit tests** (`tests/unit/`): graph layer, schema, indexer logic — all LSP interactions mocked, no real language server process, no risk of hangs
-- **Integration tests** (`tests/integration/`): full index of the `oneonone` C# project, asserting known symbols and relationships exist in the graph; LSP process wrapped in a context manager with explicit kill timeout
+- **Integration tests** (`tests/integration/`): full index of a C# project, asserting known symbols and relationships exist in the graph; LSP process wrapped in a context manager with explicit kill timeout
 - **MCP tests** (`tests/mcp/`): MCP tool responses tested against a live indexed graph
 - **LSP fixture tests** (`tests/fixtures/csharp/`): small test repo with known DI patterns, interfaces, and call graphs; assertions verify implicit relationships are correctly resolved
 - File watcher tests use a short debounce and explicit `observer.stop()` in teardown to prevent background thread leaks
