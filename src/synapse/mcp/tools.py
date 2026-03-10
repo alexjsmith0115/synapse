@@ -87,6 +87,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def find_callees(method_full_name: str) -> list[dict]:
+        """Find methods called by the given method (direct CALLS edges only).
+
+        Note: in C# DI codebases, callees are often interface methods. The graph
+        stores the edge to the concrete or interface method depending on the call site.
+        """
         return service.find_callees(method_full_name)
 
     @mcp.tool()
@@ -99,7 +104,20 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.get_hierarchy(class_name)
 
     @mcp.tool()
-    def search_symbols(query: str, kind: str | None = None) -> list[dict]:
+    def search_symbols(
+        query: str,
+        kind: str | None = None,
+        namespace: str | None = None,
+        file_path: str | None = None,
+    ) -> list[dict]:
+        """Search for symbols by name substring.
+
+        kind: filter by node type. Valid values: Class, Interface, Method, Property,
+              Field, Namespace, File, Directory, Repository.
+        namespace: filter to symbols whose full_name starts with this prefix
+                   (e.g. "MyNs.Services").
+        file_path: filter to symbols defined in this file path.
+        """
         return service.search_symbols(query, kind)
 
     @mcp.tool()
@@ -140,11 +158,21 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def watch_project(path: str) -> str:
+        """Start a file watcher that automatically re-indexes changed .cs files.
+
+        The watcher keeps the LSP process alive between file changes, enabling
+        incremental re-indexing without a full index_project call. Use after
+        index_project during active development sessions.
+        """
         service.watch_project(path)
         return f"Watching {path}"
 
     @mcp.tool()
     def unwatch_project(path: str) -> str:
+        """Stop the file watcher for the given project path.
+
+        Call this when done with active development to release the LSP process.
+        """
         service.unwatch_project(path)
         return f"Stopped watching {path}"
 
@@ -158,5 +186,14 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_context_for(full_name: str) -> str:
+        """Return a rich markdown summary of a symbol and its direct dependencies.
+
+        The returned markdown includes:
+        - The symbol's source code (if available; otherwise a re-index note)
+        - Each direct field-type dependency with its full member signature list
+        - Summaries for any summarized dependencies
+
+        Useful for giving an AI full context before asking it to modify a class.
+        """
         result = service.get_context_for(full_name)
         return result or f"Symbol not found: {full_name}"
