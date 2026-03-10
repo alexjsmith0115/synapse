@@ -83,12 +83,20 @@ def get_summary(conn: GraphConnection, full_name: str) -> str | None:
 def list_summarized(conn: GraphConnection, project_path: str | None = None) -> list[dict]:
     if project_path:
         rows = conn.query(
-            "MATCH (r:Repository {path: $path})-[:CONTAINS*]->(n:Summarized) RETURN n",
+            "MATCH (r:Repository {path: $path})-[:CONTAINS*]->(n:Summarized) "
+            "WITH DISTINCT n RETURN n",
             {"path": project_path},
         )
     else:
-        rows = conn.query("MATCH (n:Summarized) RETURN n")
-    return [r[0] for r in rows]
+        rows = conn.query("MATCH (n:Summarized) WITH DISTINCT n RETURN n")
+    seen: set[int] = set()
+    result = []
+    for r in rows:
+        node = r[0]
+        if node.id not in seen:
+            seen.add(node.id)
+            result.append(node)
+    return result
 
 
 def list_projects(conn: GraphConnection) -> list[dict]:
