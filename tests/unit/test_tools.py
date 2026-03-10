@@ -1,0 +1,43 @@
+from unittest.mock import MagicMock
+
+
+def _register(service):
+    """Register tools and return a dict of {fn_name: fn} for direct testing."""
+    registered = {}
+    mcp = MagicMock()
+    mcp.tool.return_value = lambda f: registered.__setitem__(f.__name__, f) or f
+    from synapse.mcp.tools import register_tools
+    register_tools(mcp, service)
+    return registered
+
+
+def test_get_symbol_source_node_missing():
+    service = MagicMock()
+    service.get_symbol_source.return_value = None
+    service.get_symbol.return_value = None  # node does not exist
+    fns = _register(service)
+
+    result = fns["get_symbol_source"]("Ns.Missing")
+    assert result == "Symbol not found: Ns.Missing"
+
+
+def test_get_symbol_source_stale_index():
+    service = MagicMock()
+    service.get_symbol_source.return_value = None
+    service.get_symbol.return_value = {"full_name": "Ns.Cls"}  # node exists, source missing
+
+    fns = _register(service)
+
+    result = fns["get_symbol_source"]("Ns.Cls")
+    assert "re-index" in result.lower()
+    assert "Symbol not found" not in result
+
+
+def test_get_symbol_source_returns_source_when_available():
+    service = MagicMock()
+    service.get_symbol_source.return_value = "// src/Ns/Cls.cs:5\npublic class Cls {}"
+    fns = _register(service)
+
+    result = fns["get_symbol_source"]("Ns.Cls")
+    assert result == "// src/Ns/Cls.cs:5\npublic class Cls {}"
+    service.get_symbol.assert_not_called()
