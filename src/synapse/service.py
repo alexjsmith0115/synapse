@@ -123,8 +123,11 @@ class SynapseService:
     def find_type_references(self, full_name: str) -> list[dict]:
         return [{"symbol": _p(r["symbol"]), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name)]
 
-    def find_dependencies(self, full_name: str) -> list[dict]:
-        return [{"type": _p(r["type"]), "kind": r["kind"]} for r in query_find_dependencies(self._conn, full_name)]
+    def find_dependencies(self, full_name: str, depth: int = 1) -> list[dict]:
+        return [
+            {"type": _p(r["type"]), "depth": r["depth"]}
+            for r in query_find_dependencies(self._conn, full_name, depth)
+        ]
 
     # --- Summaries ---
 
@@ -212,10 +215,9 @@ class SynapseService:
                 if type_fn in seen_types:
                     continue
                 seen_types.add(type_fn)
-                kind = dep["kind"]
                 type_members = get_members_overview(self._conn, type_fn)
                 member_sigs = [f"  {_p(m).get('name', '?')}: {_p(m).get('signature', '') or _p(m).get('type_name', '')}" for m in type_members]
-                dep_lines.append(f"### {type_fn} ({kind})\n" + "\n".join(member_sigs))
+                dep_lines.append(f"### {type_fn}\n" + "\n".join(member_sigs))
             sections.append("## Parameter & Return Types\n\n" + "\n\n".join(dep_lines))
 
         return "\n\n---\n\n".join(sections)

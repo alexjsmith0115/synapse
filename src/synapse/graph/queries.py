@@ -208,12 +208,14 @@ def find_type_references(conn: GraphConnection, full_name: str) -> list[dict]:
     return [{"symbol": row[0], "kind": row[1]} for row in rows]
 
 
-def find_dependencies(conn: GraphConnection, full_name: str) -> list[dict]:
+def find_dependencies(conn: GraphConnection, full_name: str, depth: int = 1) -> list[dict]:
+    effective_depth = min(depth, 5)
     rows = conn.query(
-        "MATCH (n {full_name: $full_name})-[r:REFERENCES]->(t) RETURN t, r.kind",
+        f"MATCH p=(n {{full_name: $full_name}})-[:REFERENCES*1..{effective_depth}]->(t) "
+        "RETURN t, length(p)",
         {"full_name": full_name},
     )
-    return [{"type": row[0], "kind": row[1]} for row in rows]
+    return [{"type": row[0], "depth": row[1]} for row in rows]
 
 
 def get_containing_type(conn: GraphConnection, full_name: str) -> dict | None:

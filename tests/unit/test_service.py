@@ -117,7 +117,7 @@ def test_get_context_for_method_includes_all_sections(tmp_path):
             {"full_name": "Ns.Repo.Find", "name": "Find", "signature": "User Find(int)"},
         ]),
         query_find_dependencies=MagicMock(return_value=[
-            {"type": {"full_name": "Ns.UserDto", "name": "UserDto"}, "kind": "return_type"},
+            {"type": {"full_name": "Ns.UserDto", "name": "UserDto"}, "depth": 1},
         ]),
     ):
         result = svc.get_context_for("Ns.MyClass.GetUser")
@@ -192,9 +192,9 @@ def test_find_type_references_unwraps_nested_nodes():
 def test_find_dependencies_unwraps_nested_nodes():
     svc = _service()
     node = _node(["Class"], {"full_name": "A.Dep"})
-    with patch("synapse.service.query_find_dependencies", return_value=[{"type": node, "kind": "return_type"}]):
+    with patch("synapse.service.query_find_dependencies", return_value=[{"type": node, "depth": 1}]):
         result = svc.find_dependencies("A.Method")
-    assert result == [{"type": {"full_name": "A.Dep", "_labels": ["Class"]}, "kind": "return_type"}]
+    assert result == [{"type": {"full_name": "A.Dep", "_labels": ["Class"]}, "depth": 1}]
 
 
 def test_get_hierarchy_unwraps_nodes():

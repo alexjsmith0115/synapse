@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
 from synapse.graph.queries import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS
 from synapse.graph.queries import search_symbols as qs_search
+from synapse.graph.queries import find_dependencies as qs_find_deps
 
 
 def _node(labels, props):
@@ -152,3 +153,37 @@ def test_search_symbols_no_filters_unchanged():
     cypher = conn.query.call_args[0][0]
     # Basic query without extra conditions
     assert "CONTAINS" in cypher
+
+
+def test_find_dependencies_depth_1_default():
+    dep = FalkorNode(node_id=40, labels=["Class"], properties={"full_name": "Ns.Dep"})
+    conn = _conn([[dep, 1]])
+    result = qs_find_deps(conn, "Ns.Cls")
+    assert len(result) == 1
+    assert result[0]["depth"] == 1
+    cypher = conn.query.call_args[0][0]
+    assert "*1..1" in cypher
+
+
+def test_find_dependencies_depth_2():
+    dep = FalkorNode(node_id=41, labels=["Class"], properties={"full_name": "Ns.TransitiveDep"})
+    conn = _conn([[dep, 2]])
+    result = qs_find_deps(conn, "Ns.Cls", depth=2)
+    assert result[0]["depth"] == 2
+    cypher = conn.query.call_args[0][0]
+    assert "*1..2" in cypher
+
+
+def test_find_dependencies_depth_capped_at_5():
+    conn = _conn([])
+    qs_find_deps(conn, "Ns.Cls", depth=99)
+    cypher = conn.query.call_args[0][0]
+    assert "*1..5" in cypher
+
+
+def test_find_dependencies_result_has_depth_field():
+    dep = FalkorNode(node_id=42, labels=["Class"], properties={"full_name": "Ns.Dep"})
+    conn = _conn([[dep, 1]])
+    result = qs_find_deps(conn, "Ns.Cls")
+    assert "depth" in result[0]
+    assert "type" in result[0]
