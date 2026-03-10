@@ -39,6 +39,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def find_implementations(interface_name: str) -> list[dict]:
+        """Find all classes that implement the given interface.
+
+        Accepts both full names (e.g. "MyNs.IFoo") and short names (e.g. "IFoo").
+        Short names use a suffix match when an exact match is not found.
+        """
         return service.find_implementations(interface_name)
 
     @mcp.tool()
