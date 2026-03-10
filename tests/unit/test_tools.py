@@ -1,5 +1,25 @@
 from unittest.mock import MagicMock
 
+from synapse.mcp.tools import _GRAPH_SCHEMA
+
+
+def test_get_schema_has_expected_top_level_keys():
+    assert set(_GRAPH_SCHEMA.keys()) == {"node_labels", "relationship_types", "notes"}
+    assert "Class" in _GRAPH_SCHEMA["node_labels"]
+    assert "Interface" in _GRAPH_SCHEMA["node_labels"]
+    assert "CALLS" in _GRAPH_SCHEMA["relationship_types"]
+
+
+def test_get_schema_tool_returns_schema():
+    registered = {}
+    real_mcp = MagicMock()
+    real_mcp.tool.return_value = lambda f: registered.__setitem__(f.__name__, f) or f
+    from synapse.mcp.tools import register_tools
+    register_tools(real_mcp, MagicMock())
+
+    result = registered["get_schema"]()
+    assert result is _GRAPH_SCHEMA
+
 
 def _register(service):
     """Register tools and return a dict of {fn_name: fn} for direct testing."""
