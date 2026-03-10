@@ -96,21 +96,28 @@ def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:
     }
 
 
-def search_symbols(conn: GraphConnection, query: str, kind: str | None = None) -> list[dict]:
+def search_symbols(
+    conn: GraphConnection,
+    query: str,
+    kind: str | None = None,
+    namespace: str | None = None,
+    file_path: str | None = None,
+) -> list[dict]:
     if kind and kind not in _VALID_KINDS:
         raise ValueError(
             f"Unknown symbol kind: {kind!r}. Valid values: {sorted(_VALID_KINDS)}"
         )
-    if kind:
-        rows = conn.query(
-            f"MATCH (n:{kind}) WHERE n.name CONTAINS $query RETURN n",
-            {"query": query},
-        )
-    else:
-        rows = conn.query(
-            "MATCH (n) WHERE n.full_name IS NOT NULL AND n.name CONTAINS $query RETURN n",
-            {"query": query},
-        )
+    label = f":{kind}" if kind else ""
+    conditions = ["n.full_name IS NOT NULL", "n.name CONTAINS $query"]
+    params: dict = {"query": query}
+    if namespace:
+        conditions.append("n.full_name STARTS WITH $namespace")
+        params["namespace"] = namespace
+    if file_path:
+        conditions.append("n.file_path = $file_path")
+        params["file_path"] = file_path
+    where = " AND ".join(conditions)
+    rows = conn.query(f"MATCH (n{label}) WHERE {where} RETURN n", params)
     return [r[0] for r in rows]
 
 

@@ -101,8 +101,14 @@ class SynapseService:
         raw = get_hierarchy(self._conn, class_name)
         return {"parents": [_p(n) for n in raw["parents"]], "children": [_p(n) for n in raw["children"]]}
 
-    def search_symbols(self, query: str, kind: str | None = None) -> list[dict]:
-        return [_p(item) for item in search_symbols(self._conn, query, kind)]
+    def search_symbols(
+        self,
+        query: str,
+        kind: str | None = None,
+        namespace: str | None = None,
+        file_path: str | None = None,
+    ) -> list[dict]:
+        return [_p(item) for item in search_symbols(self._conn, query, kind, namespace, file_path)]
 
     def list_projects(self) -> list[dict]:
         return [_p(item) for item in list_projects(self._conn)]

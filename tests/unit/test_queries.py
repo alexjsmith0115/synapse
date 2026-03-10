@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
 from synapse.graph.queries import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS
+from synapse.graph.queries import search_symbols as qs_search
 
 
 def _node(labels, props):
@@ -116,3 +117,38 @@ def test_list_summarized_deduplicates():
     conn = _conn([[node_a], [node_b]])
     result = list_summarized(conn)
     assert len(result) == 1
+
+
+def test_search_symbols_namespace_filter():
+    node = FalkorNode(node_id=30, labels=["Method"], properties={"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    conn = _conn([[node]])
+    result = qs_search(conn, "Do", namespace="MyNs.Svc")
+    assert len(result) == 1
+    cypher = conn.query.call_args[0][0]
+    assert "STARTS WITH" in cypher
+
+
+def test_search_symbols_file_path_filter():
+    node = FalkorNode(node_id=31, labels=["Method"], properties={"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    conn = _conn([[node]])
+    result = qs_search(conn, "Do", file_path="src/Svc.cs")
+    assert len(result) == 1
+    cypher = conn.query.call_args[0][0]
+    assert "file_path" in cypher
+
+
+def test_search_symbols_combined_filters():
+    conn = _conn([])
+    qs_search(conn, "Do", kind="Method", namespace="MyNs", file_path="src/Svc.cs")
+    cypher = conn.query.call_args[0][0]
+    assert "STARTS WITH" in cypher
+    assert "file_path" in cypher
+    assert "Method" in cypher
+
+
+def test_search_symbols_no_filters_unchanged():
+    conn = _conn([])
+    qs_search(conn, "Foo")
+    cypher = conn.query.call_args[0][0]
+    # Basic query without extra conditions
+    assert "CONTAINS" in cypher

@@ -118,7 +118,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
                    (e.g. "MyNs.Services").
         file_path: filter to symbols defined in this file path.
         """
-        return service.search_symbols(query, kind)
+        return service.search_symbols(query, kind, namespace, file_path)
 
     @mcp.tool()
     def set_summary(full_name: str, content: str) -> str:
