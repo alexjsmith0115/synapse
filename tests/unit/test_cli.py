@@ -14,7 +14,7 @@ def _svc(overrides: dict | None = None):
     svc.search_symbols.return_value = []
     svc.find_type_references.return_value = []
     svc.find_dependencies.return_value = []
-    svc.get_hierarchy.return_value = {"parents": [], "children": []}
+    svc.get_hierarchy.return_value = {"parents": [], "children": [], "implements": []}
     # Default: get_symbol returns a Method so callers/callees pass label validation
     svc.get_symbol.return_value = {"full_name": "A.Method", "_labels": ["Method"]}
     if overrides:
@@ -60,6 +60,7 @@ def test_hierarchy_prints_labeled_sections():
     svc.get_hierarchy.return_value = {
         "parents": [{"full_name": "A.Base"}],
         "children": [{"full_name": "A.Child"}],
+        "implements": [],
     }
     with patch("synapse.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["hierarchy", "A.Middle"])

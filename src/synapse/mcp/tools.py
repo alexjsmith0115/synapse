@@ -65,6 +65,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
+        """Return the inheritance hierarchy for a class.
+
+        Returns {"parents": [...], "children": [...], "implements": [...]}.
+        "implements" lists interfaces directly implemented by this class.
+        """
         return service.get_hierarchy(class_name)
 
     @mcp.tool()
