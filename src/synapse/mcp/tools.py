@@ -11,8 +11,8 @@ _GRAPH_SCHEMA = {
         "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature"],
         "Interface": ["full_name", "name", "file_path", "line", "end_line"],
         "Method": ["full_name", "name", "file_path", "line", "end_line", "signature"],
-        "Property": ["full_name", "name", "file_path", "line"],
-        "Field": ["full_name", "name", "file_path", "line"],
+        "Property": ["full_name", "name", "file_path", "line", "end_line"],
+        "Field": ["full_name", "name", "file_path", "line", "end_line"],
     },
     "relationship_types": {
         "CONTAINS": "Repository/Directory/File/Class/Interface → any",

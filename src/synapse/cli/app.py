@@ -215,8 +215,8 @@ def dependencies(full_name: str) -> None:
         return
     for item in results:
         fn = item["type"].get("full_name", "?")
-        kind = item.get("kind", "")
-        typer.echo(f"{fn} ({kind})")
+        depth = item.get("depth", "?")
+        typer.echo(f"{fn} (depth {depth})")
 
 
 @app.command()

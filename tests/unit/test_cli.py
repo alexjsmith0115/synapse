@@ -87,12 +87,12 @@ def test_type_refs_prints_full_name_and_kind():
     assert "parameter" in result.output
 
 
-def test_dependencies_prints_full_name_and_kind():
-    svc = _svc({"find_dependencies": [{"type": {"full_name": "A.Dep"}, "kind": "return_type"}]})
+def test_dependencies_prints_full_name_and_depth():
+    svc = _svc({"find_dependencies": [{"type": {"full_name": "A.Dep"}, "depth": 1}]})
     with patch("synapse.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["dependencies", "A.Method"])
     assert "A.Dep" in result.output
-    assert "return_type" in result.output
+    assert "depth 1" in result.output
 
 
 def test_index_calls_command_does_not_exist():

@@ -201,7 +201,9 @@ def test_get_hierarchy_unwraps_nodes():
     svc = _service()
     parent = _node(["Class"], {"full_name": "A.Base"})
     child = _node(["Class"], {"full_name": "A.Child"})
-    with patch("synapse.service.get_hierarchy", return_value={"parents": [parent], "children": [child]}):
+    iface = _node(["Interface"], {"full_name": "A.IFoo"})
+    with patch("synapse.service.get_hierarchy", return_value={"parents": [parent], "children": [child], "implements": [iface]}):
         result = svc.get_hierarchy("A.Middle")
     assert result["parents"] == [{"full_name": "A.Base", "_labels": ["Class"]}]
     assert result["children"] == [{"full_name": "A.Child", "_labels": ["Class"]}]
+    assert result["implements"] == [{"full_name": "A.IFoo", "_labels": ["Interface"]}]

@@ -99,7 +99,11 @@ class SynapseService:
 
     def get_hierarchy(self, class_name: str) -> dict:
         raw = get_hierarchy(self._conn, class_name)
-        return {"parents": [_p(n) for n in raw["parents"]], "children": [_p(n) for n in raw["children"]]}
+        return {
+            "parents": [_p(n) for n in raw["parents"]],
+            "children": [_p(n) for n in raw["children"]],
+            "implements": [_p(n) for n in raw["implements"]],
+        }
 
     def search_symbols(
         self,
