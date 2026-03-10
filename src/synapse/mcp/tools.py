@@ -42,8 +42,17 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_implementations(interface_name)
 
     @mcp.tool()
-    def find_callers(method_full_name: str) -> list[dict]:
-        return service.find_callers(method_full_name)
+    def find_callers(
+        method_full_name: str,
+        include_interface_dispatch: bool = True,
+    ) -> list[dict]:
+        """Find methods that call the given method.
+
+        By default, includes callers that invoke this method through an interface
+        (common in C# DI codebases). Set include_interface_dispatch=False for
+        direct CALLS edges only.
+        """
+        return service.find_callers(method_full_name, include_interface_dispatch)
 
     @mcp.tool()
     def find_callees(method_full_name: str) -> list[dict]:

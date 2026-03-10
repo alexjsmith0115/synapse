@@ -91,8 +91,8 @@ class SynapseService:
     def find_implementations(self, interface_name: str) -> list[dict]:
         return [_p(item) for item in find_implementations(self._conn, interface_name)]
 
-    def find_callers(self, method_full_name: str) -> list[dict]:
-        return [_p(item) for item in find_callers(self._conn, method_full_name)]
+    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
+        return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch)]
 
     def find_callees(self, method_full_name: str) -> list[dict]:
         return [_p(item) for item in find_callees(self._conn, method_full_name)]

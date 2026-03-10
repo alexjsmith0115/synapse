@@ -28,12 +28,31 @@ def find_implementations(conn: GraphConnection, interface_full_name: str) -> lis
     return [r[0] for r in rows]
 
 
-def find_callers(conn: GraphConnection, method_full_name: str) -> list[dict]:
-    rows = conn.query(
+def find_callers(
+    conn: GraphConnection,
+    method_full_name: str,
+    include_interface_dispatch: bool = True,
+) -> list[dict]:
+    direct = conn.query(
         "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) RETURN caller",
         {"full_name": method_full_name},
     )
-    return [r[0] for r in rows]
+    if not include_interface_dispatch:
+        return [r[0] for r in direct]
+    via_iface = conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(im:Method)"
+        "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
+        {"full_name": method_full_name},
+    )
+    seen = set()
+    result = []
+    for row in direct + via_iface:
+        node = row[0]
+        key = node.id if hasattr(node, "id") else node.get("full_name")
+        if key not in seen:
+            seen.add(key)
+            result.append(node)
+    return result
 
 
 def find_callees(conn: GraphConnection, method_full_name: str) -> list[dict]:
