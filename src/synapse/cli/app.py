@@ -154,6 +154,7 @@ def hierarchy(class_name: str) -> None:
     result = _get_service().get_hierarchy(class_name)
     parents = result["parents"]
     children = result["children"]
+    implements = result.get("implements", [])
     typer.echo("Parents:")
     if parents:
         for p in parents:
@@ -164,6 +165,12 @@ def hierarchy(class_name: str) -> None:
     if children:
         for c in children:
             typer.echo(f"  {c.get('full_name', '?')}")
+    else:
+        typer.echo("  (none)")
+    typer.echo("Implements:")
+    if implements:
+        for i in implements:
+            typer.echo(f"  {i.get('full_name', '?')}")
     else:
         typer.echo("  (none)")
 

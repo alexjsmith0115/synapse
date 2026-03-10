@@ -85,7 +85,15 @@ def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:
         "MATCH (c:Class)-[:INHERITS*]->(p:Class {full_name: $full_name}) RETURN c",
         {"full_name": class_full_name},
     )
-    return {"parents": [r[0] for r in parents], "children": [r[0] for r in children]}
+    implements = conn.query(
+        "MATCH (c:Class {full_name: $full_name})-[:IMPLEMENTS]->(i:Interface) RETURN i",
+        {"full_name": class_full_name},
+    )
+    return {
+        "parents": [r[0] for r in parents],
+        "children": [r[0] for r in children],
+        "implements": [r[0] for r in implements],
+    }
 
 
 def search_symbols(conn: GraphConnection, query: str, kind: str | None = None) -> list[dict]:

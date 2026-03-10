@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
-from synapse.graph.queries import find_callers, find_implementations, list_summarized, search_symbols, _VALID_KINDS
+from synapse.graph.queries import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS
 
 
 def _node(labels, props):
@@ -80,6 +80,30 @@ def test_find_callers_deduplicates_across_both_queries():
     conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]]]
     result = find_callers(conn, "Svc.DoWork")
     assert len(result) == 1
+
+
+def test_get_hierarchy_includes_implements():
+    iface = FalkorNode(node_id=20, labels=["Interface"], properties={"full_name": "MyNs.IFoo"})
+    conn = MagicMock()
+    # Three queries: parents, children, implements
+    conn.query.side_effect = [[], [], [[iface]]]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert "implements" in result
+    assert len(result["implements"]) == 1
+
+
+def test_get_hierarchy_implements_empty_when_none():
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert result["implements"] == []
+
+
+def test_get_hierarchy_always_has_all_three_keys():
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert set(result.keys()) == {"parents", "children", "implements"}
 
 
 def test_list_summarized_deduplicates():
