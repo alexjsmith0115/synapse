@@ -31,7 +31,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
         result = service.get_symbol_source(full_name, include_class_signature)
-        return result or f"Symbol not found: {full_name}"
+        if result is not None:
+            return result
+        if service.get_symbol(full_name) is not None:
+            return f"Source not available for {full_name} — re-index required"
+        return f"Symbol not found: {full_name}"
 
     @mcp.tool()
     def find_implementations(interface_name: str) -> list[dict]:
