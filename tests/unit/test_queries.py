@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
-from synapse.graph.queries import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS
-from synapse.graph.queries import search_symbols as qs_search
-from synapse.graph.queries import find_dependencies as qs_find_deps
+from synapse.graph.queries import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS, find_dependencies as qs_find_deps
+
+qs_search = search_symbols
 
 
 def _node(labels, props):
