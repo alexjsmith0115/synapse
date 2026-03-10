@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
-from synapse.graph.queries import find_callers, list_summarized, search_symbols, _VALID_KINDS
+from synapse.graph.queries import find_callers, find_implementations, list_summarized, search_symbols, _VALID_KINDS
 
 
 def _node(labels, props):
@@ -12,6 +12,31 @@ def _conn(return_value):
     conn = MagicMock()
     conn.query.return_value = return_value
     return conn
+
+
+def test_find_implementations_exact_match_does_not_fallback():
+    impl = FalkorNode(node_id=10, labels=["Class"], properties={"full_name": "MyNs.MyClass"})
+    conn = _conn([[impl]])
+    result = find_implementations(conn, "MyNs.IMyInterface")
+    assert len(result) == 1
+    assert conn.query.call_count == 1  # no fallback needed
+
+
+def test_find_implementations_falls_back_to_short_name():
+    impl = FalkorNode(node_id=10, labels=["Class"], properties={"full_name": "MyNs.MyClass"})
+    conn = MagicMock()
+    # First call (exact match) returns empty; second call (suffix fallback) returns result
+    conn.query.side_effect = [[], [[impl]]]
+    result = find_implementations(conn, "IMyInterface")
+    assert len(result) == 1
+    assert conn.query.call_count == 2
+
+
+def test_find_implementations_returns_empty_when_not_found():
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    result = find_implementations(conn, "INotFound")
+    assert result == []
 
 
 def test_search_symbols_invalid_kind_lists_valid_values():

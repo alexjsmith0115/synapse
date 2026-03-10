@@ -25,6 +25,19 @@ def find_implementations(conn: GraphConnection, interface_full_name: str) -> lis
         "MATCH (c:Class)-[:INHERITS*]->(base:Class)-[:IMPLEMENTS]->(i {full_name: $full_name}) RETURN c",
         {"full_name": interface_full_name},
     )
+    if rows:
+        return [r[0] for r in rows]
+    # Fallback: suffix match for short names (e.g. "IFoo" matches "MyNs.IFoo")
+    rows = conn.query(
+        "MATCH (c:Class)-[:IMPLEMENTS]->(i) "
+        "WHERE i.full_name ENDS WITH ('.' + $name) OR i.full_name = $name "
+        "RETURN c "
+        "UNION "
+        "MATCH (c:Class)-[:INHERITS*]->(base:Class)-[:IMPLEMENTS]->(i) "
+        "WHERE i.full_name ENDS WITH ('.' + $name) OR i.full_name = $name "
+        "RETURN c",
+        {"name": interface_full_name},
+    )
     return [r[0] for r in rows]
 
 
