@@ -181,8 +181,14 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_type_references(full_name)
 
     @mcp.tool()
-    def find_dependencies(full_name: str) -> list[dict]:
-        return service.find_dependencies(full_name)
+    def find_dependencies(full_name: str, depth: int = 1) -> list[dict]:
+        """Find field-type dependencies for the given symbol.
+
+        depth: how many hops to traverse (default 1 = direct deps only, max 5).
+        Each result includes a 'depth' field indicating how many hops from the root.
+        Useful for impact analysis — depth=2 shows transitive dependencies.
+        """
+        return service.find_dependencies(full_name, depth)
 
     @mcp.tool()
     def get_context_for(full_name: str) -> str:

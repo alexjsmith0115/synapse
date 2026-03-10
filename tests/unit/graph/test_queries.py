@@ -145,11 +145,11 @@ def test_find_type_references_returns_empty_for_no_refs() -> None:
 
 
 def test_find_dependencies_returns_referenced_types() -> None:
-    conn = _conn([[{"full_name": "Ns.UserDto", "name": "UserDto"}, "return_type"]])
+    conn = _conn([[{"full_name": "Ns.UserDto", "name": "UserDto"}, 1]])
     results = find_dependencies(conn, "Ns.C.M()")
     assert len(results) == 1
     assert results[0]["type"]["full_name"] == "Ns.UserDto"
-    assert results[0]["kind"] == "return_type"
+    assert results[0]["depth"] == 1
 
 
 def test_get_containing_type_returns_parent() -> None:
