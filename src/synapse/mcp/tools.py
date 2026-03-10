@@ -2,6 +2,32 @@ from __future__ import annotations
 
 from synapse.service import SynapseService
 
+_GRAPH_SCHEMA = {
+    "node_labels": {
+        "Repository": ["path", "name", "last_indexed"],
+        "Directory": ["path", "name"],
+        "File": ["path", "name"],
+        "Package": ["name"],
+        "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature"],
+        "Interface": ["full_name", "name", "file_path", "line", "end_line"],
+        "Method": ["full_name", "name", "file_path", "line", "end_line", "signature"],
+        "Property": ["full_name", "name", "file_path", "line"],
+        "Field": ["full_name", "name", "file_path", "line"],
+    },
+    "relationship_types": {
+        "CONTAINS": "Repository/Directory/File/Class/Interface → any",
+        "INHERITS": "Class → Class",
+        "IMPLEMENTS": "Class → Interface  |  Method → Method (concrete implements interface method)",
+        "CALLS": "Method → Method",
+        "REFERENCES": "any → Class/Interface (field type, param type, return type)",
+    },
+    "notes": [
+        "execute_query accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
+        "Nodes with summaries also carry the :Summarized label and a 'summary' property.",
+        "Class.kind values: 'class', 'abstract_class', 'enum', 'record'.",
+    ],
+}
+
 
 def register_tools(mcp: object, service: SynapseService) -> None:
     """Register all MCP tools on the given MCP server instance."""
@@ -90,7 +116,26 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.list_summarized(project_path)
 
     @mcp.tool()
+    def get_schema() -> dict:
+        """Return the full graph schema: node labels with properties, relationship types, and usage notes.
+
+        Use this before writing raw Cypher for execute_query.
+        """
+        return _GRAPH_SCHEMA
+
+    @mcp.tool()
     def execute_query(cypher: str) -> list[dict]:
+        """Execute a read-only Cypher query against the graph.
+
+        Read-only: CREATE, MERGE, SET, DELETE, REMOVE, DROP are blocked.
+
+        Schema summary (call get_schema() for full details):
+          Nodes: Repository, Directory, File, Package, Class, Interface, Method, Property, Field
+          Edges: CONTAINS, INHERITS, IMPLEMENTS, CALLS, REFERENCES
+          Key properties: full_name, name, file_path, line, end_line, signature, kind
+
+        Example: MATCH (m:Method {full_name: 'MyNs.MyClass.MyMethod'}) RETURN m
+        """
         return service.execute_query(cypher)
 
     @mcp.tool()
