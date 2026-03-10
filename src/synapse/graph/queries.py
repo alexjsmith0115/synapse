@@ -5,7 +5,7 @@ from synapse.graph.connection import GraphConnection
 _MUTATING_PATTERN = re.compile(r"\b(CREATE|MERGE|DELETE|SET|REMOVE|DROP)\b")
 
 _VALID_KINDS = frozenset({
-    "Class", "Method", "Property", "Field", "Namespace",
+    "Class", "Interface", "Method", "Property", "Field", "Namespace",
     "File", "Directory", "Repository",
 })
 
@@ -58,7 +58,9 @@ def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:
 
 def search_symbols(conn: GraphConnection, query: str, kind: str | None = None) -> list[dict]:
     if kind and kind not in _VALID_KINDS:
-        raise ValueError(f"Unknown symbol kind: {kind!r}")
+        raise ValueError(
+            f"Unknown symbol kind: {kind!r}. Valid values: {sorted(_VALID_KINDS)}"
+        )
     if kind:
         rows = conn.query(
             f"MATCH (n:{kind}) WHERE n.name CONTAINS $query RETURN n",
