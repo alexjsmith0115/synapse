@@ -685,37 +685,27 @@ Add the import at the top of `service.py`:
 from synapse.graph.lookups import check_staleness
 ```
 
-Then add staleness checking to key methods.
+**Staleness warnings are added in the MCP tool layer, NOT the service layer.** This avoids breaking internal service-to-service calls (e.g., `get_context_for` calls `self.find_callees()` and iterates the result as a list; `summarize_from_graph` calls `self.find_dependencies()` the same way). The service layer's `_staleness_warning` helper is still on the service for convenience, but only MCP tools call it.
 
-**For dict-returning methods** (`get_symbol`, `get_hierarchy`), append `_staleness_warning` directly:
+The `_staleness_warning` helper stays on the service (it needs `self._conn`), but service methods do NOT call it. Instead, MCP tools in `tools.py` call `service._staleness_warning(full_name)` and append the result:
+
+In `src/synapse/mcp/tools.py`, update dict-returning tools to include staleness. Example for `get_symbol`:
 
 ```python
-    def get_symbol(self, full_name: str) -> dict | None:
-        full_name = self._resolve(full_name)
-        result = _p(get_symbol(self._conn, full_name))
+    @mcp.tool()
+    def get_symbol(full_name: str) -> dict | None:
+        """Get a symbol node by full name (supports short names)."""
+        result = service.get_symbol(full_name)
         if result:
-            warning = self._staleness_warning(full_name)
+            warning = service._staleness_warning(full_name)
             if warning:
                 result["_staleness_warning"] = warning
         return result
 ```
 
-**For list-returning methods** (`find_callers`, `find_callees`, `find_type_references`, `find_dependencies`), wrap in a dict with a top-level warning:
+Apply the same pattern to: `get_hierarchy`, `get_context_for`. For list-returning tools (`find_callers`, `find_callees`, `find_type_references`, `find_dependencies`), skip staleness warnings — the service return type stays `list[dict]` unchanged.
 
-```python
-    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True) -> dict:
-        method_full_name = self._resolve(method_full_name)
-        callers = [_p(r) for r in find_callers(self._conn, method_full_name, include_interface_dispatch)]
-        result = {"results": callers}
-        warning = self._staleness_warning(method_full_name)
-        if warning:
-            result["_staleness_warning"] = warning
-        return result
-```
-
-**Important:** Wrapping list returns in `{"results": [...]}` is a breaking change for MCP tool consumers. Apply this wrapper ONLY to methods where staleness is added. Update the corresponding MCP tool docstrings to document the new return shape. If this is unacceptable, an alternative is to skip staleness warnings on list-returning methods entirely and only add them to dict-returning methods (`get_symbol`, `get_hierarchy`, `get_context_for`).
-
-**File path matching note:** `_staleness_warning` calls `get_symbol_source_info` which reads `n.file_path` from symbol nodes, then passes that path to `check_staleness` which queries `(f:File {path: $path})`. Both store absolute paths set during indexing from the same source (`symbol.file_path`), so they will match. If a future change normalizes paths differently in one place vs the other, this would break — but currently they are consistent.
+**File path matching note:** `_staleness_warning` calls `get_symbol_source_info` which reads `n.file_path` from symbol nodes, then passes that path to `check_staleness` which queries `(f:File {path: $path})`. Both store absolute paths set during indexing from the same source (`symbol.file_path`), so they will match.
 
 - [ ] **Step 6: Run full unit suite**
 
@@ -732,8 +722,9 @@ git add src/synapse/graph/lookups.py src/synapse/service.py tests/unit/graph/tes
 git commit -m "feat: staleness detection with warnings in tool results
 
 Adds check_staleness() that compares File node last_indexed against
-disk mtime. Service methods append _staleness_warning to results when
-the queried symbol's file has been modified since indexing."
+disk mtime. MCP tools append _staleness_warning to dict results when
+the queried symbol's file has been modified since indexing. Staleness
+is surfaced at the tool layer to avoid breaking internal service calls."
 ```
 
 ---
