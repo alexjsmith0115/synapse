@@ -38,8 +38,8 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
 ```
 
 Logic:
-1. If `name` contains a `.`, try exact match: `MATCH (n {full_name: $name}) RETURN n.full_name LIMIT 1`
-2. If no exact match (or `name` has no `.`), suffix match: `MATCH (n) WHERE n.full_name ENDS WITH $suffix RETURN n.full_name` where `suffix = "." + name`
+1. Try exact match first (always, regardless of whether name contains a dot): `MATCH (n {full_name: $name}) RETURN n.full_name LIMIT 1`
+2. If no exact match, suffix match: `MATCH (n) WHERE n.full_name ENDS WITH $suffix RETURN n.full_name` where `suffix = "." + name`
 3. Exactly one result → return the string
 4. Multiple results → return the list (caller surfaces "did you mean?")
 5. No results → return original `name` unchanged (let downstream queries fail naturally with empty results)
@@ -67,7 +67,7 @@ Service-layer change only. No new queries — `get_summary` in `lookups.py` alre
 
 **1.2 Staleness metadata**
 
-**Storage:** Add `last_indexed: float` property (Unix timestamp) to `:File` nodes. Set during indexing in `indexer.py` when upserting File nodes via `nodes.upsert_file`.
+**Storage:** The existing `upsert_file` in `nodes.py` already stores `last_indexed` using `_now()`, which returns an ISO 8601 string. No schema change needed — we use the existing timestamp format.
 
 **Detection:** New function in `lookups.py`:
 
@@ -75,7 +75,7 @@ Service-layer change only. No new queries — `get_summary` in `lookups.py` alre
 def check_staleness(conn: GraphConnection, file_path: str) -> dict | None:
 ```
 
-Returns `{file_path, last_indexed, last_modified, is_stale}` by comparing stored `last_indexed` against `os.path.getmtime(file_path)`. Returns `None` if file isn't in graph.
+Returns `{file_path, last_indexed, last_modified, is_stale}`. Parses the stored ISO 8601 `last_indexed` via `datetime.fromisoformat()`, converts `os.path.getmtime()` to a UTC datetime for comparison. Returns `None` if file isn't in graph.
 
 **Surfacing:** In the service layer, tools that return symbol data append a `_staleness_warning: str` field when the queried symbol's file is stale:
 > "Warning: {file_path} was modified after last indexing. Results may be outdated. Run watch_project or re-index to refresh."
@@ -181,7 +181,7 @@ RETURN i.full_name AS interface, contract.full_name AS contract_method,
        sibling.name AS sibling_class, sibling.file_path
 ```
 
-Note: matches on simple `name`, not `full_name`, because interface contract and implementation have different full names. The `method` parameter goes through `resolve_full_name` to find the target, then extracts the simple name for the contract match.
+Note: matches on simple `name`, not `full_name`, because interface contract and implementation have different full names. The `method` parameter goes through `resolve_full_name` to get the resolved `full_name`, then the simple name is extracted by splitting on `"."` and taking the last segment (e.g., `"SynapseTest.Animal.Speak"` → `"Speak"`).
 
 Returns:
 ```python
@@ -198,10 +198,13 @@ Returns:
 If a model/DTO changes shape, what code is affected?
 
 ```cypher
-MATCH (m:Method)-[:REFERENCES]->(t {full_name: $type})
-RETURN m.full_name, m.file_path,
-  CASE WHEN m.file_path CONTAINS 'Tests' THEN 'test' ELSE 'prod' END AS context
+MATCH (n)-[:REFERENCES]->(t {full_name: $type})
+WHERE n.full_name IS NOT NULL
+RETURN n.full_name, n.file_path,
+  CASE WHEN n.file_path CONTAINS 'Tests' THEN 'test' ELSE 'prod' END AS context
 ```
+
+Note: uses unlabeled `(n)` rather than `(m:Method)` because REFERENCES edges can originate from any symbol type (Method, Class, Property, Field). This catches all referencing symbols.
 
 Returns:
 ```python
@@ -237,14 +240,16 @@ RETURN ctrl.name, m.name, db.full_name
 ```cypher
 MATCH (svc:Class)-[:IMPLEMENTS]->(i)
 WHERE svc.file_path CONTAINS '/Services/'
-  AND NOT EXISTS {
-    MATCH (t:Method)-[:CALLS*1..3]->(:Method)<-[:CONTAINS]-(svc)
-    WHERE t.file_path CONTAINS 'Tests'
-  }
-RETURN svc.name, svc.file_path
+OPTIONAL MATCH (t:Method)-[:CALLS*1..3]->(:Method)<-[:CONTAINS]-(svc)
+WHERE t.file_path CONTAINS 'Tests'
+WITH svc, t
+WHERE t IS NULL
+RETURN DISTINCT svc.name, svc.file_path
 ```
 
-**`repeated_db_writes`** — methods calling SaveChangesAsync multiple times:
+Note: uses `OPTIONAL MATCH` + `WHERE IS NULL` instead of `NOT EXISTS { ... }` subquery syntax, which may not be supported by FalkorDB (based on RedisGraph/libcypher-parser with limited openCypher support).
+
+**`repeated_db_writes`** — methods calling multiple distinct SaveChangesAsync targets:
 ```cypher
 MATCH (m:Method)-[:CALLS]->(save:Method)
 WHERE save.name = 'SaveChangesAsync'
@@ -252,6 +257,8 @@ WITH m, count(save) AS save_count
 WHERE save_count > 1
 RETURN m.full_name, save_count ORDER BY save_count DESC
 ```
+
+Note: this counts distinct SaveChangesAsync callees, not call sites. CALLS edges are created with MERGE, so multiple calls to the same `SaveChangesAsync` method produce one edge. This means the rule detects methods calling SaveChangesAsync on multiple DbContext types (the more architecturally significant case) but not repeated calls to the same DbContext's SaveChangesAsync. This is a known approximation — accurate call-site counting would require source analysis beyond what the graph stores.
 
 Returns (all rules):
 ```python
@@ -325,16 +332,16 @@ The summary is returned but **not stored automatically**. The agent reviews it a
 |------|---------|
 | `src/synapse/graph/queries.py` | Renamed to `lookups.py` |
 | `src/synapse/graph/lookups.py` | Add `resolve_full_name`, `check_staleness` |
-| `src/synapse/graph/nodes.py` | Add `last_indexed` to `upsert_file` |
-| `src/synapse/indexer/indexer.py` | Pass `last_indexed=time.time()` when upserting File nodes |
+| `src/synapse/graph/nodes.py` | Already stores `last_indexed` via `_now()` — no change needed |
+| `src/synapse/indexer/indexer.py` | Already passes through to `upsert_file` — no change needed |
 | `src/synapse/service.py` | Add `_resolve` helper; wire resolution into read methods; add staleness checks; add new tool methods; update `get_context_for` for summaries |
-| `src/synapse/mcp/tools.py` | Register 7 new tools: `trace_call_chain`, `find_entry_points`, `get_call_depth`, `analyze_change_impact`, `find_interface_contract`, `find_type_impact`, `audit_architecture`, `summarize_from_graph` |
+| `src/synapse/mcp/tools.py` | Register 8 new tools: `trace_call_chain`, `find_entry_points`, `get_call_depth`, `analyze_change_impact`, `find_interface_contract`, `find_type_impact`, `audit_architecture`, `summarize_from_graph` |
 | `src/synapse/cli/app.py` | Add CLI commands for new tools |
 | All files importing `graph.queries` | Update import to `graph.lookups` |
 
 ## New Tool Count
 
-Current: 20 tools. After: 28 tools (+8).
+Current: 21 tools. After: 29 tools (+8).
 
 | Tool | Phase | Category |
 |------|-------|----------|
