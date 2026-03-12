@@ -234,3 +234,27 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         Returns {root, callees: [{full_name, file_path, depth}], depth_limit}.
         """
         return service.get_call_depth(method, depth)
+
+    @mcp.tool()
+    def analyze_change_impact(method: str) -> dict:
+        """Analyze the impact of changing a method: direct callers, transitive callers, test coverage.
+
+        Returns {target, direct_callers, transitive_callers, test_coverage, total_affected}.
+        """
+        return service.analyze_change_impact(method)
+
+    @mcp.tool()
+    def find_interface_contract(method: str) -> dict:
+        """Find the interface contract a method satisfies and all sibling implementations.
+
+        Returns {method, interface, contract_method, sibling_implementations}.
+        """
+        return service.find_interface_contract(method)
+
+    @mcp.tool()
+    def find_type_impact(type_name: str) -> dict:
+        """Find all code affected if a type's shape changes, categorized as prod or test.
+
+        Returns {type, references: [{full_name, file_path, context}], prod_count, test_count}.
+        """
+        return service.find_type_impact(type_name)
