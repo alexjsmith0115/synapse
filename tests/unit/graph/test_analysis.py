@@ -49,14 +49,33 @@ def test_analyze_change_impact_empty() -> None:
 
 
 def test_find_interface_contract_returns_siblings() -> None:
-    conn = _conn([
-        ["Ns.IService", "Ns.IService.Do", "OtherImpl", "/proj/Other.cs"],
-    ])
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # First query: contract found
+        [["Ns.IService", "Ns.IService.Do", "Ns.MyImpl"]],
+        # Second query: one sibling
+        [["OtherImpl", "/proj/Other.cs"]],
+    ]
     result = find_interface_contract(conn, "Ns.MyImpl.Do")
     assert result["method"] == "Ns.MyImpl.Do"
     assert result["interface"] == "Ns.IService"
     assert result["contract_method"] == "Ns.IService.Do"
     assert len(result["sibling_implementations"]) == 1
+
+
+def test_find_interface_contract_no_siblings() -> None:
+    """Returns the interface and contract even when there are no other implementations."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # First query: finds interface and contract method
+        [["Ns.IService", "Ns.IService.Do", "Ns.MyImpl"]],
+        # Second query: no siblings
+        [],
+    ]
+    result = find_interface_contract(conn, "Ns.MyImpl.Do")
+    assert result["interface"] == "Ns.IService"
+    assert result["contract_method"] == "Ns.IService.Do"
+    assert result["sibling_implementations"] == []
 
 
 def test_find_interface_contract_no_interface() -> None:

@@ -53,12 +53,10 @@ def find_interface_contract(conn: GraphConnection, method: str) -> dict:
     """
     simple_name = method.rsplit(".", 1)[-1]
     rows = conn.query(
-        "MATCH (impl:Class)-[:CONTAINS]->(m:Method {name: $name}) "
+        "MATCH (impl:Class)-[:CONTAINS]->(m:Method) "
         "WHERE m.full_name = $full_name "
         "MATCH (impl)-[:IMPLEMENTS]->(i)-[:CONTAINS]->(contract:Method {name: $name}) "
-        "MATCH (sibling:Class)-[:IMPLEMENTS]->(i) "
-        "WHERE sibling <> impl "
-        "RETURN i.full_name, contract.full_name, sibling.name, sibling.file_path",
+        "RETURN i.full_name, contract.full_name, impl.full_name",
         {"name": simple_name, "full_name": method},
     )
 
@@ -70,12 +68,22 @@ def find_interface_contract(conn: GraphConnection, method: str) -> dict:
             "sibling_implementations": [],
         }
 
+    iface_full_name = rows[0][0]
+    impl_class_full_name = rows[0][2]
+
+    sibling_rows = conn.query(
+        "MATCH (sibling:Class)-[:IMPLEMENTS]->(i {full_name: $iface}) "
+        "WHERE sibling.full_name <> $impl_class "
+        "RETURN sibling.name, sibling.file_path",
+        {"iface": iface_full_name, "impl_class": impl_class_full_name},
+    )
+
     return {
         "method": method,
-        "interface": rows[0][0],
+        "interface": iface_full_name,
         "contract_method": rows[0][1],
         "sibling_implementations": [
-            {"class_name": r[2], "file_path": r[3]} for r in rows
+            {"class_name": r[0], "file_path": r[1]} for r in sibling_rows
         ],
     }
 
