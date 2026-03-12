@@ -140,6 +140,17 @@ def test_audit_empty_results() -> None:
     assert result["violations"] == []
 
 
+def test_analyze_change_impact_direct_callers_excludes_tests() -> None:
+    """direct_callers must not include test methods; test_coverage is the correct field."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    direct_cypher = conn.query.call_args_list[0][0][0]
+    assert "Tests" in direct_cypher and "NOT" in direct_cypher, (
+        "direct_callers query must filter out test files"
+    )
+
+
 def test_analyze_change_impact_transitive_includes_interface_dispatch() -> None:
     """Transitive query must cross the interface dispatch gap."""
     conn = MagicMock()

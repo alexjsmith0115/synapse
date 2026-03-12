@@ -15,6 +15,7 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     """
     direct = conn.query(
         "MATCH (c:Method)-[:CALLS]->(m {full_name: $method}) "
+        "WHERE NOT c.file_path CONTAINS 'Tests' "
         "RETURN c.full_name, c.file_path",
         {"method": method},
     )
