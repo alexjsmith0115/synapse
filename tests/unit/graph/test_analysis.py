@@ -1,6 +1,10 @@
 from unittest.mock import MagicMock
 
-from synapse.graph.analysis import analyze_change_impact, find_interface_contract
+from synapse.graph.analysis import (
+    analyze_change_impact,
+    find_interface_contract,
+    find_type_impact,
+)
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -58,3 +62,23 @@ def test_find_interface_contract_no_interface() -> None:
     conn = _conn([])
     result = find_interface_contract(conn, "Standalone.Method")
     assert result["sibling_implementations"] == []
+
+
+def test_find_type_impact_categorizes() -> None:
+    conn = _conn([
+        ["Svc.Method", "/proj/Svc.cs", "prod"],
+        ["Test.Verify", "/tests/Verify.cs", "test"],
+    ])
+    result = find_type_impact(conn, "Ns.MyModel")
+    assert result["type"] == "Ns.MyModel"
+    assert result["prod_count"] == 1
+    assert result["test_count"] == 1
+    assert len(result["references"]) == 2
+
+
+def test_find_type_impact_empty() -> None:
+    conn = _conn([])
+    result = find_type_impact(conn, "Unused.Type")
+    assert result["references"] == []
+    assert result["prod_count"] == 0
+    assert result["test_count"] == 0

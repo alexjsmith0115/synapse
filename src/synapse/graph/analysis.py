@@ -78,3 +78,29 @@ def find_interface_contract(conn: GraphConnection, method: str) -> dict:
             {"class_name": r[2], "file_path": r[3]} for r in rows
         ],
     }
+
+
+def find_type_impact(conn: GraphConnection, type_name: str) -> dict:
+    """Find all symbols that reference a type, categorized as prod or test.
+
+    Uses unlabeled (n) because REFERENCES edges can originate from any
+    symbol type (Method, Class, Property, Field).
+    """
+    rows = conn.query(
+        "MATCH (n)-[:REFERENCES]->(t {full_name: $type}) "
+        "WHERE n.full_name IS NOT NULL "
+        "RETURN n.full_name, n.file_path, "
+        "CASE WHEN n.file_path CONTAINS 'Tests' THEN 'test' ELSE 'prod' END AS context",
+        {"type": type_name},
+    )
+
+    references = [{"full_name": r[0], "file_path": r[1], "context": r[2]} for r in rows]
+    prod_count = sum(1 for r in references if r["context"] == "prod")
+    test_count = sum(1 for r in references if r["context"] == "test")
+
+    return {
+        "type": type_name,
+        "references": references,
+        "prod_count": prod_count,
+        "test_count": test_count,
+    }
