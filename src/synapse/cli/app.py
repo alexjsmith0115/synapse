@@ -226,6 +226,53 @@ def context(full_name: str) -> None:
     typer.echo(result or "Not found")
 
 
+@app.command("trace")
+def trace_chain(
+    start: str = typer.Argument(help="Starting method"),
+    end: str = typer.Argument(help="Ending method"),
+    max_depth: int = typer.Option(6, "--depth", "-d"),
+) -> None:
+    """Trace call paths between two methods."""
+    svc = _get_service()
+    result = svc.trace_call_chain(start, end, max_depth)
+    if not result["paths"]:
+        typer.echo("No paths found.")
+        return
+    for i, path in enumerate(result["paths"], 1):
+        typer.echo(f"Path {i}: {' → '.join(path)}")
+
+
+@app.command("entry-points")
+def entry_points(
+    method: str = typer.Argument(help="Target method"),
+    max_depth: int = typer.Option(8, "--depth", "-d"),
+) -> None:
+    """Find all entry points that eventually call a method."""
+    svc = _get_service()
+    result = svc.find_entry_points(method, max_depth)
+    if not result["entry_points"]:
+        typer.echo("No entry points found.")
+        return
+    for ep in result["entry_points"]:
+        typer.echo(f"{ep['entry']} → {' → '.join(ep['path'][1:])}")
+
+
+@app.command("call-depth")
+def call_depth(
+    method: str = typer.Argument(help="Starting method"),
+    depth: int = typer.Option(3, "--depth", "-d"),
+) -> None:
+    """Show all methods reachable from a method up to N levels."""
+    svc = _get_service()
+    result = svc.get_call_depth(method, depth)
+    if not result["callees"]:
+        typer.echo("No callees found.")
+        return
+    for c in result["callees"]:
+        indent = "  " * c["depth"]
+        typer.echo(f"{indent}[depth {c['depth']}] {c['full_name']}")
+
+
 @summary_app.command("get")
 def summary_get(full_name: str) -> None:
     """Get the summary for a symbol."""

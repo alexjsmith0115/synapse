@@ -208,3 +208,29 @@ def register_tools(mcp: object, service: SynapseService) -> None:
             if warning:
                 result = f"\u26a0\ufe0f {warning}\n\n---\n\n{result}"
         return result or "Symbol not found."
+
+    @mcp.tool()
+    def trace_call_chain(start: str, end: str, max_depth: int = 6) -> dict:
+        """Find all call paths between two methods up to max_depth hops.
+
+        Supports short names (e.g. 'CreateMeeting' instead of full namespace).
+        Returns {paths: [[str]], start, end, max_depth}.
+        """
+        return service.trace_call_chain(start, end, max_depth)
+
+    @mcp.tool()
+    def find_entry_points(method: str, max_depth: int = 8) -> dict:
+        """Find all root callers (no incoming CALLS edges) that eventually call a method.
+
+        Useful for finding controller/API entry points that reach a given service method.
+        Returns {entry_points: [{entry, path}], target, max_depth}.
+        """
+        return service.find_entry_points(method, max_depth)
+
+    @mcp.tool()
+    def get_call_depth(method: str, depth: int = 3) -> dict:
+        """Get all methods reachable from a starting method up to N levels deep.
+
+        Returns {root, callees: [{full_name, file_path, depth}], depth_limit}.
+        """
+        return service.get_call_depth(method, depth)
