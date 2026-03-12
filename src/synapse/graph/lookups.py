@@ -244,6 +244,32 @@ def get_implemented_interfaces(conn: GraphConnection, class_full_name: str) -> l
     return [r[0] for r in rows]
 
 
+def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
+    """Resolve a possibly-short symbol name to its full qualified name.
+
+    Tries exact match first, then falls back to suffix matching.
+    Returns the original name unchanged if no match is found (lets
+    downstream queries fail naturally with empty results).
+    """
+    rows = conn.query(
+        "MATCH (n {full_name: $name}) RETURN n.full_name LIMIT 1",
+        {"name": name},
+    )
+    if rows:
+        return rows[0][0]
+
+    rows = conn.query(
+        "MATCH (n) WHERE n.full_name ENDS WITH $suffix "
+        "RETURN n.full_name",
+        {"suffix": "." + name},
+    )
+    if len(rows) == 1:
+        return rows[0][0]
+    if len(rows) > 1:
+        return [r[0] for r in rows]
+    return name
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
