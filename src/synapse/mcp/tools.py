@@ -22,7 +22,7 @@ _GRAPH_SCHEMA = {
         "REFERENCES": "any → Class/Interface (field type, param type, return type)",
     },
     "notes": [
-        "execute_query accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
+        "execute_query(cypher=...) accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
         "Nodes with summaries also carry the :Summarized label and a 'summary' property.",
         "Class.kind values: 'class', 'abstract_class', 'enum', 'record'.",
     ],
@@ -150,6 +150,9 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     @mcp.tool()
     def execute_query(cypher: str) -> list[dict]:
         """Execute a read-only Cypher query against the graph.
+
+        Args:
+            cypher: The Cypher query string to execute. Must be read-only.
 
         Read-only: CREATE, MERGE, SET, DELETE, REMOVE, DROP are blocked.
 
