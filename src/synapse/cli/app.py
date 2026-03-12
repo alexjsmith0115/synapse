@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -51,28 +52,31 @@ def _require_label(svc: SynapseService, full_name: str, required: str, hint: str
 @app.command()
 def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
-    _get_service().index_project(path, language, on_progress=typer.echo)
-    typer.echo(f"Done. Indexed {path}")
+    abs_path = str(Path(path).resolve())
+    _get_service().index_project(abs_path, language, on_progress=typer.echo)
+    typer.echo(f"Done. Indexed {abs_path}")
 
 
 @app.command()
 def watch(path: str) -> None:
     """Watch a project for changes and keep the graph updated."""
-    _get_service().watch_project(path)
-    typer.echo(f"Watching {path}. Press Ctrl+C to stop.")
+    abs_path = str(Path(path).resolve())
+    _get_service().watch_project(abs_path)
+    typer.echo(f"Watching {abs_path}. Press Ctrl+C to stop.")
     try:
         import time
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        _get_service().unwatch_project(path)
+        _get_service().unwatch_project(abs_path)
 
 
 @app.command()
 def delete(path: str) -> None:
     """Remove a project from the graph."""
-    _get_service().delete_project(path)
-    typer.echo(f"Deleted {path}")
+    abs_path = str(Path(path).resolve())
+    _get_service().delete_project(abs_path)
+    typer.echo(f"Deleted {abs_path}")
 
 
 @app.command()
@@ -80,7 +84,7 @@ def status(path: Optional[str] = None) -> None:
     """Show index status for a project or all projects."""
     svc = _get_service()
     if path:
-        result = svc.get_index_status(path)
+        result = svc.get_index_status(str(Path(path).resolve()))
         typer.echo(result or "Not indexed")
     else:
         for proj in svc.list_projects():
