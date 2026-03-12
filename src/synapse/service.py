@@ -15,7 +15,7 @@ from synapse.graph.lookups import (
     find_dependencies as query_find_dependencies,
 )
 from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
-from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact
+from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact, audit_architecture
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
@@ -315,6 +315,9 @@ class SynapseService:
     def find_type_impact(self, type_name: str) -> dict:
         type_name = self._resolve(type_name)
         return find_type_impact(self._conn, type_name)
+
+    def audit_architecture(self, rule: str) -> dict:
+        return audit_architecture(self._conn, rule)
 
     def summarize_from_graph(self, class_name: str) -> dict | None:
         """Auto-generate a structural summary of a class from graph data.

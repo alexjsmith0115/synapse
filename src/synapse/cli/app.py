@@ -323,6 +323,37 @@ def type_impact(
         typer.echo(f"    [{r['context']}] {r['full_name']}")
 
 
+@app.command("audit")
+def audit(
+    rule: str = typer.Argument(help="Rule: layering_violations, untested_services, repeated_db_writes"),
+) -> None:
+    """Run an architectural audit rule."""
+    svc = _get_service()
+    try:
+        result = svc.audit_architecture(rule)
+    except ValueError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    typer.echo(f"Rule: {result['rule']} — {result['description']}")
+    typer.echo(f"Violations: {result['count']}")
+    for v in result["violations"]:
+        typer.echo(f"  {v}")
+
+
+@app.command("summarize")
+def summarize(
+    class_name: str = typer.Argument(help="Class to summarize"),
+) -> None:
+    """Auto-generate a structural summary of a class from graph data."""
+    svc = _get_service()
+    result = svc.summarize_from_graph(class_name)
+    if not result:
+        typer.echo("Symbol not found.")
+        raise typer.Exit(1)
+    typer.echo(result["summary"])
+    typer.echo(f"\nTo persist: synapse summary set '{result['full_name']}' '<content>'")
+
+
 @summary_app.command("get")
 def summary_get(full_name: str) -> None:
     """Get the summary for a symbol."""
