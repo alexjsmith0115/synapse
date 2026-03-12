@@ -273,6 +273,56 @@ def call_depth(
         typer.echo(f"{indent}[depth {c['depth']}] {c['full_name']}")
 
 
+@app.command("impact")
+def impact(
+    method: str = typer.Argument(help="Method to analyze"),
+) -> None:
+    """Analyze the blast radius of changing a method."""
+    svc = _get_service()
+    result = svc.analyze_change_impact(method)
+    typer.echo(f"Impact analysis for: {result['target']}")
+    typer.echo(f"  Direct callers: {len(result['direct_callers'])}")
+    typer.echo(f"  Transitive callers: {len(result['transitive_callers'])}")
+    typer.echo(f"  Test coverage: {len(result['test_coverage'])}")
+    typer.echo(f"  Total affected: {result['total_affected']}")
+    for c in result["direct_callers"]:
+        typer.echo(f"    [direct] {c['full_name']}")
+    for c in result["transitive_callers"]:
+        typer.echo(f"    [transitive] {c['full_name']}")
+    for t in result["test_coverage"]:
+        typer.echo(f"    [test] {t['full_name']}")
+
+
+@app.command("contract")
+def contract(
+    method: str = typer.Argument(help="Implementation method"),
+) -> None:
+    """Find the interface contract and sibling implementations for a method."""
+    svc = _get_service()
+    result = svc.find_interface_contract(method)
+    if not result["interface"]:
+        typer.echo("No interface contract found.")
+        return
+    typer.echo(f"Interface: {result['interface']}")
+    typer.echo(f"Contract: {result['contract_method']}")
+    for s in result["sibling_implementations"]:
+        typer.echo(f"  Sibling: {s['class_name']} ({s['file_path']})")
+
+
+@app.command("type-impact")
+def type_impact(
+    type_name: str = typer.Argument(help="Type to analyze"),
+) -> None:
+    """Find all code affected if a type changes shape."""
+    svc = _get_service()
+    result = svc.find_type_impact(type_name)
+    typer.echo(f"Type impact for: {result['type']}")
+    typer.echo(f"  Prod references: {result['prod_count']}")
+    typer.echo(f"  Test references: {result['test_count']}")
+    for r in result["references"]:
+        typer.echo(f"    [{r['context']}] {r['full_name']}")
+
+
 @summary_app.command("get")
 def summary_get(full_name: str) -> None:
     """Get the summary for a symbol."""

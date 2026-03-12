@@ -15,6 +15,7 @@ from synapse.graph.lookups import (
     find_dependencies as query_find_dependencies,
 )
 from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
+from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
@@ -302,6 +303,18 @@ class SynapseService:
     def get_call_depth(self, method: str, depth: int = 3) -> dict:
         method = self._resolve(method)
         return get_call_depth(self._conn, method, depth)
+
+    def analyze_change_impact(self, method: str) -> dict:
+        method = self._resolve(method)
+        return analyze_change_impact(self._conn, method)
+
+    def find_interface_contract(self, method: str) -> dict:
+        method = self._resolve(method)
+        return find_interface_contract(self._conn, method)
+
+    def find_type_impact(self, type_name: str) -> dict:
+        type_name = self._resolve(type_name)
+        return find_type_impact(self._conn, type_name)
 
     def _get_parent_signature(self, full_name: str) -> str | None:
         """Get the declaration line of the containing class/interface."""
