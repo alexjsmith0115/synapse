@@ -138,3 +138,15 @@ def test_audit_empty_results() -> None:
     result = audit_architecture(conn, "layering_violations")
     assert result["count"] == 0
     assert result["violations"] == []
+
+
+def test_analyze_change_impact_transitive_includes_interface_dispatch() -> None:
+    """Transitive query must cross the interface dispatch gap."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    transitive_cypher = conn.query.call_args_list[1][0][0]
+    assert "IMPLEMENTS" in transitive_cypher, (
+        "Transitive callers query must accept callers that reach the method "
+        "via its interface (IMPLEMENTS edge)"
+    )

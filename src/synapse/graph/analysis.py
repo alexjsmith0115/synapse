@@ -19,7 +19,8 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
         {"method": method},
     )
     transitive = conn.query(
-        "MATCH (c:Method)-[:CALLS*2..4]->(m {full_name: $method}) "
+        "MATCH (c:Method)-[:CALLS*2..4]->(m) "
+        "WHERE m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m) "
         "RETURN DISTINCT c.full_name, c.file_path",
         {"method": method},
     )
