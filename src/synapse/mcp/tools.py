@@ -258,3 +258,22 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         Returns {type, references: [{full_name, file_path, context}], prod_count, test_count}.
         """
         return service.find_type_impact(type_name)
+
+    @mcp.tool()
+    def audit_architecture(rule: str) -> dict:
+        """Run an architectural audit rule against the codebase graph.
+
+        Valid rules: layering_violations, untested_services, repeated_db_writes.
+        Returns {rule, description, violations: [dict], count}.
+        These rules are C#/.NET-specific.
+        """
+        return service.audit_architecture(rule)
+
+    @mcp.tool()
+    def summarize_from_graph(class_name: str) -> dict:
+        """Auto-generate a structural summary of a class from graph data.
+
+        Returns {full_name, summary, data: {kind, interfaces, method_count, dependencies, dependents, test_classes}}.
+        The summary is NOT stored automatically — call set_summary to persist after review.
+        """
+        return service.summarize_from_graph(class_name)
