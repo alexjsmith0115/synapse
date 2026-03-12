@@ -316,6 +316,65 @@ class SynapseService:
         type_name = self._resolve(type_name)
         return find_type_impact(self._conn, type_name)
 
+    def summarize_from_graph(self, class_name: str) -> dict | None:
+        """Auto-generate a structural summary of a class from graph data.
+
+        The summary is returned but NOT stored automatically. Call set_summary
+        to persist it after review.
+        """
+        class_name = self._resolve(class_name)
+        symbol = _p(get_symbol(self._conn, class_name))
+        if not symbol:
+            return None
+
+        interfaces = [
+            _p(i)["full_name"]
+            for i in get_implemented_interfaces(self._conn, class_name)
+        ]
+
+        members = get_members_overview(self._conn, class_name)
+        method_count = len(members)
+
+        deps = self.find_dependencies(class_name)
+        dep_names = list({d["type"]["full_name"] for d in deps})
+
+        impact = self.find_type_impact(class_name)
+        dependents = [r["full_name"] for r in impact["references"] if r["context"] == "prod"]
+        test_classes = list({
+            r["full_name"].rsplit(".", 1)[0]
+            for r in impact["references"]
+            if r["context"] == "test"
+        })
+
+        parts = []
+        name = symbol.get("name", class_name)
+        if interfaces:
+            parts.append(f"{name}: implements {', '.join(i.rsplit('.', 1)[-1] for i in interfaces)} ({method_count} methods).")
+        else:
+            parts.append(f"{name}: {symbol.get('kind', 'class')} ({method_count} methods).")
+
+        if dep_names:
+            parts.append(f"Dependencies: {', '.join(n.rsplit('.', 1)[-1] for n in dep_names)}.")
+
+        if dependents or test_classes:
+            dep_str = f"{len(dependents)} prod references" if dependents else ""
+            test_str = f"{len(test_classes)} test references" if test_classes else ""
+            combined = ", ".join(filter(None, [dep_str, test_str]))
+            parts.append(f"Depended on by: {combined}.")
+
+        return {
+            "full_name": class_name,
+            "summary": "\n".join(parts),
+            "data": {
+                "kind": symbol.get("kind", "class"),
+                "interfaces": interfaces,
+                "method_count": method_count,
+                "dependencies": dep_names,
+                "dependents": dependents,
+                "test_classes": test_classes,
+            },
+        }
+
     def _get_parent_signature(self, full_name: str) -> str | None:
         """Get the declaration line of the containing class/interface."""
         rows = self._conn.query(
