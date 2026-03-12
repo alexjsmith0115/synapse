@@ -4,7 +4,7 @@ import logging
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.nodes import set_summary, remove_summary
-from synapse.graph.queries import (
+from synapse.graph.lookups import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
