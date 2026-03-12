@@ -249,6 +249,31 @@ class SynapseService:
                 dep_lines.append(f"### {type_fn}\n" + "\n".join(member_sigs))
             sections.append("## Parameter & Return Types\n\n" + "\n\n".join(dep_lines))
 
+        # Surface any existing summaries for the symbol and its containing type/interfaces
+        summary_entries: list[str] = []
+        sym_summary = get_summary(self._conn, full_name)
+        if sym_summary:
+            summary_entries.append(f"**{full_name}:** {sym_summary}")
+        if parent:
+            parent_fn = _p(parent)["full_name"]
+            parent_summary = get_summary(self._conn, parent_fn)
+            if parent_summary:
+                summary_entries.append(f"**{parent_fn}:** {parent_summary}")
+            for iface in get_implemented_interfaces(self._conn, parent_fn):
+                iface_fn = _p(iface)["full_name"]
+                iface_summary = get_summary(self._conn, iface_fn)
+                if iface_summary:
+                    summary_entries.append(f"**{iface_fn}:** {iface_summary}")
+        else:
+            own_interfaces = get_implemented_interfaces(self._conn, full_name)
+            for iface in own_interfaces:
+                iface_fn = _p(iface)["full_name"]
+                iface_summary = get_summary(self._conn, iface_fn)
+                if iface_summary:
+                    summary_entries.append(f"**{iface_fn}:** {iface_summary}")
+        if summary_entries:
+            sections.append("## Summaries\n\n" + "\n\n".join(summary_entries))
+
         return "\n\n---\n\n".join(sections)
 
     def _get_parent_signature(self, full_name: str) -> str | None:

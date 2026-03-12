@@ -208,6 +208,49 @@ def test_find_dependencies_unwraps_nested_nodes():
     assert result == [{"type": {"full_name": "A.Dep", "_labels": ["Class"]}, "depth": 1}]
 
 
+def test_get_context_for_includes_summaries_when_available(tmp_path):
+    source_file = tmp_path / "Foo.cs"
+    source_file.write_text("class Foo { void Bar() {} }\n")
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value={"full_name": "Ns.Foo.Bar", "name": "Bar"}),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 0}),
+        get_containing_type=MagicMock(return_value={"full_name": "Ns.Foo", "name": "Foo", "kind": "class"}),
+        get_members_overview=MagicMock(return_value=[]),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        find_callees=MagicMock(return_value=[]),
+        query_find_dependencies=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value="Handles business logic"),
+    ):
+        result = svc.get_context_for("Ns.Foo.Bar")
+
+    assert "## Summaries" in result
+    assert "Handles business logic" in result
+
+
+def test_get_context_for_no_summaries_section_when_none_exist(tmp_path):
+    source_file = tmp_path / "Foo.cs"
+    source_file.write_text("class Foo { void Bar() {} }\n")
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value={"full_name": "Ns.Foo.Bar", "name": "Bar"}),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 0}),
+        get_containing_type=MagicMock(return_value=None),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.Foo.Bar")
+
+    assert "## Summaries" not in result
+
+
 def test_get_hierarchy_unwraps_nodes():
     svc = _service()
     parent = _node(["Class"], {"full_name": "A.Base"})
