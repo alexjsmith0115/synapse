@@ -17,6 +17,7 @@ from synapse.graph.nodes import (
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
 from synapse.indexer.import_extractor import CSharpImportExtractor
+from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
 from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
@@ -57,6 +58,9 @@ class Indexer:
                 self._index_base_types(file_path, source, name_to_full_names, kind_map)
             except OSError:
                 log.warning("Could not read %s for base type extraction", file_path)
+
+        # Phase 1.5: method-level IMPLEMENTS edges (requires all class-level IMPLEMENTS to exist)
+        MethodImplementsIndexer(self._conn).index()
 
         # CALLS and REFERENCES resolution requires all nodes to be present; must run after structural pass
         _CLASS_KINDS = {SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.INTERFACE}
