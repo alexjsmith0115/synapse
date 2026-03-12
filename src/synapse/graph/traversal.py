@@ -26,7 +26,8 @@ def trace_call_chain(
     depth = _clamp_depth(max_depth)
     rows = conn.query(
         f"MATCH p=(s:Method)-[:CALLS*1..{depth}]->(e:Method) "
-        "WHERE s.full_name = $start AND e.full_name = $end "
+        "WHERE s.full_name = $start "
+        "AND (e.full_name = $end OR (:Method {full_name: $end})-[:IMPLEMENTS]->(e)) "
         "RETURN [n in nodes(p) | n.full_name] AS path "
         "LIMIT 10",
         {"start": start, "end": end},
@@ -50,8 +51,9 @@ def find_entry_points(
     """
     depth = _clamp_depth(max_depth)
     rows = conn.query(
-        f"MATCH p=(entry:Method)-[:CALLS*1..{depth}]->(target:Method {{full_name: $method}}) "
+        f"MATCH p=(entry:Method)-[:CALLS*1..{depth}]->(m:Method) "
         "WHERE NOT ()-[:CALLS]->(entry) "
+        "AND (m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m)) "
         "RETURN [n in nodes(p) | n.full_name] AS path "
         "LIMIT 20",
         {"method": method},

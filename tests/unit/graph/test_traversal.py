@@ -68,3 +68,25 @@ def test_get_call_depth_empty() -> None:
     conn = _conn([])
     result = get_call_depth(conn, "Leaf.Method", depth=2)
     assert result["callees"] == []
+
+
+def test_trace_call_chain_query_includes_interface_dispatch() -> None:
+    """Query must find paths that end at an interface method implemented by $end."""
+    conn = _conn([])
+    trace_call_chain(conn, "A.Controller.Create", "A.Service.CreateAsync")
+    cypher = conn.query.call_args[0][0]
+    assert "IMPLEMENTS" in cypher, (
+        "trace_call_chain must accept paths ending at an interface method "
+        "that $end implements, to support controller→interface→service paths"
+    )
+
+
+def test_find_entry_points_query_includes_interface_dispatch() -> None:
+    """Query must find entry points that reach $method via its interface."""
+    conn = _conn([])
+    find_entry_points(conn, "A.Service.CreateAsync")
+    cypher = conn.query.call_args[0][0]
+    assert "IMPLEMENTS" in cypher, (
+        "find_entry_points must accept paths ending at an interface method "
+        "that $method implements"
+    )
