@@ -106,7 +106,7 @@ rows = conn.query(
     "MATCH (impl:Class)-[:CONTAINS]->(m:Method) "
     "WHERE m.full_name = $full_name "
     "MATCH (impl)-[:IMPLEMENTS]->(i)-[:CONTAINS]->(contract:Method {name: $name}) "
-    "RETURN i.full_name, contract.full_name",
+    "RETURN i.full_name, contract.full_name, impl.full_name",
     {"name": simple_name, "full_name": method},
 )
 if not rows:
@@ -114,12 +114,16 @@ if not rows:
 
 iface_full_name = rows[0][0]
 
-# Siblings are optional
+# Siblings are optional — also return impl class full_name from first query for exclusion
+# First query updated to also return impl.full_name:
+#   RETURN i.full_name, contract.full_name, impl.full_name
+impl_class_full_name = rows[0][2]
+
 sibling_rows = conn.query(
     "MATCH (sibling:Class)-[:IMPLEMENTS]->(i {full_name: $iface}) "
-    "WHERE NOT (sibling)-[:CONTAINS]->(:Method {full_name: $method}) "
+    "WHERE sibling.full_name <> $impl_class "
     "RETURN sibling.name, sibling.file_path",
-    {"iface": iface_full_name, "method": method},
+    {"iface": iface_full_name, "impl_class": impl_class_full_name},
 )
 ```
 
@@ -216,8 +220,8 @@ def upsert_repository(conn: GraphConnection, path: str, language: str) -> None:
 | `src/synapse/indexer/indexer.py` | Wire Phase 1.5 |
 | `src/synapse/service.py` | Expose `index_method_implements()` |
 | `src/synapse/graph/traversal.py` | Update `trace_call_chain`, `find_entry_points` end conditions |
-| `src/synapse/graph/analysis.py` | Fix `analyze_change_impact` direct filter; fix `find_interface_contract` sibling query |
-| `src/synapse/graph/lookups.py` | Fix `resolve_full_name` disambiguation; fix `analyze_change_impact` transitive |
+| `src/synapse/graph/analysis.py` | Fix `analyze_change_impact` direct filter and transitive query; fix `find_interface_contract` sibling query |
+| `src/synapse/graph/lookups.py` | Fix `resolve_full_name` disambiguation |
 | `src/synapse/graph/nodes.py` | Strip trailing slash in `upsert_repository` |
 
 ## Test Coverage
@@ -226,6 +230,7 @@ Each fix gets a unit test:
 - `MethodImplementsIndexer`: mock conn returning two impl pairs, verify `upsert_method_implements` calls
 - `resolve_full_name`: returns Class node when Class + Method share suffix
 - `analyze_change_impact`: `direct_callers` excludes test files
+- `analyze_change_impact`: `transitive_callers` includes callers that reach the target via interface dispatch
 - `find_interface_contract`: returns result when no siblings exist
 - `upsert_repository`: trailing slash stripped from stored path
 - `trace_call_chain` / `find_entry_points`: query includes interface dispatch condition
