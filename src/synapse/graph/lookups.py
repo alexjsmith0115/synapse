@@ -156,6 +156,7 @@ def list_projects(conn: GraphConnection) -> list[dict]:
 
 
 def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
+    project_path = project_path.rstrip("/")
     rows = conn.query(
         "MATCH (r:Repository {path: $path}) RETURN r",
         {"path": project_path},

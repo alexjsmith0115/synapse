@@ -34,6 +34,31 @@ def test_index_project_links_repository_to_root_directory() -> None:
     )
 
 
+def test_index_project_normalizes_trailing_slash() -> None:
+    """Trailing slash on root_path must not break Repository->Directory edge.
+
+    upsert_repository strips the slash before storing, but upsert_repo_contains_dir
+    would then query for the un-stripped path and silently create no edge.
+    Normalizing at index_project entry avoids the mismatch.
+    """
+    conn = MagicMock()
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = ["/proj/Foo.cs"]
+    lsp.get_document_symbols.return_value = []
+
+    indexer = Indexer(conn, lsp)
+    indexer.index_project("/proj/", "csharp")
+
+    # Repository must be stored without trailing slash
+    repo_calls = [str(c) for c in conn.execute.call_args_list if "Repository" in str(c)]
+    assert all("/proj/" not in c for c in repo_calls), "Repository stored with trailing slash"
+
+    # Repo-to-Dir CONTAINS edge must be created with consistent paths
+    contains_calls = [str(c) for c in conn.execute.call_args_list if "CONTAINS" in str(c) and "Repository" in str(c)]
+    assert contains_calls, "No Repository-[CONTAINS]->Directory edge created"
+    assert all("/proj/" not in c for c in contains_calls), "CONTAINS edge used slash-inconsistent paths"
+
+
 def test_index_project_upserts_file_node() -> None:
     conn = MagicMock()
     lsp = MagicMock()

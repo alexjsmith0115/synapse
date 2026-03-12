@@ -32,6 +32,7 @@ class Indexer:
         self._base_type_extractor = CSharpBaseTypeExtractor()
 
     def index_project(self, root_path: str, language: str, keep_lsp_running: bool = False) -> None:
+        root_path = root_path.rstrip("/")
         files = self._lsp.get_workspace_files(root_path)
         symbols_by_file: dict[str, list[IndexSymbol]] = {}
 

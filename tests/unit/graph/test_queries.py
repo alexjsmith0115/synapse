@@ -180,3 +180,28 @@ def test_get_implemented_interfaces_returns_interfaces() -> None:
     ])
     results = get_implemented_interfaces(conn, "Ns.MyClass")
     assert len(results) == 2
+
+
+def test_get_index_status_returns_none_when_not_found() -> None:
+    conn = MagicMock()
+    conn.query.return_value = []
+    assert get_index_status(conn, "/proj") is None
+
+
+def test_get_index_status_strips_trailing_slash() -> None:
+    repo_node = MagicMock()
+    repo_node.properties = {"last_indexed": "2026-01-01"}
+    conn = MagicMock()
+    conn.query.side_effect = [[[repo_node]], [[3]], [[42]]]
+    get_index_status(conn, "/proj/")
+    path_arg = conn.query.call_args_list[0][0][1]["path"]
+    assert path_arg == "/proj"
+
+
+def test_get_index_status_returns_counts() -> None:
+    repo_node = MagicMock()
+    repo_node.properties = {"last_indexed": "2026-01-01"}
+    conn = MagicMock()
+    conn.query.side_effect = [[[repo_node]], [[5]], [[99]]]
+    result = get_index_status(conn, "/proj")
+    assert result == {"path": "/proj", "last_indexed": "2026-01-01", "file_count": 5, "symbol_count": 99}
