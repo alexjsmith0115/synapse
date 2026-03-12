@@ -37,3 +37,30 @@ def trace_call_chain(
         "end": end,
         "max_depth": depth,
     }
+
+
+def find_entry_points(
+    conn: GraphConnection,
+    method: str,
+    max_depth: int = 8,
+) -> dict:
+    """Walk backwards to find root callers with no incoming CALLS edges.
+
+    Returns up to 20 paths, each with the entry point and full path to target.
+    """
+    depth = _clamp_depth(max_depth)
+    rows = conn.query(
+        f"MATCH p=(entry:Method)-[:CALLS*1..{depth}]->(target:Method {{full_name: $method}}) "
+        "WHERE NOT ()-[:CALLS]->(entry) "
+        "RETURN [n in nodes(p) | n.full_name] AS path "
+        "LIMIT 20",
+        {"method": method},
+    )
+    return {
+        "entry_points": [
+            {"entry": r[0][0], "path": r[0]}
+            for r in rows
+        ],
+        "target": method,
+        "max_depth": depth,
+    }
