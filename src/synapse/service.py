@@ -14,6 +14,7 @@ from synapse.graph.lookups import (
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
+from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
 from synapse.indexer.indexer import Indexer
 from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
@@ -288,6 +289,19 @@ class SynapseService:
             sections.append("## Summaries\n\n" + "\n\n".join(summary_entries))
 
         return "\n\n---\n\n".join(sections)
+
+    def trace_call_chain(self, start: str, end: str, max_depth: int = 6) -> dict:
+        start = self._resolve(start)
+        end = self._resolve(end)
+        return trace_call_chain(self._conn, start, end, max_depth)
+
+    def find_entry_points(self, method: str, max_depth: int = 8) -> dict:
+        method = self._resolve(method)
+        return find_entry_points(self._conn, method, max_depth)
+
+    def get_call_depth(self, method: str, depth: int = 3) -> dict:
+        method = self._resolve(method)
+        return get_call_depth(self._conn, method, depth)
 
     def _get_parent_signature(self, full_name: str) -> str | None:
         """Get the declaration line of the containing class/interface."""
