@@ -8,7 +8,7 @@ from synapse.graph.lookups import (
     get_symbol, find_implementations, find_callers, find_callees,
     get_hierarchy, search_symbols, get_summary, list_summarized,
     list_projects, get_index_status, execute_readonly_query,
-    get_method_symbol_map, get_symbol_source_info,
+    get_method_symbol_map, get_symbol_source_info, check_staleness,
     get_containing_type, get_members_overview, get_implemented_interfaces,
     resolve_full_name,
     find_type_references as query_find_type_references,
@@ -50,6 +50,19 @@ class SynapseService:
                 "Use the fully qualified name."
             )
         return result
+
+    def _staleness_warning(self, full_name: str) -> str | None:
+        """Return a warning string if the symbol's file is stale, else None."""
+        source_info = get_symbol_source_info(self._conn, full_name)
+        if not source_info or not source_info.get("file_path"):
+            return None
+        staleness = check_staleness(self._conn, source_info["file_path"])
+        if staleness and staleness["is_stale"]:
+            return (
+                f"Warning: {staleness['file_path']} was modified after last indexing. "
+                "Results may be outdated. Run watch_project or re-index to refresh."
+            )
+        return None
 
     # --- Indexing ---
 

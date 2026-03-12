@@ -1,4 +1,6 @@
+import os
 import re
+from datetime import datetime, timezone
 
 from synapse.graph.connection import GraphConnection
 
@@ -268,6 +270,38 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
     if len(rows) > 1:
         return [r[0] for r in rows]
     return name
+
+
+def check_staleness(conn: GraphConnection, file_path: str) -> dict | None:
+    """Check if a file's graph data is stale relative to disk.
+
+    Compares the stored last_indexed ISO timestamp on the File node against
+    the file's mtime on disk.
+    """
+    rows = conn.query(
+        "MATCH (f:File {path: $path}) RETURN f.last_indexed, f.path",
+        {"path": file_path},
+    )
+    if not rows:
+        return None
+
+    last_indexed_str = rows[0][0]
+    if not last_indexed_str:
+        return None
+
+    if not os.path.exists(file_path):
+        return None
+
+    last_indexed = datetime.fromisoformat(last_indexed_str)
+    last_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=timezone.utc)
+    is_stale = last_modified > last_indexed
+
+    return {
+        "file_path": file_path,
+        "last_indexed": last_indexed_str,
+        "last_modified": last_modified.isoformat(),
+        "is_stale": is_stale,
+    }
 
 
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:

@@ -52,7 +52,13 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_symbol(full_name: str) -> dict | None:
-        return service.get_symbol(full_name)
+        """Get a symbol node by full name (supports short names)."""
+        result = service.get_symbol(full_name)
+        if result:
+            warning = service._staleness_warning(full_name)
+            if warning:
+                result["_staleness_warning"] = warning
+        return result
 
     @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
@@ -96,12 +102,12 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
-        """Return the inheritance hierarchy for a class.
-
-        Returns {"parents": [...], "children": [...], "implements": [...]}.
-        "implements" lists interfaces directly implemented by this class.
-        """
-        return service.get_hierarchy(class_name)
+        """Get the inheritance hierarchy for a class or interface (supports short names)."""
+        result = service.get_hierarchy(class_name)
+        warning = service._staleness_warning(class_name)
+        if warning:
+            result["_staleness_warning"] = warning
+        return result
 
     @mcp.tool()
     def search_symbols(
@@ -192,14 +198,13 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_context_for(full_name: str) -> str:
-        """Return a rich markdown summary of a symbol and its direct dependencies.
-
-        The returned markdown includes:
-        - The symbol's source code (if available; otherwise a re-index note)
-        - Each direct field-type dependency with its full member signature list
-        - Summaries for any summarized dependencies
+        """Get rich context for a symbol: source, hierarchy, dependencies, and summaries.
 
         Useful for giving an AI full context before asking it to modify a class.
         """
         result = service.get_context_for(full_name)
-        return result or f"Symbol not found: {full_name}"
+        if result:
+            warning = service._staleness_warning(full_name)
+            if warning:
+                result = f"\u26a0\ufe0f {warning}\n\n---\n\n{result}"
+        return result or "Symbol not found."
