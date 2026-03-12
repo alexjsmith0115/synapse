@@ -64,3 +64,26 @@ def find_entry_points(
         "target": method,
         "max_depth": depth,
     }
+
+
+def get_call_depth(
+    conn: GraphConnection,
+    method: str,
+    depth: int = 3,
+) -> dict:
+    """Recursive fanout — all methods reachable from a starting method up to N levels."""
+    clamped = _clamp_depth(depth)
+    rows = conn.query(
+        f"MATCH p=(m:Method {{full_name: $method}})-[:CALLS*1..{clamped}]->(callee:Method) "
+        "RETURN DISTINCT callee.full_name, callee.file_path, length(p) AS depth "
+        "ORDER BY depth",
+        {"method": method},
+    )
+    return {
+        "root": method,
+        "callees": [
+            {"full_name": r[0], "file_path": r[1], "depth": r[2]}
+            for r in rows
+        ],
+        "depth_limit": clamped,
+    }

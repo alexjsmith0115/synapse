@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from synapse.graph.traversal import find_entry_points, trace_call_chain
+from synapse.graph.traversal import find_entry_points, get_call_depth, trace_call_chain
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -50,3 +50,21 @@ def test_find_entry_points_empty() -> None:
     conn = _conn([])
     result = find_entry_points(conn, "Orphan.Method")
     assert result["entry_points"] == []
+
+
+def test_get_call_depth_returns_callees() -> None:
+    conn = _conn([
+        ["Svc.DoA", "/proj/Svc.cs", 1],
+        ["Repo.Save", "/proj/Repo.cs", 2],
+    ])
+    result = get_call_depth(conn, "Controller.Action", depth=3)
+    assert result["root"] == "Controller.Action"
+    assert len(result["callees"]) == 2
+    assert result["callees"][0] == {"full_name": "Svc.DoA", "file_path": "/proj/Svc.cs", "depth": 1}
+    assert result["depth_limit"] == 3
+
+
+def test_get_call_depth_empty() -> None:
+    conn = _conn([])
+    result = get_call_depth(conn, "Leaf.Method", depth=2)
+    assert result["callees"] == []
