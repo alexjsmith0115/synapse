@@ -27,15 +27,14 @@ def test_exact_match_without_dot() -> None:
 
 def test_suffix_fallback_single_match() -> None:
     conn = MagicMock()
-    # First call (exact match) returns nothing; second call (suffix) returns one match
-    conn.query.side_effect = [[], [["Ns.Sub.MyClass"]]]
+    conn.query.side_effect = [[], [["Ns.Sub.MyClass", ["Class"]]]]
     result = resolve_full_name(conn, "MyClass")
     assert result == "Ns.Sub.MyClass"
 
 
 def test_suffix_fallback_multiple_matches() -> None:
     conn = MagicMock()
-    conn.query.side_effect = [[], [["A.MyClass"], ["B.MyClass"]]]
+    conn.query.side_effect = [[], [["A.MyClass", ["Class"]], ["B.MyClass", ["Class"]]]]
     result = resolve_full_name(conn, "MyClass")
     assert result == ["A.MyClass", "B.MyClass"]
 
@@ -52,3 +51,19 @@ def test_exact_match_skips_suffix() -> None:
     conn = _conn([["Ns.MyClass"]])
     resolve_full_name(conn, "Ns.MyClass")
     assert conn.query.call_count == 1
+
+
+def test_suffix_fallback_prefers_class_over_method() -> None:
+    """When suffix matches both a Class and a Method, return the Class unambiguously."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [],  # exact match: nothing
+        [   # suffix match: Class node + constructor Method node
+            ["Ns.Services.MeetingService", ["Class"]],
+            ["Ns.Services.MeetingService.MeetingService", ["Method"]],
+        ],
+    ]
+    result = resolve_full_name(conn, "MeetingService")
+    assert result == "Ns.Services.MeetingService", (
+        "Should resolve to the Class node, not raise an ambiguity error"
+    )
