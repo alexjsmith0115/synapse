@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from synapse.graph.analysis import analyze_change_impact
+from synapse.graph.analysis import analyze_change_impact, find_interface_contract
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -41,3 +41,20 @@ def test_analyze_change_impact_empty() -> None:
     result = analyze_change_impact(conn, "Isolated.Method")
     assert result["direct_callers"] == []
     assert result["total_affected"] == 0
+
+
+def test_find_interface_contract_returns_siblings() -> None:
+    conn = _conn([
+        ["Ns.IService", "Ns.IService.Do", "OtherImpl", "/proj/Other.cs"],
+    ])
+    result = find_interface_contract(conn, "Ns.MyImpl.Do")
+    assert result["method"] == "Ns.MyImpl.Do"
+    assert result["interface"] == "Ns.IService"
+    assert result["contract_method"] == "Ns.IService.Do"
+    assert len(result["sibling_implementations"]) == 1
+
+
+def test_find_interface_contract_no_interface() -> None:
+    conn = _conn([])
+    result = find_interface_contract(conn, "Standalone.Method")
+    assert result["sibling_implementations"] == []

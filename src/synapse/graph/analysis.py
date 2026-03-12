@@ -43,3 +43,38 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
         "test_coverage": test_coverage,
         "total_affected": len(all_names),
     }
+
+
+def find_interface_contract(conn: GraphConnection, method: str) -> dict:
+    """Find the interface a method satisfies and all sibling implementations.
+
+    The method parameter should be a resolved full_name. The simple method
+    name is extracted by splitting on '.' and taking the last segment.
+    """
+    simple_name = method.rsplit(".", 1)[-1]
+    rows = conn.query(
+        "MATCH (impl:Class)-[:CONTAINS]->(m:Method {name: $name}) "
+        "WHERE m.full_name = $full_name "
+        "MATCH (impl)-[:IMPLEMENTS]->(i)-[:CONTAINS]->(contract:Method {name: $name}) "
+        "MATCH (sibling:Class)-[:IMPLEMENTS]->(i) "
+        "WHERE sibling <> impl "
+        "RETURN i.full_name, contract.full_name, sibling.name, sibling.file_path",
+        {"name": simple_name, "full_name": method},
+    )
+
+    if not rows:
+        return {
+            "method": method,
+            "interface": None,
+            "contract_method": None,
+            "sibling_implementations": [],
+        }
+
+    return {
+        "method": method,
+        "interface": rows[0][0],
+        "contract_method": rows[0][1],
+        "sibling_implementations": [
+            {"class_name": r[2], "file_path": r[3]} for r in rows
+        ],
+    }
