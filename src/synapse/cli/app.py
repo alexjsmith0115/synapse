@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import typer
+
+# Suppress INFO/WARNING chatter from the language server process — only surface errors.
+logging.getLogger("solidlsp").setLevel(logging.ERROR)
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.schema import ensure_schema
@@ -47,8 +51,8 @@ def _require_label(svc: SynapseService, full_name: str, required: str, hint: str
 @app.command()
 def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
-    _get_service().index_project(path, language)
-    typer.echo(f"Indexed {path}")
+    _get_service().index_project(path, language, on_progress=typer.echo)
+    typer.echo(f"Done. Indexed {path}")
 
 
 @app.command()
