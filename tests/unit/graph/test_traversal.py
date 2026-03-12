@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from synapse.graph.traversal import trace_call_chain
+from synapse.graph.traversal import find_entry_points, trace_call_chain
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -35,3 +35,18 @@ def test_trace_call_chain_depth_in_cypher() -> None:
     trace_call_chain(conn, "A.M1", "A.M2", max_depth=4)
     cypher = conn.query.call_args[0][0]
     assert "*1..4" in cypher
+
+
+def test_find_entry_points_returns_paths() -> None:
+    conn = _conn([[["Controller.Action", "Svc.Do", "Repo.Save"]]])
+    result = find_entry_points(conn, "Repo.Save")
+    assert len(result["entry_points"]) == 1
+    assert result["entry_points"][0]["entry"] == "Controller.Action"
+    assert result["entry_points"][0]["path"] == ["Controller.Action", "Svc.Do", "Repo.Save"]
+    assert result["target"] == "Repo.Save"
+
+
+def test_find_entry_points_empty() -> None:
+    conn = _conn([])
+    result = find_entry_points(conn, "Orphan.Method")
+    assert result["entry_points"] == []
