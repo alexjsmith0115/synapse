@@ -142,3 +142,15 @@ def test_upsert_method_stores_file_path() -> None:
     cypher, params = conn.execute.call_args[0]
     assert "file_path" in cypher
     assert params["file_path"] == "/proj/C.cs"
+
+
+def test_upsert_repository_strips_trailing_slash() -> None:
+    """Paths with and without trailing slash must produce the same node."""
+    from synapse.graph.nodes import upsert_repository
+    conn = MagicMock()
+    upsert_repository(conn, "/Users/alex/Dev/myrepo/", "csharp")
+    _, params = conn.execute.call_args[0]
+    assert not params["path"].endswith("/"), (
+        "Trailing slash must be stripped to prevent duplicate Repository nodes"
+    )
+    assert params["path"] == "/Users/alex/Dev/myrepo"
