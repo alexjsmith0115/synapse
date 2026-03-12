@@ -3,6 +3,7 @@ from synapse.graph.edges import (
     upsert_repo_contains_dir, upsert_dir_contains, upsert_file_contains_symbol,
     upsert_contains_symbol, upsert_calls, upsert_inherits, upsert_implements,
     upsert_overrides, upsert_interface_inherits, upsert_references,
+    upsert_method_implements,
 )
 
 
@@ -86,6 +87,15 @@ def test_upsert_references_creates_edge_with_kind():
     assert params["source"] == "Ns.C.M()"
     assert params["target"] == "Ns.UserDto"
     assert params["kind"] == "parameter"
+
+
+def test_upsert_method_implements_writes_edge() -> None:
+    conn = MagicMock()
+    upsert_method_implements(conn, "Ns.Impl.CreateAsync", "Ns.IFoo.CreateAsync")
+    cypher, params = conn.execute.call_args[0]
+    assert "IMPLEMENTS" in cypher
+    assert params["impl"] == "Ns.Impl.CreateAsync"
+    assert params["iface"] == "Ns.IFoo.CreateAsync"
 
 
 def test_upsert_repo_contains_dir_matches_repo_by_path() -> None:

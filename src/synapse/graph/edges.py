@@ -66,6 +66,14 @@ def upsert_implements(conn: GraphConnection, class_full_name: str, interface_ful
     )
 
 
+def upsert_method_implements(conn: GraphConnection, impl_method: str, iface_method: str) -> None:
+    conn.execute(
+        "MATCH (impl:Method {full_name: $impl}), (iface:Method {full_name: $iface}) "
+        "MERGE (impl)-[:IMPLEMENTS]->(iface)",
+        {"impl": impl_method, "iface": iface_method},
+    )
+
+
 def upsert_overrides(conn: GraphConnection, method_full_name: str, base_method_full_name: str) -> None:
     conn.execute(
         "MATCH (src:Method {full_name: $method}), (dst:Method {full_name: $base}) "
