@@ -1,6 +1,17 @@
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from synapse.service import SynapseService, _p
 from falkordb.node import Node as FalkorNode
+
+
+# After wiring _resolve into read methods, we need to bypass resolve_full_name
+# in tests that don't care about resolution.
+@pytest.fixture(autouse=True)
+def bypass_resolve(monkeypatch):
+    """Make resolve_full_name return the name unchanged for all service tests."""
+    monkeypatch.setattr("synapse.service.resolve_full_name", lambda conn, name: name)
 
 
 def _node(labels: list[str], props: dict) -> FalkorNode:

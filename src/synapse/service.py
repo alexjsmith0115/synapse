@@ -10,6 +10,7 @@ from synapse.graph.lookups import (
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
     get_containing_type, get_members_overview, get_implemented_interfaces,
+    resolve_full_name,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
@@ -35,6 +36,20 @@ class SynapseService:
     def __init__(self, conn: GraphConnection) -> None:
         self._conn = conn
         self._watchers: dict[str, FileWatcher] = {}
+
+    def _resolve(self, name: str) -> str:
+        """Resolve a possibly-short name to a fully qualified name.
+
+        Raises ValueError if the name is ambiguous (matches multiple symbols).
+        """
+        result = resolve_full_name(self._conn, name)
+        if isinstance(result, list):
+            options = ", ".join(result[:10])
+            raise ValueError(
+                f"Ambiguous name '{name}' — matches: {options}. "
+                "Use the fully qualified name."
+            )
+        return result
 
     # --- Indexing ---
 
@@ -85,19 +100,24 @@ class SynapseService:
     # --- Queries ---
 
     def get_symbol(self, full_name: str) -> dict | None:
+        full_name = self._resolve(full_name)
         result = get_symbol(self._conn, full_name)
         return _p(result) if result is not None else None
 
     def find_implementations(self, interface_name: str) -> list[dict]:
+        interface_name = self._resolve(interface_name)
         return [_p(item) for item in find_implementations(self._conn, interface_name)]
 
     def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
+        method_full_name = self._resolve(method_full_name)
         return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch)]
 
     def find_callees(self, method_full_name: str) -> list[dict]:
+        method_full_name = self._resolve(method_full_name)
         return [_p(item) for item in find_callees(self._conn, method_full_name)]
 
     def get_hierarchy(self, class_name: str) -> dict:
+        class_name = self._resolve(class_name)
         raw = get_hierarchy(self._conn, class_name)
         return {
             "parents": [_p(n) for n in raw["parents"]],
@@ -125,9 +145,11 @@ class SynapseService:
         return [{"row": [_p(cell) if hasattr(cell, "properties") else cell for cell in row]} for row in raw]
 
     def find_type_references(self, full_name: str) -> list[dict]:
+        full_name = self._resolve(full_name)
         return [{"symbol": _p(r["symbol"]), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name)]
 
     def find_dependencies(self, full_name: str, depth: int = 1) -> list[dict]:
+        full_name = self._resolve(full_name)
         return [
             {"type": _p(r["type"]), "depth": r["depth"]}
             for r in query_find_dependencies(self._conn, full_name, depth)
@@ -139,6 +161,7 @@ class SynapseService:
         set_summary(self._conn, full_name, content)
 
     def get_summary(self, full_name: str) -> str | None:
+        full_name = self._resolve(full_name)
         return get_summary(self._conn, full_name)
 
     def list_summarized(self, project_path: str | None = None) -> list[dict]:
@@ -150,6 +173,7 @@ class SynapseService:
     # --- Source retrieval ---
 
     def get_symbol_source(self, full_name: str, include_class_signature: bool = False) -> str | None:
+        full_name = self._resolve(full_name)
         info = get_symbol_source_info(self._conn, full_name)
         if info is None:
             return None
@@ -172,6 +196,7 @@ class SynapseService:
         return result
 
     def get_context_for(self, full_name: str) -> str | None:
+        full_name = self._resolve(full_name)
         symbol = get_symbol(self._conn, full_name)
         if symbol is None:
             return None
