@@ -261,3 +261,15 @@ def test_get_hierarchy_unwraps_nodes():
     assert result["parents"] == [{"full_name": "A.Base", "_labels": ["Class"]}]
     assert result["children"] == [{"full_name": "A.Child", "_labels": ["Class"]}]
     assert result["implements"] == [{"full_name": "A.IFoo", "_labels": ["Interface"]}]
+
+
+def test_index_method_implements_calls_indexer() -> None:
+    """SynapseService.index_method_implements must delegate to MethodImplementsIndexer."""
+    svc = _service()
+    with patch("synapse.service.MethodImplementsIndexer") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        svc.index_method_implements()
+
+    mock_cls.assert_called_once_with(svc._conn)
+    mock_instance.index.assert_called_once()

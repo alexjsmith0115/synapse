@@ -17,6 +17,7 @@ from synapse.graph.lookups import (
 from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
 from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact, audit_architecture
 from synapse.indexer.indexer import Indexer
+from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
 from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
 from synapse.watcher.watcher import FileWatcher
@@ -80,6 +81,14 @@ class SynapseService:
         symbol_map = get_method_symbol_map(self._conn)
         SymbolResolver(self._conn, lsp.language_server).resolve(path, symbol_map)
         lsp.shutdown()
+
+    def index_method_implements(self) -> None:
+        """Write method-level IMPLEMENTS edges for all indexed class-level IMPLEMENTS relationships.
+
+        Can be run standalone after a structural index pass to populate interface dispatch edges
+        without re-indexing the full project.
+        """
+        MethodImplementsIndexer(self._conn).index()
 
     def delete_project(self, path: str) -> None:
         self._conn.execute(

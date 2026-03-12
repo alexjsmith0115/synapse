@@ -224,3 +224,17 @@ def test_upsert_symbol_passes_end_line(mock_conn):
     indexer._upsert_symbol(sym)
     _, params = mock_conn.execute.call_args[0]
     assert params["end_line"] == 20
+
+
+def test_index_project_calls_method_implements_indexer() -> None:
+    """Phase 1.5 must run after structural pass completes."""
+    conn = MagicMock()
+    lsp = MagicMock()
+    lsp.get_workspace_files.return_value = []
+
+    with patch("synapse.indexer.indexer.MethodImplementsIndexer") as mock_cls:
+        mock_instance = MagicMock()
+        mock_cls.return_value = mock_instance
+        Indexer(conn, lsp).index_project("/proj", "csharp")
+
+    mock_instance.index.assert_called_once()
