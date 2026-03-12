@@ -250,6 +250,9 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
     """Resolve a possibly-short symbol name to its full qualified name.
 
     Tries exact match first, then falls back to suffix matching.
+    When suffix matching returns both Class/Interface and Method nodes for the
+    same name (e.g. class + its constructor), Class/Interface nodes are preferred
+    to avoid spurious ambiguity errors on short class names.
     Returns the original name unchanged if no match is found (lets
     downstream queries fail naturally with empty results).
     """
@@ -262,14 +265,19 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
 
     rows = conn.query(
         "MATCH (n) WHERE n.full_name ENDS WITH $suffix "
-        "RETURN n.full_name",
+        "RETURN n.full_name, labels(n)",
         {"suffix": "." + name},
     )
-    if len(rows) == 1:
-        return rows[0][0]
-    if len(rows) > 1:
-        return [r[0] for r in rows]
-    return name
+    if not rows:
+        return name
+
+    # Prefer Class/Interface nodes over Method nodes when disambiguating
+    type_nodes = [r for r in rows if any(lbl in ("Class", "Interface") for lbl in r[1])]
+    candidates = type_nodes if type_nodes else rows
+
+    if len(candidates) == 1:
+        return candidates[0][0]
+    return [r[0] for r in candidates]
 
 
 def check_staleness(conn: GraphConnection, file_path: str) -> dict | None:

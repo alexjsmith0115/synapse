@@ -27,7 +27,7 @@ def test_resolve_ambiguous_raises() -> None:
     service, conn = _make_service()
     conn.query.side_effect = [
         [],  # exact match fails
-        [["A.MyClass"], ["B.MyClass"]],  # suffix match returns multiple
+        [["A.MyClass", ["Class"]], ["B.MyClass", ["Class"]]],  # suffix match returns multiple
     ]
     import pytest
     with pytest.raises(ValueError, match="Ambiguous"):
