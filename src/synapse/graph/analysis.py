@@ -104,3 +104,61 @@ def find_type_impact(conn: GraphConnection, type_name: str) -> dict:
         "prod_count": prod_count,
         "test_count": test_count,
     }
+
+
+# These audit rules are C#/.NET-specific. If Synapse later supports other
+# languages, these rules need language-aware variants or should be skipped
+# for non-C# projects.
+
+_AUDIT_RULES: dict[str, tuple[str, str]] = {
+    "layering_violations": (
+        "Controllers that bypass the service layer and call DbContext directly",
+        "MATCH (ctrl:Class)-[:CONTAINS]->(m:Method)-[:CALLS]->(db:Method) "
+        "WHERE ctrl.file_path CONTAINS 'Controllers' "
+        "AND db.full_name CONTAINS 'DbContext' "
+        "RETURN ctrl.name, m.name, db.full_name",
+    ),
+    "untested_services": (
+        "Service classes with no test methods calling into them",
+        "MATCH (svc:Class)-[:IMPLEMENTS]->(i) "
+        "WHERE svc.file_path CONTAINS '/Services/' "
+        "OPTIONAL MATCH (t:Method)-[:CALLS*1..3]->(:Method)<-[:CONTAINS]-(svc) "
+        "WHERE t.file_path CONTAINS 'Tests' "
+        "WITH svc, t "
+        "WHERE t IS NULL "
+        "RETURN DISTINCT svc.name, svc.file_path",
+    ),
+    "repeated_db_writes": (
+        "Methods calling multiple distinct SaveChangesAsync targets. "
+        "NOTE: CALLS edges are created with MERGE, so this counts distinct "
+        "callees, not call sites. It detects methods calling SaveChangesAsync "
+        "on multiple DbContext types but not repeated calls to the same one.",
+        "MATCH (m:Method)-[:CALLS]->(save:Method) "
+        "WHERE save.name = 'SaveChangesAsync' "
+        "WITH m, count(save) AS save_count "
+        "WHERE save_count > 1 "
+        "RETURN m.full_name, save_count ORDER BY save_count DESC",
+    ),
+}
+
+
+def audit_architecture(conn: GraphConnection, rule: str) -> dict:
+    """Run an architectural audit rule against the graph.
+
+    Valid rules: layering_violations, untested_services, repeated_db_writes.
+    """
+    if rule not in _AUDIT_RULES:
+        valid = ", ".join(sorted(_AUDIT_RULES.keys()))
+        raise ValueError(f"Unknown rule '{rule}'. Valid rules: {valid}")
+
+    description, cypher = _AUDIT_RULES[rule]
+    rows = conn.query(cypher)
+
+    violations = [dict(zip(range(len(r)), r)) for r in rows]
+
+    return {
+        "rule": rule,
+        "description": description,
+        "violations": violations,
+        "count": len(violations),
+    }

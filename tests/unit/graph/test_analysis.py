@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from synapse.graph.analysis import (
     analyze_change_impact,
+    audit_architecture,
     find_interface_contract,
     find_type_impact,
 )
@@ -82,3 +83,39 @@ def test_find_type_impact_empty() -> None:
     assert result["references"] == []
     assert result["prod_count"] == 0
     assert result["test_count"] == 0
+
+
+def test_audit_layering_violations() -> None:
+    conn = _conn([["UsersController", "GetAll", "AppDbContext.Users"]])
+    result = audit_architecture(conn, "layering_violations")
+    assert result["rule"] == "layering_violations"
+    assert result["count"] == 1
+    assert len(result["violations"]) == 1
+
+
+def test_audit_untested_services() -> None:
+    conn = _conn([["UserService", "/proj/Services/UserService.cs"]])
+    result = audit_architecture(conn, "untested_services")
+    assert result["rule"] == "untested_services"
+    assert result["count"] == 1
+
+
+def test_audit_repeated_db_writes() -> None:
+    conn = _conn([["Svc.CreateAsync", 2]])
+    result = audit_architecture(conn, "repeated_db_writes")
+    assert result["rule"] == "repeated_db_writes"
+    assert result["count"] == 1
+
+
+def test_audit_invalid_rule_raises() -> None:
+    import pytest
+    conn = _conn([])
+    with pytest.raises(ValueError, match="Unknown rule"):
+        audit_architecture(conn, "nonexistent_rule")
+
+
+def test_audit_empty_results() -> None:
+    conn = _conn([])
+    result = audit_architecture(conn, "layering_violations")
+    assert result["count"] == 0
+    assert result["violations"] == []
