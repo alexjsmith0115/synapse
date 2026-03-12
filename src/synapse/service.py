@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.nodes import set_summary, remove_summary
@@ -69,10 +70,17 @@ class SynapseService:
 
     # --- Indexing ---
 
-    def index_project(self, path: str, language: str = "csharp") -> None:
+    def index_project(
+        self,
+        path: str,
+        language: str = "csharp",
+        on_progress: Callable[[str], None] | None = None,
+    ) -> None:
+        if on_progress:
+            on_progress("Starting language server...")
         lsp = CSharpLSPAdapter.create(path)
         indexer = Indexer(self._conn, lsp)
-        indexer.index_project(path, language)
+        indexer.index_project(path, language, on_progress=on_progress)
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""

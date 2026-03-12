@@ -86,10 +86,7 @@ class CSharpLSPAdapter:
         return None
 
     def shutdown(self) -> None:
-        try:
-            self._ls.shutdown()
-        except Exception:
-            log.warning("Language server did not shut down cleanly")
+        self._ls.stop()
 
     def _convert(self, raw: dict, file_path: str, parent_full_name: str | None) -> IndexSymbol:
         kind_int = raw.get("kind", 0)

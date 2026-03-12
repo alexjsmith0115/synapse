@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
@@ -31,10 +32,19 @@ class Indexer:
         self._import_extractor = CSharpImportExtractor()
         self._base_type_extractor = CSharpBaseTypeExtractor()
 
-    def index_project(self, root_path: str, language: str, keep_lsp_running: bool = False) -> None:
+    def index_project(
+        self,
+        root_path: str,
+        language: str,
+        keep_lsp_running: bool = False,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> None:
         root_path = root_path.rstrip("/")
         files = self._lsp.get_workspace_files(root_path)
         symbols_by_file: dict[str, list[IndexSymbol]] = {}
+
+        if on_progress:
+            on_progress(f"Indexing {len(files)} files...")
 
         for file_path in files:
             symbols = self._lsp.get_document_symbols(file_path)
@@ -51,6 +61,9 @@ class Indexer:
             for sym in syms:
                 name_to_full_names.setdefault(sym.name, []).append(sym.full_name)
                 kind_map[sym.full_name] = sym.kind
+
+        if on_progress:
+            on_progress("Resolving base types...")
 
         for file_path in files:
             try:
@@ -77,6 +90,10 @@ class Indexer:
             for sym in syms
             if sym.kind in _CLASS_KINDS
         }
+
+        if on_progress:
+            on_progress("Resolving call edges...")
+
         SymbolResolver(
             self._conn,
             self._lsp.language_server,
