@@ -32,14 +32,17 @@ Add an opt-in `exclude_test_callers: bool = False` parameter to `find_callers` t
 A single module-level constant in `src/synapse/graph/lookups.py`:
 
 ```python
-_TEST_PATH_PATTERN = r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\.].*"
+_TEST_PATH_PATTERN = r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\].*"
 ```
 
-Matches path segments such as:
-- `MyApp.Tests/ServiceTests.cs` → match (exclude)
-- `MyApp.Test/Helpers.cs` → match (exclude)
-- `tests/unit/foo.cs` → match (exclude)
-- `MyApp/Services/MeetingService.cs` → no match (keep)
+The trailing separator is `[/\\]` (directory boundary only, not `.`), preventing false positives on production files named `*Tests.cs` in non-test directories.
+
+`file_path` values in the graph are always absolute paths. Matches path segments such as:
+- `/repo/MyApp.Tests/ServiceTests.cs` → match (exclude)
+- `/repo/MyApp.Test/Helpers.cs` → match (exclude)
+- `/repo/tests/unit/foo.cs` → match (exclude)
+- `/repo/MyApp/Services/MeetingService.cs` → no match (keep)
+- `/repo/src/Services/MyTests.cs` → no match (keep — filename only, not a directory segment)
 
 ### Parameter Signature
 
@@ -78,6 +81,8 @@ def find_callers(
 
 Both queries in `lookups.find_callers` conditionally include a `WHERE` clause. When `exclude_test_callers=False`, queries are identical to today (no performance impact).
 
+When `include_interface_dispatch=False`, the existing early return (`return [r[0] for r in direct]`) is unchanged — no Python-level post-filtering is needed because the `WHERE` clause already filters the results in the query itself.
+
 **Direct callers (exclude_test_callers=True):**
 ```cypher
 MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name})
@@ -100,7 +105,8 @@ When `exclude_test_callers=False`, the existing query strings are used unchanged
 
 ```
 Set exclude_test_callers=True to omit callers from test projects
-(files whose path contains a segment matching *Test* or *Tests*).
+(files whose path contains a directory segment ending in Test, Tests,
+test, or tests — e.g. MyApp.Tests/, tests/, IntegrationTests/).
 ```
 
 ---
@@ -109,13 +115,19 @@ Set exclude_test_callers=True to omit callers from test projects
 
 ### Unit Tests (`tests/unit/`)
 
-Three new test cases in the existing `find_callers` test file (or a new one if none exists):
+Four new test cases in the existing `find_callers` test file (or a new one if none exists). All use a mock `GraphConnection`.
 
-1. **`test_find_callers_default_includes_test_callers`** — `exclude_test_callers=False` (default): assert the query passed to `conn.query` does NOT contain `WHERE`.
-2. **`test_find_callers_exclude_test_callers_direct`** — `exclude_test_callers=True`, `include_interface_dispatch=False`: assert the direct query contains `WHERE NOT caller.file_path =~ $test_pattern`.
-3. **`test_find_callers_exclude_test_callers_via_iface`** — `exclude_test_callers=True`, `include_interface_dispatch=True`: assert both the direct AND via-interface queries contain the `WHERE` clause.
+Note: filtering happens entirely in the Cypher `WHERE` clause, not in Python. Unit tests therefore verify that correct queries and parameters are issued to the graph connection — not that the Python layer itself filters nodes (that would require an integration test).
 
-All tests use a mock `GraphConnection`.
+All tests import `_TEST_PATH_PATTERN` from `synapse.graph.lookups` alongside the existing imports.
+
+The implementation branches on `exclude_test_callers` with an `if/else` to select between two query string literals before calling `conn.query` — no string building or mutation.
+
+1. **`test_find_callers_default_no_filter`** — `exclude_test_callers=False` (default): assert the query string passed to `conn.query` does NOT contain `$test_pattern`.
+
+2. **`test_find_callers_exclude_direct_early_return`** — `exclude_test_callers=True`, `include_interface_dispatch=False`: assert (a) the query string contains `WHERE NOT caller.file_path =~ $test_pattern`, (b) the params dict contains `"test_pattern": _TEST_PATH_PATTERN`, (c) the params dict contains `"full_name"`, and (d) `conn.query` is called exactly once (early return path preserved).
+
+3. **`test_find_callers_exclude_via_iface`** — `exclude_test_callers=True`, `include_interface_dispatch=True`: assert both `conn.query` calls (direct + via-interface) include the `WHERE` clause and bind `"test_pattern": _TEST_PATH_PATTERN` in the params dict.
 
 ### Integration Tests
 
@@ -130,4 +142,4 @@ No changes needed — the `SynapseTest` fixture project contains no test files, 
 | `src/synapse/graph/lookups.py` | Add `_TEST_PATH_PATTERN` constant; add `exclude_test_callers` param; conditionally add `WHERE` clause to both queries |
 | `src/synapse/service.py` | Add `exclude_test_callers` param; pass through to `lookups.find_callers` |
 | `src/synapse/mcp/tools.py` | Add `exclude_test_callers` param; pass through to `service.find_callers`; update docstring |
-| `tests/unit/test_find_callers.py` | Add 3 new test cases |
+| `tests/unit/test_queries.py` | Add 3 new test cases (existing `find_callers` tests live here); add `_TEST_PATH_PATTERN` to imports |
