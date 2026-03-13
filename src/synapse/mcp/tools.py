@@ -49,6 +49,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_index_status(path: str) -> dict | None:
+        """Return indexing status for a project. The path parameter is the project root path, as returned by list_projects."""
         return service.get_index_status(path)
 
     @mcp.tool()
@@ -63,10 +64,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
-        """Return the source code for the given symbol.
-
-        Accepts fully-qualified names (e.g. "MyNs.MyClass.MyMethod") or short names.
-        Set include_class_signature=True to prepend the enclosing class declaration."""
+        """Fetch the source code of a specific symbol by full name. Use include_class_signature=True to include the enclosing class declaration."""
         result = service.get_symbol_source(full_name, include_class_signature)
         if result is not None:
             return result
@@ -137,6 +135,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def set_summary(full_name: str, content: str) -> str:
+        """Persist a human-readable summary string on a symbol node, making it retrievable via get_summary and visible in list_summarized."""
         service.set_summary(full_name, content)
         return f"Summary saved for {full_name}"
 
@@ -146,6 +145,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def list_summarized(project_path: str | None = None) -> list[dict]:
+        """List all symbols that have been annotated with a summary via set_summary."""
         return service.list_summarized(project_path)
 
     @mcp.tool()
@@ -196,6 +196,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def find_type_references(full_name: str) -> list[dict]:
+        """Return all symbols that reference the given type as a parameter, return type, or property type. Each result includes a kind field indicating the relationship."""
         return service.find_type_references(full_name)
 
     @mcp.tool()
