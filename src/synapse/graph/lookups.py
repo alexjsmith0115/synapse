@@ -70,12 +70,31 @@ def find_callers(
     return result
 
 
-def find_callees(conn: GraphConnection, method_full_name: str) -> list[dict]:
+def find_callees(
+    conn: GraphConnection,
+    method_full_name: str,
+    include_interface_dispatch: bool = True,
+) -> list[dict]:
     rows = conn.query(
         "MATCH (m:Method {full_name: $full_name})-[:CALLS]->(callee:Method) RETURN callee",
         {"full_name": method_full_name},
     )
-    return [r[0] for r in rows]
+    if not include_interface_dispatch:
+        return [r[0] for r in rows]
+    via_dispatch = conn.query(
+        "MATCH (m:Method {full_name: $full_name})-[:CALLS]->(:Method)-[:DISPATCHES_TO]->(concrete:Method) "
+        "RETURN concrete",
+        {"full_name": method_full_name},
+    )
+    seen = set()
+    result = []
+    for row in rows + via_dispatch:
+        node = row[0]
+        key = node.id if hasattr(node, "id") else node.get("full_name")
+        if key not in seen:
+            seen.add(key)
+            result.append(node)
+    return result
 
 
 def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:

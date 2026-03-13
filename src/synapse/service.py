@@ -144,9 +144,9 @@ class SynapseService:
         method_full_name = self._resolve(method_full_name)
         return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch)]
 
-    def find_callees(self, method_full_name: str) -> list[dict]:
+    def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
         method_full_name = self._resolve(method_full_name)
-        return [_p(item) for item in find_callees(self._conn, method_full_name)]
+        return [_p(item) for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
 
     def get_hierarchy(self, class_name: str) -> dict:
         class_name = self._resolve(class_name)

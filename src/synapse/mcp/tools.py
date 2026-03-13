@@ -18,6 +18,7 @@ _GRAPH_SCHEMA = {
         "CONTAINS": "Repository/Directory/File/Class/Interface → any",
         "INHERITS": "Class → Class",
         "IMPLEMENTS": "Class → Interface  |  Method → Method (concrete implements interface method)",
+        "DISPATCHES_TO": "Method → Method (interface method → concrete implementation; inverse of method-level IMPLEMENTS, written at index time to enable interface-crossing path traversal)",
         "CALLS": "Method → Method",
         "REFERENCES": "any → Class/Interface (field type, param type, return type)",
     },
@@ -92,13 +93,17 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_callers(method_full_name, include_interface_dispatch)
 
     @mcp.tool()
-    def find_callees(method_full_name: str) -> list[dict]:
-        """Find methods called by the given method (direct CALLS edges only).
+    def find_callees(
+        method_full_name: str,
+        include_interface_dispatch: bool = True,
+    ) -> list[dict]:
+        """Find methods called by the given method.
 
-        Note: in C# DI codebases, callees are often interface methods. The graph
-        stores the edge to the concrete or interface method depending on the call site.
+        By default, includes concrete implementations when the call site targets an
+        interface method (common in C# DI codebases). Set include_interface_dispatch=False
+        for direct CALLS edges only.
         """
-        return service.find_callees(method_full_name)
+        return service.find_callees(method_full_name, include_interface_dispatch)
 
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
@@ -158,7 +163,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
         Schema summary (call get_schema() for full details):
           Nodes: Repository, Directory, File, Package, Class, Interface, Method, Property, Field
-          Edges: CONTAINS, INHERITS, IMPLEMENTS, CALLS, REFERENCES
+          Edges: CONTAINS, INHERITS, IMPLEMENTS, DISPATCHES_TO, CALLS, REFERENCES
           Key properties: full_name, name, file_path, line, end_line, signature, kind
 
         Example: MATCH (m:Method {full_name: 'MyNs.MyClass.MyMethod'}) RETURN m

@@ -72,6 +72,13 @@ def upsert_method_implements(conn: GraphConnection, impl_method: str, iface_meth
         "MERGE (impl)-[:IMPLEMENTS]->(iface)",
         {"impl": impl_method, "iface": iface_method},
     )
+    # DISPATCHES_TO is the traversal-friendly inverse: iface → impl.
+    # Allows [:CALLS|DISPATCHES_TO*] paths to cross interface dispatch boundaries.
+    conn.execute(
+        "MATCH (impl:Method {full_name: $impl}), (iface:Method {full_name: $iface}) "
+        "MERGE (iface)-[:DISPATCHES_TO]->(impl)",
+        {"impl": impl_method, "iface": iface_method},
+    )
 
 
 def upsert_overrides(conn: GraphConnection, method_full_name: str, base_method_full_name: str) -> None:

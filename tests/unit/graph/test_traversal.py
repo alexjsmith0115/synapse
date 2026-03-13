@@ -70,23 +70,42 @@ def test_get_call_depth_empty() -> None:
     assert result["callees"] == []
 
 
-def test_trace_call_chain_query_includes_interface_dispatch() -> None:
-    """Query must find paths that end at an interface method implemented by $end."""
+def test_trace_call_chain_traverses_dispatches_to() -> None:
+    """Query must traverse DISPATCHES_TO to cross interface dispatch boundaries mid-chain."""
     conn = _conn([])
     trace_call_chain(conn, "A.Controller.Create", "A.Service.CreateAsync")
     cypher = conn.query.call_args[0][0]
-    assert "IMPLEMENTS" in cypher, (
-        "trace_call_chain must accept paths ending at an interface method "
-        "that $end implements, to support controller→interface→service paths"
+    assert "DISPATCHES_TO" in cypher, (
+        "trace_call_chain must traverse DISPATCHES_TO edges so paths can cross "
+        "interface dispatch boundaries (e.g. Controller→IService→ConcreteService→DB)"
     )
 
 
-def test_find_entry_points_query_includes_interface_dispatch() -> None:
-    """Query must find entry points that reach $method via its interface."""
+def test_find_entry_points_traverses_dispatches_to() -> None:
+    """Query must traverse DISPATCHES_TO to find entry points that reach $method via an interface."""
     conn = _conn([])
     find_entry_points(conn, "A.Service.CreateAsync")
     cypher = conn.query.call_args[0][0]
-    assert "IMPLEMENTS" in cypher, (
-        "find_entry_points must accept paths ending at an interface method "
-        "that $method implements"
+    assert "DISPATCHES_TO" in cypher, (
+        "find_entry_points must traverse DISPATCHES_TO edges so controller→interface→service "
+        "paths are included"
     )
+
+
+def test_get_call_depth_traverses_dispatches_to() -> None:
+    """get_call_depth must traverse DISPATCHES_TO so callees behind interface dispatch are included."""
+    conn = _conn([])
+    get_call_depth(conn, "A.Service.CreateAsync", depth=3)
+    cypher = conn.query.call_args[0][0]
+    assert "DISPATCHES_TO" in cypher
+
+
+def test_trace_call_chain_crosses_interface_boundary() -> None:
+    """Path crossing an interface dispatch node is returned correctly."""
+    # Simulates: Controller.Create -[CALLS]-> IService.CreateAsync
+    #            -[DISPATCHES_TO]-> Service.CreateAsync
+    conn = _conn([[["A.Controller.Create", "A.IService.CreateAsync", "A.Service.CreateAsync"]]])
+    result = trace_call_chain(conn, "A.Controller.Create", "A.Service.CreateAsync")
+    assert result["paths"] == [
+        ["A.Controller.Create", "A.IService.CreateAsync", "A.Service.CreateAsync"]
+    ]

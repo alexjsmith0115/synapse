@@ -1,9 +1,13 @@
 """Multi-hop call chain traversal queries.
 
-These queries follow CALLS edges across multiple hops. FalkorDB does not
-support parameterized variable-length relationship bounds, so the depth
-integer is inlined into the Cypher string after validation (must be int,
-clamped 1-10).
+These queries follow CALLS and DISPATCHES_TO edges across multiple hops.
+DISPATCHES_TO (iface_method → impl_method) is the traversal-friendly inverse
+of IMPLEMENTS, written at index time so paths can cross interface dispatch
+boundaries without mixed-direction variable-length patterns.
+
+FalkorDB does not support parameterized variable-length relationship bounds,
+so the depth integer is inlined into the Cypher string after validation
+(must be int, clamped 1-10).
 """
 
 from synapse.graph.connection import GraphConnection
@@ -25,9 +29,9 @@ def trace_call_chain(
     """
     depth = _clamp_depth(max_depth)
     rows = conn.query(
-        f"MATCH p=(s:Method)-[:CALLS*1..{depth}]->(e:Method) "
+        f"MATCH p=(s:Method)-[:CALLS|DISPATCHES_TO*1..{depth}]->(e:Method) "
         "WHERE s.full_name = $start "
-        "AND (e.full_name = $end OR (:Method {full_name: $end})-[:IMPLEMENTS]->(e)) "
+        "AND e.full_name = $end "
         "RETURN [n in nodes(p) | n.full_name] AS path "
         "LIMIT 10",
         {"start": start, "end": end},
@@ -51,9 +55,9 @@ def find_entry_points(
     """
     depth = _clamp_depth(max_depth)
     rows = conn.query(
-        f"MATCH p=(entry:Method)-[:CALLS*1..{depth}]->(m:Method) "
+        f"MATCH p=(entry:Method)-[:CALLS|DISPATCHES_TO*1..{depth}]->(m:Method) "
         "WHERE NOT ()-[:CALLS]->(entry) "
-        "AND (m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m)) "
+        "AND m.full_name = $method "
         "RETURN [n in nodes(p) | n.full_name] AS path "
         "LIMIT 20",
         {"method": method},
@@ -76,7 +80,7 @@ def get_call_depth(
     """Recursive fanout — all methods reachable from a starting method up to N levels."""
     clamped = _clamp_depth(depth)
     rows = conn.query(
-        f"MATCH p=(m:Method {{full_name: $method}})-[:CALLS*1..{clamped}]->(callee:Method) "
+        f"MATCH p=(m:Method {{full_name: $method}})-[:CALLS|DISPATCHES_TO*1..{clamped}]->(callee:Method) "
         "RETURN DISTINCT callee.full_name, callee.file_path, length(p) AS depth "
         "ORDER BY depth",
         {"method": method},

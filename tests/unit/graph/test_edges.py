@@ -89,13 +89,23 @@ def test_upsert_references_creates_edge_with_kind():
     assert params["kind"] == "parameter"
 
 
-def test_upsert_method_implements_writes_edge() -> None:
+def test_upsert_method_implements_writes_implements_edge() -> None:
     conn = MagicMock()
     upsert_method_implements(conn, "Ns.Impl.CreateAsync", "Ns.IFoo.CreateAsync")
-    cypher, params = conn.execute.call_args[0]
-    assert "IMPLEMENTS" in cypher
-    assert params["impl"] == "Ns.Impl.CreateAsync"
-    assert params["iface"] == "Ns.IFoo.CreateAsync"
+    implements_cypher, implements_params = conn.execute.call_args_list[0][0]
+    assert "IMPLEMENTS" in implements_cypher
+    assert implements_params["impl"] == "Ns.Impl.CreateAsync"
+    assert implements_params["iface"] == "Ns.IFoo.CreateAsync"
+
+
+def test_upsert_method_implements_writes_dispatches_to_edge() -> None:
+    conn = MagicMock()
+    upsert_method_implements(conn, "Ns.Impl.CreateAsync", "Ns.IFoo.CreateAsync")
+    dispatches_cypher, dispatches_params = conn.execute.call_args_list[1][0]
+    assert "DISPATCHES_TO" in dispatches_cypher
+    # Direction is iface → impl
+    assert dispatches_params["iface"] == "Ns.IFoo.CreateAsync"
+    assert dispatches_params["impl"] == "Ns.Impl.CreateAsync"
 
 
 def test_upsert_repo_contains_dir_matches_repo_by_path() -> None:
