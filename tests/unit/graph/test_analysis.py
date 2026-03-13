@@ -119,12 +119,6 @@ def test_audit_untested_services() -> None:
     assert result["count"] == 1
 
 
-def test_audit_repeated_db_writes() -> None:
-    conn = _conn([["Svc.CreateAsync", 2]])
-    result = audit_architecture(conn, "repeated_db_writes")
-    assert result["rule"] == "repeated_db_writes"
-    assert result["count"] == 1
-
 
 def test_audit_invalid_rule_raises() -> None:
     import pytest

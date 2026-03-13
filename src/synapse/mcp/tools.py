@@ -278,7 +278,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     def audit_architecture(rule: str) -> dict:
         """Run an architectural audit rule against the codebase graph.
 
-        Valid rules: layering_violations, untested_services, repeated_db_writes.
+        Valid rules: layering_violations, untested_services.
         Returns {rule, description, violations: [dict], count}.
         These rules are C#/.NET-specific.
         """
