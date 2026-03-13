@@ -131,7 +131,27 @@ The implementation branches on `exclude_test_callers` with an `if/else` to selec
 
 ### Integration Tests
 
-No changes needed — the `SynapseTest` fixture project contains no test files, so the filter has no observable effect there.
+One new test in `tests/integration/test_mcp_tools.py`.
+
+**Fixture change:** `SynapseTest.Tests/TaskServiceTests.cs` already calls `_mockService.CreateTaskAsync()` via interface — whether this produces a CALLS edge depends on LSP resolution. To guarantee at least one resolvable CALLS edge from the test project, add a direct call on the concrete type to `TestCreateTask`:
+
+```csharp
+public void TestCreateTask()
+{
+    _mockService.CreateTaskAsync("test", Guid.NewGuid());
+    _realService.CreateTaskAsync("integration", Guid.NewGuid()); // direct call — ensures CALLS edge
+}
+```
+
+Direct calls on concrete types (`_realService` typed as `TaskService`) are reliably resolved by the LSP, creating a CALLS edge from `TaskServiceTests.TestCreateTask` → `TaskService.CreateTaskAsync`.
+
+**`test_find_callers_excludes_test_callers`:**
+
+1. Call `service.find_callers("SynapseTest.Services.TaskService.CreateTaskAsync")` — capture `all_callers`.
+2. Call the same with `exclude_test_callers=True` — capture `filtered_callers`.
+3. Assert no caller in `filtered_callers` has a `file_path` containing `SynapseTest.Tests` (core assertion — never broken by CALLS edge availability).
+4. Assert `len(filtered_callers) <= len(all_callers)` (filter never adds callers).
+5. Assert that `all_callers` contains at least one caller from `SynapseTest.Tests` (non-vacuous check — proves the fixture produces the noise being filtered). If this fails, the fixture's direct call needs investigation.
 
 ---
 
@@ -143,3 +163,5 @@ No changes needed — the `SynapseTest` fixture project contains no test files, 
 | `src/synapse/service.py` | Add `exclude_test_callers` param; pass through to `lookups.find_callers` |
 | `src/synapse/mcp/tools.py` | Add `exclude_test_callers` param; pass through to `service.find_callers`; update docstring |
 | `tests/unit/test_queries.py` | Add 3 new test cases (existing `find_callers` tests live here); add `_TEST_PATH_PATTERN` to imports |
+| `tests/fixtures/SynapseTest/SynapseTest.Tests/TaskServiceTests.cs` | Add direct call to `_realService.CreateTaskAsync(...)` in `TestCreateTask` |
+| `tests/integration/test_mcp_tools.py` | Add `test_find_callers_excludes_test_callers` |
