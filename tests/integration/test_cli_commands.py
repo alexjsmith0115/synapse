@@ -13,13 +13,16 @@ from typer.testing import CliRunner
 
 from synapse.cli.app import app
 from synapse.service import SynapseService
-from tests.integration.conftest import FIXTURE_PATH
 
 runner = CliRunner()
 
 
 def _invoke(service: SynapseService, args: list[str]):
-    """Inject the integration service instead of building a new one."""
+    """Patch _get_service so CLI commands use the test-scoped fixture service.
+
+    Without this, _get_service() constructs a live GraphConnection from env
+    vars, bypassing the session fixture and hitting a different (empty) graph.
+    """
     with patch("synapse.cli.app._get_service", return_value=service):
         return runner.invoke(app, args)
 
