@@ -13,6 +13,7 @@ public class TaskService : ITaskService
 
     public Task<TaskItem> CreateTaskAsync(string title, Guid projectId)
     {
+        // Intentionally not awaited — call site exists to generate a cross-service CALLS edge
         _projectService.ValidateProjectAsync(projectId);
         return Task.FromResult(new TaskItem { Title = title, ProjectId = projectId });
     }
