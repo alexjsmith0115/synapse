@@ -46,15 +46,15 @@ def test_index_writes_multiple_edges_for_multiple_pairs() -> None:
     conn = MagicMock()
     conn.query.side_effect = [
         # Two impl pairs
-        [["Ns.Dog", "Ns.IAnimal"], ["Ns.Cat", "Ns.IAnimal"]],
-        # Dog methods
-        [["Speak", "Ns.Dog.Speak"]],
-        # IAnimal methods
-        [["Speak", "Ns.IAnimal.Speak"]],
-        # Cat methods
-        [["Speak", "Ns.Cat.Speak"]],
-        # IAnimal methods (fetched again for Cat)
-        [["Speak", "Ns.IAnimal.Speak"]],
+        [["Ns.TaskService", "Ns.ITaskService"], ["Ns.TaskController", "Ns.ITaskService"]],
+        # TaskService methods
+        [["CreateAsync", "Ns.TaskService.CreateAsync"]],
+        # ITaskService methods
+        [["CreateAsync", "Ns.ITaskService.CreateAsync"]],
+        # TaskController methods
+        [["CreateAsync", "Ns.TaskController.CreateAsync"]],
+        # ITaskService methods (fetched again for TaskController)
+        [["CreateAsync", "Ns.ITaskService.CreateAsync"]],
     ]
     MethodImplementsIndexer(conn).index()
     # Two method pairs × two edges each (IMPLEMENTS + DISPATCHES_TO)

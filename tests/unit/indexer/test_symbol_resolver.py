@@ -143,7 +143,7 @@ def test_resolver_writes_references_edge_via_name_map_fallback():
     from synapse.indexer.type_ref_extractor import TypeRef
     type_ref_extractor = MagicMock()
     type_ref_extractor.extract.return_value = [
-        TypeRef(owner_full_name="Ns.AnimalService", type_name="IAnimal", line=4, col=21, ref_kind="field_type")
+        TypeRef(owner_full_name="Ns.TaskService", type_name="ITaskService", line=4, col=21, ref_kind="field_type")
     ]
     call_extractor = MagicMock()
     call_extractor.extract.return_value = []
@@ -152,7 +152,7 @@ def test_resolver_writes_references_edge_via_name_map_fallback():
         conn, ls,
         call_extractor=call_extractor,
         type_ref_extractor=type_ref_extractor,
-        name_to_full_names={"IAnimal": ["Ns.IAnimal"]},
+        name_to_full_names={"ITaskService": ["Ns.ITaskService"]},
     )
     resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
 
