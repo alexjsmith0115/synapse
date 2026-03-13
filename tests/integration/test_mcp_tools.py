@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from mcp.server.fastmcp import FastMCP
 
+from synapse.service import SynapseService
 from tests.integration.conftest import run, text, result_json, FIXTURE_PATH
 
 
@@ -432,3 +433,42 @@ def test_watch_and_unwatch(mcp_server: FastMCP) -> None:
     assert FIXTURE_PATH in text(watch_result)
     unwatch_result = run(mcp_server.call_tool("unwatch_project", {"path": FIXTURE_PATH}))
     assert FIXTURE_PATH in text(unwatch_result)
+
+
+# ---------------------------------------------------------------------------
+# Bug 1 regression: find_callers must exclude test-project callers when asked
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_callers_excludes_test_callers(service: SynapseService) -> None:
+    """Bug 1 regression: exclude_test_callers=True must filter callers
+    whose file_path lives inside a SynapseTest.Tests directory."""
+    all_callers = service.find_callers("SynapseTest.Services.TaskService.CreateTaskAsync")
+    filtered_callers = service.find_callers(
+        "SynapseTest.Services.TaskService.CreateTaskAsync",
+        exclude_test_callers=True,
+    )
+
+    # Core: no test-project callers survive the filter
+    test_callers_in_filtered = [
+        c for c in filtered_callers
+        if "SynapseTest.Tests" in c.get("file_path", "")
+    ]
+    assert test_callers_in_filtered == [], (
+        f"Expected no test-project callers with exclude_test_callers=True, "
+        f"got: {test_callers_in_filtered}"
+    )
+
+    # Filter must not add callers
+    assert len(filtered_callers) <= len(all_callers)
+
+    # Non-vacuous: test caller must appear without the flag
+    test_callers_in_all = [
+        c for c in all_callers
+        if "SynapseTest.Tests" in c.get("file_path", "")
+    ]
+    assert len(test_callers_in_all) > 0, (
+        "Expected at least one caller from SynapseTest.Tests in all_callers. "
+        "The direct call in TaskServiceTests.TestCreateTask may not have been indexed."
+    )

@@ -16,6 +16,7 @@ public class TaskServiceTests
     public void TestCreateTask()
     {
         _mockService.CreateTaskAsync("test", Guid.NewGuid());
+        _realService.CreateTaskAsync("integration", Guid.NewGuid()); // direct call — ensures CALLS edge
     }
 
     public void TestCompleteTask()
