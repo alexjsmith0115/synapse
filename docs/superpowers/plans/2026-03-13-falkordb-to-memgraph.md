@@ -479,12 +479,17 @@ git commit -m "fix: update _p() and execute_query to use neo4j node interface (e
 3. `find_callees` (line 111): same pattern → `node.element_id`
 4. `get_index_status` (line 214): `repo.properties.get("last_indexed")` → `repo.get("last_indexed")`
 
-- [ ] **Step 1: Define `_MockNode` and update test helpers in `test_queries.py`**
+- [ ] **Step 1: Replace `test_queries.py` in full**
 
-Replace the top of `test_queries.py`:
+All `FalkorNode` constructions throughout the file are replaced with `_MockNode`. Replace the entire file:
 
 ```python
-# Remove: from falkordb.node import Node as FalkorNode
+import pytest
+from unittest.mock import MagicMock
+from synapse.graph.lookups import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS, _TEST_PATH_PATTERN, find_dependencies as qs_find_deps
+
+qs_search = search_symbols
+
 
 class _MockNode:
     """Minimal neo4j graph.Node stand-in for unit tests."""
@@ -504,28 +509,75 @@ class _MockNode:
 
 def _node(labels, props, element_id=None):
     return _MockNode(labels, props, element_id=element_id)
-```
 
-Also update `test_list_summarized_deduplicates` to use `element_id`:
 
-```python
-def test_list_summarized_deduplicates():
-    # Two distinct Python objects with the same element_id simulate two traversal
-    # paths to the same graph node — the real production scenario
-    shared_id = "elem-42"
-    node_a = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
-    node_b = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
-    assert node_a is not node_b          # different objects
-    assert node_a.element_id == node_b.element_id  # same graph node
-    conn = _conn([[node_a], [node_b]])
-    result = list_summarized(conn)
+def _conn(return_value):
+    conn = MagicMock()
+    conn.query.return_value = return_value
+    return conn
+
+
+def test_find_implementations_exact_match_does_not_fallback():
+    impl = _node(["Class"], {"full_name": "MyNs.MyClass"})
+    conn = _conn([[impl]])
+    result = find_implementations(conn, "MyNs.IMyInterface")
     assert len(result) == 1
-```
+    assert conn.query.call_count == 1  # no fallback needed
 
-Also update `test_find_callers_deduplicates_across_both_queries`:
 
-```python
+def test_find_implementations_falls_back_to_short_name():
+    impl = _node(["Class"], {"full_name": "MyNs.MyClass"})
+    conn = MagicMock()
+    # First call (exact match) returns empty; second call (suffix fallback) returns result
+    conn.query.side_effect = [[], [[impl]]]
+    result = find_implementations(conn, "IMyInterface")
+    assert len(result) == 1
+    assert conn.query.call_count == 2
+
+
+def test_find_implementations_returns_empty_when_not_found():
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    result = find_implementations(conn, "INotFound")
+    assert result == []
+
+
+def test_search_symbols_invalid_kind_lists_valid_values():
+    conn = _conn([])
+    with pytest.raises(ValueError, match="Valid values"):
+        search_symbols(conn, "Foo", kind="widget")
+
+
+def test_search_symbols_interface_kind_is_valid():
+    conn = _conn([])
+    # Should not raise
+    search_symbols(conn, "IRepo", kind="Interface")
+
+
+def test_valid_kinds_contains_interface():
+    assert "Interface" in _VALID_KINDS
+
+
+def test_find_callers_direct_only_when_disabled():
+    direct_caller = _node(["Method"], {"full_name": "A.Direct"})
+    conn = _conn([[direct_caller]])
+    result = find_callers(conn, "Svc.DoWork", include_interface_dispatch=False)
+    assert len(result) == 1
+    conn.query.assert_called_once()
+
+
+def test_find_callers_includes_interface_dispatch_by_default():
+    direct_caller_node = _node(["Method"], {"full_name": "A.Direct"})
+    iface_caller_node = _node(["Method"], {"full_name": "A.ViaInterface"})
+    conn = MagicMock()
+    conn.query.side_effect = [[[direct_caller_node]], [[iface_caller_node]]]
+    result = find_callers(conn, "Svc.DoWork")
+    assert len(result) == 2
+    assert conn.query.call_count == 2
+
+
 def test_find_callers_deduplicates_across_both_queries():
+    # Two distinct objects with same element_id simulate two traversal paths to the same node
     shared_id = "elem-5"
     shared_node_a = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
     shared_node_b = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
@@ -533,6 +585,153 @@ def test_find_callers_deduplicates_across_both_queries():
     conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]]]
     result = find_callers(conn, "Svc.DoWork")
     assert len(result) == 1
+
+
+def test_find_callers_default_no_filter():
+    """Default call must NOT inject the test-pattern parameter."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers(conn, "Svc.DoWork")
+    query_str = conn.query.call_args_list[0][0][0]
+    assert "$test_pattern" not in query_str
+
+
+def test_find_callers_exclude_direct_early_return():
+    """exclude_test_callers=True with interface dispatch off:
+    - WHERE clause present in query
+    - test_pattern bound to _TEST_PATH_PATTERN
+    - full_name bound
+    - conn.query called exactly once (early return path)
+    """
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers(conn, "Svc.DoWork", include_interface_dispatch=False, exclude_test_callers=True)
+    assert conn.query.call_count == 1
+    query_str, params = conn.query.call_args[0]
+    assert "WHERE NOT caller.file_path =~ $test_pattern" in query_str
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
+    assert "full_name" in params
+
+
+def test_find_callers_exclude_via_iface():
+    """exclude_test_callers=True with interface dispatch on:
+    both queries (direct + via-iface) must include WHERE and bind test_pattern.
+    """
+    caller_node = _node(["Method"], {"full_name": "A.Caller"})
+    conn = MagicMock()
+    conn.query.side_effect = [[[caller_node]], []]
+    find_callers(conn, "Svc.DoWork", include_interface_dispatch=True, exclude_test_callers=True)
+    assert conn.query.call_count == 2
+    for call in conn.query.call_args_list:
+        query_str, params = call[0]
+        assert "WHERE NOT caller.file_path =~ $test_pattern" in query_str
+        assert params["test_pattern"] == _TEST_PATH_PATTERN
+
+
+def test_get_hierarchy_includes_implements():
+    iface = _node(["Interface"], {"full_name": "MyNs.IFoo"})
+    conn = MagicMock()
+    # Three queries: parents, children, implements
+    conn.query.side_effect = [[], [], [[iface]]]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert "implements" in result
+    assert len(result["implements"]) == 1
+
+
+def test_get_hierarchy_implements_empty_when_none():
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert result["implements"] == []
+
+
+def test_get_hierarchy_always_has_all_three_keys():
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    result = get_hierarchy(conn, "MyNs.Foo")
+    assert set(result.keys()) == {"parents", "children", "implements"}
+
+
+def test_list_summarized_deduplicates():
+    # Two distinct Python objects with the same element_id simulate two traversal
+    # paths to the same graph node — the real production scenario
+    shared_id = "elem-42"
+    node_a = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
+    node_b = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
+    assert node_a is not node_b                       # different objects
+    assert node_a.element_id == node_b.element_id     # same graph node
+    conn = _conn([[node_a], [node_b]])
+    result = list_summarized(conn)
+    assert len(result) == 1
+
+
+def test_search_symbols_namespace_filter():
+    node = _node(["Method"], {"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    conn = _conn([[node]])
+    result = qs_search(conn, "Do", namespace="MyNs.Svc")
+    assert len(result) == 1
+    cypher = conn.query.call_args[0][0]
+    assert "STARTS WITH" in cypher
+
+
+def test_search_symbols_file_path_filter():
+    node = _node(["Method"], {"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    conn = _conn([[node]])
+    result = qs_search(conn, "Do", file_path="src/Svc.cs")
+    assert len(result) == 1
+    cypher = conn.query.call_args[0][0]
+    assert "file_path" in cypher
+
+
+def test_search_symbols_combined_filters():
+    conn = _conn([])
+    qs_search(conn, "Do", kind="Method", namespace="MyNs", file_path="src/Svc.cs")
+    cypher = conn.query.call_args[0][0]
+    assert "STARTS WITH" in cypher
+    assert "file_path" in cypher
+    assert "Method" in cypher
+
+
+def test_search_symbols_no_filters_unchanged():
+    conn = _conn([])
+    qs_search(conn, "Foo")
+    cypher = conn.query.call_args[0][0]
+    # Basic query without extra conditions
+    assert "CONTAINS" in cypher
+
+
+def test_find_dependencies_depth_1_default():
+    dep = _node(["Class"], {"full_name": "Ns.Dep"})
+    conn = _conn([[dep, 1]])
+    result = qs_find_deps(conn, "Ns.Cls")
+    assert len(result) == 1
+    assert result[0]["depth"] == 1
+    cypher = conn.query.call_args[0][0]
+    assert "*1..1" in cypher
+
+
+def test_find_dependencies_depth_2():
+    dep = _node(["Class"], {"full_name": "Ns.TransitiveDep"})
+    conn = _conn([[dep, 2]])
+    result = qs_find_deps(conn, "Ns.Cls", depth=2)
+    assert result[0]["depth"] == 2
+    cypher = conn.query.call_args[0][0]
+    assert "*1..2" in cypher
+
+
+def test_find_dependencies_depth_capped_at_5():
+    conn = _conn([])
+    qs_find_deps(conn, "Ns.Cls", depth=99)
+    cypher = conn.query.call_args[0][0]
+    assert "*1..5" in cypher
+
+
+def test_find_dependencies_result_has_depth_field():
+    dep = _node(["Class"], {"full_name": "Ns.Dep"})
+    conn = _conn([[dep, 1]])
+    result = qs_find_deps(conn, "Ns.Cls")
+    assert "depth" in result[0]
+    assert "type" in result[0]
 ```
 
 - [ ] **Step 2: Run failing tests to confirm the issues**
