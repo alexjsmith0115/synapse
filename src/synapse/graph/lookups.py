@@ -12,6 +12,17 @@ _VALID_KINDS = frozenset({
 })
 
 _TEST_PATH_PATTERN = r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\].*"
+_TEST_PATH_RE = re.compile(_TEST_PATH_PATTERN)
+
+
+def _is_test_path(node) -> bool:
+    # FalkorDB nodes expose properties as .properties dict; plain dicts via .get()
+    file_path = (
+        node.properties.get("file_path", "")
+        if hasattr(node, "properties")
+        else node.get("file_path", "")
+    )
+    return bool(_TEST_PATH_RE.search(file_path))
 
 
 def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:
@@ -51,32 +62,18 @@ def find_callers(
     include_interface_dispatch: bool = True,
     exclude_test_callers: bool = False,
 ) -> list[dict]:
-    if exclude_test_callers:
-        direct = conn.query(
-            "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) "
-            "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
-            {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
-        )
-    else:
-        direct = conn.query(
-            "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) RETURN caller",
-            {"full_name": method_full_name},
-        )
+    direct = conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) RETURN caller",
+        {"full_name": method_full_name},
+    )
     if not include_interface_dispatch:
-        return [r[0] for r in direct]
-    if exclude_test_callers:
-        via_iface = conn.query(
-            "MATCH (caller:Method)-[:CALLS]->(im:Method)"
-            "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) "
-            "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
-            {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
-        )
-    else:
-        via_iface = conn.query(
-            "MATCH (caller:Method)-[:CALLS]->(im:Method)"
-            "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
-            {"full_name": method_full_name},
-        )
+        nodes = [r[0] for r in direct]
+        return [n for n in nodes if not _is_test_path(n)] if exclude_test_callers else nodes
+    via_iface = conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(im:Method)"
+        "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
+        {"full_name": method_full_name},
+    )
     seen = set()
     result = []
     for row in direct + via_iface:
@@ -85,7 +82,7 @@ def find_callers(
         if key not in seen:
             seen.add(key)
             result.append(node)
-    return result
+    return [n for n in result if not _is_test_path(n)] if exclude_test_callers else result
 
 
 def find_callees(
