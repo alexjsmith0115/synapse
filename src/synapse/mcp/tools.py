@@ -63,6 +63,10 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
+        """Return the source code for the given symbol.
+
+        Accepts fully-qualified names (e.g. "MyNs.MyClass.MyMethod") or short names.
+        Set include_class_signature=True to prepend the enclosing class declaration."""
         result = service.get_symbol_source(full_name, include_class_signature)
         if result is not None:
             return result
