@@ -11,6 +11,8 @@ _VALID_KINDS = frozenset({
     "File", "Directory", "Repository",
 })
 
+_TEST_PATH_PATTERN = r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\].*"
+
 
 def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:
     rows = conn.query(
@@ -47,18 +49,34 @@ def find_callers(
     conn: GraphConnection,
     method_full_name: str,
     include_interface_dispatch: bool = True,
+    exclude_test_callers: bool = False,
 ) -> list[dict]:
-    direct = conn.query(
-        "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) RETURN caller",
-        {"full_name": method_full_name},
-    )
+    if exclude_test_callers:
+        direct = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) "
+            "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
+            {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
+        )
+    else:
+        direct = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(m:Method {full_name: $full_name}) RETURN caller",
+            {"full_name": method_full_name},
+        )
     if not include_interface_dispatch:
         return [r[0] for r in direct]
-    via_iface = conn.query(
-        "MATCH (caller:Method)-[:CALLS]->(im:Method)"
-        "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
-        {"full_name": method_full_name},
-    )
+    if exclude_test_callers:
+        via_iface = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(im:Method)"
+            "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) "
+            "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
+            {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
+        )
+    else:
+        via_iface = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(im:Method)"
+            "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
+            {"full_name": method_full_name},
+        )
     seen = set()
     result = []
     for row in direct + via_iface:

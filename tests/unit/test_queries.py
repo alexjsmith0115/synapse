@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from falkordb.node import Node as FalkorNode
-from synapse.graph.lookups import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS, find_dependencies as qs_find_deps
+from synapse.graph.lookups import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS, _TEST_PATH_PATTERN, find_dependencies as qs_find_deps
 
 qs_search = search_symbols
 
@@ -82,6 +82,47 @@ def test_find_callers_deduplicates_across_both_queries():
     conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]]]
     result = find_callers(conn, "Svc.DoWork")
     assert len(result) == 1
+
+
+def test_find_callers_default_no_filter():
+    """Default call must NOT inject the test-pattern parameter."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers(conn, "Svc.DoWork")
+    query_str = conn.query.call_args_list[0][0][0]
+    assert "$test_pattern" not in query_str
+
+
+def test_find_callers_exclude_direct_early_return():
+    """exclude_test_callers=True with interface dispatch off:
+    - WHERE clause present in query
+    - test_pattern bound to _TEST_PATH_PATTERN
+    - full_name bound
+    - conn.query called exactly once (early return path)
+    """
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers(conn, "Svc.DoWork", include_interface_dispatch=False, exclude_test_callers=True)
+    assert conn.query.call_count == 1
+    query_str, params = conn.query.call_args[0]
+    assert "WHERE NOT caller.file_path =~ $test_pattern" in query_str
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
+    assert "full_name" in params
+
+
+def test_find_callers_exclude_via_iface():
+    """exclude_test_callers=True with interface dispatch on:
+    both queries (direct + via-iface) must include WHERE and bind test_pattern.
+    """
+    caller_node = FalkorNode(node_id=1, labels=["Method"], properties={"full_name": "A.Caller"})
+    conn = MagicMock()
+    conn.query.side_effect = [[[caller_node]], []]
+    find_callers(conn, "Svc.DoWork", include_interface_dispatch=True, exclude_test_callers=True)
+    assert conn.query.call_count == 2
+    for call in conn.query.call_args_list:
+        query_str, params = call[0]
+        assert "WHERE NOT caller.file_path =~ $test_pattern" in query_str
+        assert params["test_pattern"] == _TEST_PATH_PATTERN
 
 
 def test_get_hierarchy_includes_implements():
