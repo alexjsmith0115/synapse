@@ -140,9 +140,9 @@ class SynapseService:
         interface_name = self._resolve(interface_name)
         return [_p(item) for item in find_implementations(self._conn, interface_name)]
 
-    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
+    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = False) -> list[dict]:
         method_full_name = self._resolve(method_full_name)
-        return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch)]
+        return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
 
     def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
         method_full_name = self._resolve(method_full_name)

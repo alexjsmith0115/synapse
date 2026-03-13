@@ -85,14 +85,19 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     def find_callers(
         method_full_name: str,
         include_interface_dispatch: bool = True,
+        exclude_test_callers: bool = False,
     ) -> list[dict]:
         """Find methods that call the given method.
 
         By default, includes callers that invoke this method through an interface
         (common in C# DI codebases). Set include_interface_dispatch=False for
         direct CALLS edges only.
+
+        Set exclude_test_callers=True to omit callers from test projects
+        (files whose path contains a directory segment ending in Test, Tests,
+        test, or tests — e.g. MyApp.Tests/, tests/, IntegrationTests/).
         """
-        return service.find_callers(method_full_name, include_interface_dispatch)
+        return service.find_callers(method_full_name, include_interface_dispatch, exclude_test_callers)
 
     @mcp.tool()
     def find_callees(
