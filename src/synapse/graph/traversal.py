@@ -48,19 +48,31 @@ def find_entry_points(
     conn: GraphConnection,
     method: str,
     max_depth: int = 8,
+    exclude_pattern: str = "",
 ) -> dict:
     """Walk backwards to find root callers with no incoming CALLS edges.
 
-    Returns up to 20 paths, each with the entry point and full path to target.
+    Returns up to 20 paths, deduplicated by entry point (shortest path wins).
+    exclude_pattern: optional regex applied to entry.full_name to filter out
+    unwanted callers (e.g. ".*\\.Tests\\..*" to exclude test namespaces).
     """
     depth = _clamp_depth(max_depth)
+    params: dict = {"method": method}
+    exclude_clause = ""
+    if exclude_pattern:
+        exclude_clause = "AND NOT entry.full_name =~ $exclude_pattern "
+        params["exclude_pattern"] = exclude_pattern
     rows = conn.query(
         f"MATCH p=(entry:Method)-[:CALLS|DISPATCHES_TO*1..{depth}]->(m:Method) "
         "WHERE NOT ()-[:CALLS]->(entry) "
         "AND m.full_name = $method "
-        "RETURN [n in nodes(p) | n.full_name] AS path "
+        f"{exclude_clause}"
+        "WITH entry, [n in nodes(p) | n.full_name] AS path "
+        "ORDER BY size(path) ASC "
+        "WITH entry, collect(path)[0] AS path "
+        "RETURN path "
         "LIMIT 20",
-        {"method": method},
+        params,
     )
     return {
         "entry_points": [

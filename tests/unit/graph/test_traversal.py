@@ -92,6 +92,33 @@ def test_find_entry_points_traverses_dispatches_to() -> None:
     )
 
 
+def test_find_entry_points_exclude_pattern_in_cypher() -> None:
+    """exclude_pattern adds a regex filter on entry.full_name to the Cypher query."""
+    conn = _conn([])
+    find_entry_points(conn, "Svc.Do", exclude_pattern=".*\\.Tests\\..*")
+    cypher = conn.query.call_args[0][0]
+    params = conn.query.call_args[0][1]
+    assert "NOT entry.full_name =~ $exclude_pattern" in cypher
+    assert params["exclude_pattern"] == ".*\\.Tests\\..*"
+
+
+def test_find_entry_points_no_exclude_clause_when_pattern_empty() -> None:
+    """No exclude clause is added when exclude_pattern is empty (default)."""
+    conn = _conn([])
+    find_entry_points(conn, "Svc.Do")
+    cypher = conn.query.call_args[0][0]
+    assert "exclude_pattern" not in cypher
+
+
+def test_find_entry_points_deduplicates_by_entry() -> None:
+    """Query uses ORDER BY + collect to return one path per entry (shortest first)."""
+    conn = _conn([])
+    find_entry_points(conn, "Repo.Save")
+    cypher = conn.query.call_args[0][0]
+    assert "ORDER BY size(path)" in cypher
+    assert "collect(path)[0]" in cypher
+
+
 def test_get_call_depth_traverses_dispatches_to() -> None:
     """get_call_depth must traverse DISPATCHES_TO so callees behind interface dispatch are included."""
     conn = _conn([])

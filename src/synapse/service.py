@@ -313,9 +313,9 @@ class SynapseService:
         end = self._resolve(end)
         return trace_call_chain(self._conn, start, end, max_depth)
 
-    def find_entry_points(self, method: str, max_depth: int = 8) -> dict:
+    def find_entry_points(self, method: str, max_depth: int = 8, exclude_pattern: str = "") -> dict:
         method = self._resolve(method)
-        return find_entry_points(self._conn, method, max_depth)
+        return find_entry_points(self._conn, method, max_depth, exclude_pattern)
 
     def get_call_depth(self, method: str, depth: int = 3) -> dict:
         method = self._resolve(method)
