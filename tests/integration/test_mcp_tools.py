@@ -6,12 +6,10 @@ Run with: pytest tests/integration/test_mcp_tools.py -v -m integration
 """
 from __future__ import annotations
 
-import json
-
 import pytest
 from mcp.server.fastmcp import FastMCP
 
-from tests.integration.conftest import run, content, text, result_json, FIXTURE_PATH
+from tests.integration.conftest import run, text, result_json, FIXTURE_PATH
 
 
 # ---------------------------------------------------------------------------
