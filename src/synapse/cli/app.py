@@ -333,7 +333,7 @@ def type_impact(
 
 @app.command("audit")
 def audit(
-    rule: str = typer.Argument(help="Rule: layering_violations, untested_services, repeated_db_writes"),
+    rule: str = typer.Argument(help="Rule: layering_violations, untested_services"),
 ) -> None:
     """Run an architectural audit rule."""
     svc = _get_service()

@@ -140,24 +140,13 @@ _AUDIT_RULES: dict[str, tuple[str, str]] = {
         "WHERE t IS NULL "
         "RETURN DISTINCT svc.name, svc.file_path",
     ),
-    "repeated_db_writes": (
-        "Methods calling multiple distinct SaveChangesAsync targets. "
-        "NOTE: CALLS edges are created with MERGE, so this counts distinct "
-        "callees, not call sites. It detects methods calling SaveChangesAsync "
-        "on multiple DbContext types but not repeated calls to the same one.",
-        "MATCH (m:Method)-[:CALLS]->(save:Method) "
-        "WHERE save.name = 'SaveChangesAsync' "
-        "WITH m, count(save) AS save_count "
-        "WHERE save_count > 1 "
-        "RETURN m.full_name, save_count ORDER BY save_count DESC",
-    ),
 }
 
 
 def audit_architecture(conn: GraphConnection, rule: str) -> dict:
     """Run an architectural audit rule against the graph.
 
-    Valid rules: layering_violations, untested_services, repeated_db_writes.
+    Valid rules: layering_violations, untested_services.
     """
     if rule not in _AUDIT_RULES:
         valid = ", ".join(sorted(_AUDIT_RULES.keys()))
