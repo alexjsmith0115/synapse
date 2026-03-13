@@ -161,3 +161,32 @@ def test_analyze_change_impact_transitive_includes_interface_dispatch() -> None:
         "Transitive callers query must accept callers that reach the method "
         "via its interface (IMPLEMENTS edge)"
     )
+
+
+def test_analyze_change_impact_direct_includes_interface_dispatch() -> None:
+    """direct_callers must include callers that call through an interface method.
+
+    In DI-heavy codebases a controller calls IService.Method, not the concrete
+    ServiceImpl.Method directly.  The IMPLEMENTS edge links the concrete method
+    to the interface method so the query must follow it.
+    """
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    direct_cypher = conn.query.call_args_list[0][0][0]
+    assert "IMPLEMENTS" in direct_cypher, (
+        "direct_callers query must accept callers that reach the method "
+        "via its interface (IMPLEMENTS edge)"
+    )
+
+
+def test_analyze_change_impact_tests_includes_interface_dispatch() -> None:
+    """test_coverage must capture tests that call through a controller→interface path."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    tests_cypher = conn.query.call_args_list[2][0][0]
+    assert "IMPLEMENTS" in tests_cypher, (
+        "test_coverage query must accept tests that reach the method "
+        "via its interface (IMPLEMENTS edge)"
+    )

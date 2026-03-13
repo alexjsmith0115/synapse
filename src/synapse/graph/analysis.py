@@ -14,9 +14,10 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     Answers: 'If I change this method, what breaks?'
     """
     direct = conn.query(
-        "MATCH (c:Method)-[:CALLS]->(m {full_name: $method}) "
-        "WHERE NOT c.file_path CONTAINS 'Tests' "
-        "RETURN c.full_name, c.file_path",
+        "MATCH (c:Method)-[:CALLS]->(t:Method) "
+        "WHERE (t.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(t)) "
+        "AND NOT c.file_path CONTAINS 'Tests' "
+        "RETURN DISTINCT c.full_name, c.file_path",
         {"method": method},
     )
     transitive = conn.query(
@@ -26,8 +27,9 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
         {"method": method},
     )
     tests = conn.query(
-        "MATCH (t:Method)-[:CALLS*1..4]->(m {full_name: $method}) "
+        "MATCH (t:Method)-[:CALLS*1..4]->(m) "
         "WHERE t.file_path CONTAINS 'Tests' "
+        "AND (m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m)) "
         "RETURN DISTINCT t.full_name, t.file_path",
         {"method": method},
     )
