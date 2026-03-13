@@ -157,7 +157,7 @@ def test_get_symbol_source(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_search_symbols(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("search_symbols", {
-        "query": "Task", "kind": "class"
+        "query": "Task", "kind": "Class"
     }))
     symbols = result_json(result)
     assert len(symbols) >= 1

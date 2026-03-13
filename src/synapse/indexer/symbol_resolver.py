@@ -96,7 +96,7 @@ class SymbolResolver:
         try:
             with self._ls.open_file(rel_path):
                 for caller_full_name, callee_simple, call_line_1, call_col_0 in call_sites:
-                    self._resolve_call(caller_full_name, rel_path, call_line_1 - 1, call_col_0, callee_simple)
+                    self._resolve_call(caller_full_name, rel_path, call_line_1 - 1, call_col_0, callee_simple, symbol_map=symbol_map)
                 for ref in type_refs:
                     self._resolve_type_ref(ref, rel_path)
         except Exception:
@@ -105,9 +105,37 @@ class SymbolResolver:
     def _resolve_call(
         self, caller_full_name: str, rel_path: str, line_0: int, col_0: int,
         callee_simple_name: str | None = None,
+        symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> None:
         try:
-            symbol = self._ls.request_defining_symbol(rel_path, line_0, col_0)
+            definitions = self._ls.request_definition(rel_path, line_0, col_0)
+        except Exception:
+            return
+        if not definitions:
+            return
+
+        # Direct symbol_map lookup by definition location.
+        # Handles interface method signatures (single-line declarations) which
+        # request_containing_symbol cannot find because it excludes one-liner symbols.
+        if symbol_map:
+            for defn in definitions:
+                abs_path = defn.get("absolutePath")
+                def_line = defn.get("range", {}).get("start", {}).get("line")
+                if abs_path is not None and def_line is not None:
+                    callee_full_name = symbol_map.get((abs_path, def_line))
+                    if callee_full_name:
+                        callee_full_name = self._resolve_callee_name(callee_full_name)
+                        if callee_full_name and callee_full_name != caller_full_name:
+                            upsert_calls(self._conn, caller_full_name, callee_full_name)
+                            return
+
+        # Fallback: resolve via containing symbol (may fail for single-line declarations)
+        try:
+            definition = definitions[0]
+            def_path = definition["relativePath"]
+            def_line = definition["range"]["start"]["line"]
+            def_col = definition["range"]["start"]["character"]
+            symbol = self._ls.request_containing_symbol(def_path, def_line, def_col, strict=False)
         except Exception:
             return
         if symbol is None:

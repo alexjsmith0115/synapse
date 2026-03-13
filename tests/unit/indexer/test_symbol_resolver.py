@@ -48,19 +48,18 @@ def test_resolver_writes_calls_edge():
     conn = MagicMock()
     ls = _make_ls()
 
-    callee_sym = {
-        "name": "Helper", "kind": 6,
-        "parent": {"name": "MyClass", "kind": 5, "parent": {"name": "MyNs", "kind": 3, "parent": None}}
-    }
-    ls.request_defining_symbol.return_value = callee_sym
+    ls.request_definition.return_value = [
+        {"absolutePath": "/proj/MyClass.cs", "range": {"start": {"line": 3, "character": 4}}}
+    ]
 
     call_extractor = MagicMock()
     call_extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
     type_ref_extractor = MagicMock()
     type_ref_extractor.extract.return_value = []
 
+    symbol_map = {("/proj/MyClass.cs", 3): "MyNs.MyClass.Helper"}
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", symbol_map)
 
     assert any("CALLS" in str(c) for c in conn.execute.call_args_list)
 
@@ -92,17 +91,21 @@ def test_resolver_writes_references_edge():
 
 def test_resolver_writes_calls_edge_when_lsp_returns_class():
     """Roslyn often returns the containing class rather than the method for a call site.
-    The resolver must fall back to matching method children by callee simple name."""
+    The fallback path must match the method among the class's children by callee simple name."""
     conn = MagicMock()
     ls = _make_ls()
 
+    # request_definition returns a location that's not in symbol_map, so the fallback path is taken
+    ls.request_definition.return_value = [
+        {"absolutePath": "/proj/MyClass.cs", "relativePath": "MyClass.cs",
+         "range": {"start": {"line": 3, "character": 4}}}
+    ]
     method_child = {
         "name": "Helper", "kind": 6,
         "parent": {"name": "MyClass", "kind": 5, "parent": {"name": "MyNs", "kind": 3, "parent": None}},
     }
-    # LSP returns the class, not the method
-    class_sym = {"name": "MyClass", "kind": 5, "children": [method_child], "parent": None}
-    ls.request_defining_symbol.return_value = class_sym
+    # Fallback: request_containing_symbol returns the class, not the method
+    ls.request_containing_symbol.return_value = {"name": "MyClass", "kind": 5, "children": [method_child], "parent": None}
 
     call_extractor = MagicMock()
     call_extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
@@ -110,6 +113,7 @@ def test_resolver_writes_calls_edge_when_lsp_returns_class():
     type_ref_extractor.extract.return_value = []
 
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
+    # Empty symbol_map triggers the fallback path
     resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
 
     assert any("CALLS" in str(c) for c in conn.execute.call_args_list)
@@ -119,9 +123,12 @@ def test_resolver_skips_call_when_lsp_returns_class_without_matching_child():
     conn = MagicMock()
     ls = _make_ls()
 
-    # LSP returns a class whose children don't include the callee
-    class_sym = {"name": "MyClass", "kind": 5, "children": [], "parent": None}
-    ls.request_defining_symbol.return_value = class_sym
+    ls.request_definition.return_value = [
+        {"absolutePath": "/proj/MyClass.cs", "relativePath": "MyClass.cs",
+         "range": {"start": {"line": 3, "character": 4}}}
+    ]
+    # Fallback: request_containing_symbol returns a class whose children don't include the callee
+    ls.request_containing_symbol.return_value = {"name": "MyClass", "kind": 5, "children": [], "parent": None}
 
     call_extractor = MagicMock()
     call_extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
@@ -129,6 +136,7 @@ def test_resolver_skips_call_when_lsp_returns_class_without_matching_child():
     type_ref_extractor.extract.return_value = []
 
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
+    # Empty symbol_map triggers the fallback path
     resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
 
     assert not any("CALLS" in str(c) for c in conn.execute.call_args_list)
@@ -185,22 +193,22 @@ def test_resolver_skips_references_when_name_map_ambiguous():
 
 
 def test_resolve_call_resolves_overloaded_callee_name() -> None:
-    """If graph stores 'X.M(int)' but LSP returns 'X.M', the CALLS edge must use the stored overloaded name."""
+    """If graph stores 'X.M(int)' but symbol_map has 'X.M', the CALLS edge must use the stored overloaded name."""
     conn = MagicMock()
     # Graph has the overloaded full_name (one unambiguous match)
     conn.query.return_value = [["Ns.C.M(int)"]]
 
     ls = MagicMock()
     ls.repository_root_path = "/repo"
-    ls.request_defining_symbol.return_value = {
-        "name": "M",
-        "kind": 6,
-        "parent": {"name": "C", "parent": {"name": "Ns", "parent": None}},
-        # No overload_idx — LSP gives plain name
-    }
+    ls.request_definition.return_value = [
+        {"absolutePath": "/repo/C.cs", "range": {"start": {"line": 7, "character": 4}}}
+    ]
+
+    # Symbol map stores the plain name; _resolve_callee_name upgrades it to the overloaded variant
+    symbol_map = {("/repo/C.cs", 7): "Ns.C.M"}
 
     resolver = SymbolResolver(conn, ls)
-    resolver._resolve_call("Ns.C.Caller", "file.cs", 10, 5, "M")
+    resolver._resolve_call("Ns.C.Caller", "file.cs", 10, 5, "M", symbol_map=symbol_map)
 
     # Should have written CALLS edge using the resolved overloaded name, not the plain 'Ns.C.M'
     execute_calls = conn.execute.call_args_list
