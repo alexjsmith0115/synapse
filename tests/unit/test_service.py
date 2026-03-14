@@ -3,7 +3,26 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from synapse.service import SynapseService, _p
-from falkordb.node import Node as FalkorNode
+
+
+class _MockNode:
+    """Minimal neo4j graph.Node stand-in for unit tests."""
+    def __init__(self, labels: list[str], props: dict, element_id: str | None = None) -> None:
+        self._props = props
+        self.labels = frozenset(labels)
+        self.element_id = element_id or str(id(self))
+
+    def keys(self): return list(self._props.keys())
+    def values(self): return list(self._props.values())
+    def items(self): return list(self._props.items())
+    def __getitem__(self, key): return self._props[key]
+    def __iter__(self): return iter(self._props)
+    def __len__(self): return len(self._props)
+    def get(self, key, default=None): return self._props.get(key, default)
+
+
+def _node(labels: list[str], props: dict) -> _MockNode:
+    return _MockNode(labels, props)
 
 
 # After wiring _resolve into read methods, we need to bypass resolve_full_name
@@ -12,10 +31,6 @@ from falkordb.node import Node as FalkorNode
 def bypass_resolve(monkeypatch):
     """Make resolve_full_name return the name unchanged for all service tests."""
     monkeypatch.setattr("synapse.service.resolve_full_name", lambda conn, name: name)
-
-
-def _node(labels: list[str], props: dict) -> FalkorNode:
-    return FalkorNode(node_id=1, labels=labels, properties=props)
 
 
 def _service() -> SynapseService:
@@ -150,7 +165,7 @@ def test_get_context_for_returns_none_when_symbol_not_found():
     assert result is None
 
 
-def test_p_extracts_properties_and_labels_from_falkordb_node():
+def test_p_extracts_properties_and_labels_from_neo4j_node():
     node = _node(["Method"], {"full_name": "A.B", "signature": "B() : void"})
     result = _p(node)
     assert result == {"full_name": "A.B", "signature": "B() : void", "_labels": ["Method"]}

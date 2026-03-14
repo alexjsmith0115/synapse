@@ -27,9 +27,9 @@ log = logging.getLogger(__name__)
 
 
 def _p(node) -> dict:
-    """Extract properties from a FalkorDB Node (including labels) or pass through a plain dict."""
-    if hasattr(node, "properties"):
-        result = dict(node.properties)
+    """Extract properties from a neo4j graph Node (including labels) or pass through a plain dict."""
+    if hasattr(node, "element_id"):
+        result = dict(node)
         if node.labels:
             result["_labels"] = list(node.labels)
         return result
@@ -174,7 +174,7 @@ class SynapseService:
 
     def execute_query(self, cypher: str) -> list[dict]:
         raw = execute_readonly_query(self._conn, cypher)
-        return [{"row": [_p(cell) if hasattr(cell, "properties") else cell for cell in row]} for row in raw]
+        return [{"row": [_p(cell) if hasattr(cell, "element_id") else cell for cell in row]} for row in raw]
 
     def find_type_references(self, full_name: str) -> list[dict]:
         full_name = self._resolve(full_name)
