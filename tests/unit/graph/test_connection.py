@@ -2,33 +2,40 @@ from unittest.mock import MagicMock, patch
 from synapse.graph.connection import GraphConnection
 
 
-def test_query_returns_result_set() -> None:
-    mock_graph = MagicMock()
-    mock_result = MagicMock()
-    mock_result.result_set = [["row1"], ["row2"]]
-    mock_graph.query.return_value = mock_result
+def test_create_returns_graph_connection():
+    mock_driver = MagicMock()
+    with patch("synapse.graph.connection.GraphDatabase") as mock_gdb:
+        mock_gdb.driver.return_value = mock_driver
+        conn = GraphConnection.create(host="localhost", port=7687)
+    assert isinstance(conn, GraphConnection)
+    mock_gdb.driver.assert_called_once_with("bolt://localhost:7687", auth=("", ""))
 
-    conn = GraphConnection(mock_graph)
+
+def test_query_returns_records():
+    mock_driver = MagicMock()
+    mock_records = [MagicMock(), MagicMock()]
+    mock_driver.execute_query.return_value = (mock_records, MagicMock(), [])
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
     result = conn.query("MATCH (n) RETURN n")
-
-    assert result == [["row1"], ["row2"]]
-    mock_graph.query.assert_called_once_with("MATCH (n) RETURN n", {})
+    assert result == mock_records
 
 
-def test_query_passes_params() -> None:
-    mock_graph = MagicMock()
-    mock_graph.query.return_value = MagicMock(result_set=[])
-
-    conn = GraphConnection(mock_graph)
-    conn.query("MATCH (n {path: $p}) RETURN n", {"p": "/foo"})
-
-    mock_graph.query.assert_called_once_with("MATCH (n {path: $p}) RETURN n", {"p": "/foo"})
+def test_execute_returns_none():
+    mock_driver = MagicMock()
+    mock_driver.execute_query.return_value = ([], MagicMock(), [])
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    result = conn.execute("MERGE (n:Foo {id: $id})", {"id": 1})
+    assert result is None
 
 
-def test_execute_calls_graph_query() -> None:
-    mock_graph = MagicMock()
+def test_close_calls_driver_close():
+    mock_driver = MagicMock()
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    conn.close()
+    mock_driver.close.assert_called_once()
 
-    conn = GraphConnection(mock_graph)
-    conn.execute("CREATE (n:File {path: $p})", {"p": "/foo"})
 
-    mock_graph.query.assert_called_once_with("CREATE (n:File {path: $p})", {"p": "/foo"})
+def test_dialect_stored_on_instance():
+    mock_driver = MagicMock()
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="neo4j")
+    assert conn.dialect == "neo4j"

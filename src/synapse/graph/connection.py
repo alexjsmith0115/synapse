@@ -1,24 +1,48 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Literal
+
+from neo4j import GraphDatabase
 
 
 class GraphConnection:
-    """Wraps a FalkorDB Graph object, providing query and execute operations."""
+    """Wraps a neo4j Driver, providing query and execute operations."""
 
-    def __init__(self, graph: Any) -> None:
-        self._graph = graph
+    def __init__(
+        self,
+        driver,
+        database: str = "memgraph",
+        dialect: Literal["memgraph", "neo4j"] = "memgraph",
+    ) -> None:
+        self._driver = driver
+        self._database = database
+        self._dialect = dialect
+
+    @property
+    def dialect(self) -> str:
+        return self._dialect
 
     @classmethod
-    def create(cls, host: str = "localhost", port: int = 6379, graph_name: str = "synapse") -> GraphConnection:
-        from falkordb import FalkorDB
-
-        db = FalkorDB(host=host, port=port)
-        return cls(db.select_graph(graph_name))
+    def create(
+        cls,
+        host: str = "localhost",
+        port: int = 7687,
+        database: str = "memgraph",
+        dialect: Literal["memgraph", "neo4j"] = "memgraph",
+    ) -> GraphConnection:
+        driver = GraphDatabase.driver(f"bolt://{host}:{port}", auth=("", ""))
+        return cls(driver, database=database, dialect=dialect)
 
     def query(self, cypher: str, params: dict | None = None) -> list:
-        result = self._graph.query(cypher, params or {})
-        return result.result_set
+        records, _, _ = self._driver.execute_query(
+            cypher, params or {}, database_=self._database
+        )
+        return records
 
     def execute(self, cypher: str, params: dict | None = None) -> None:
-        self._graph.query(cypher, params or {})
+        self._driver.execute_query(
+            cypher, params or {}, database_=self._database
+        )
+
+    def close(self) -> None:
+        self._driver.close()

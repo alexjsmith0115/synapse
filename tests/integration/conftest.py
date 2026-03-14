@@ -1,7 +1,7 @@
 """
 Shared fixtures for integration tests.
 
-Requires FalkorDB on localhost:6379 and .NET SDK.
+Requires Memgraph on localhost:7687 and .NET SDK.
 Run with: pytest tests/integration/ -v -m integration
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ def result_json(result):
 
 @pytest.fixture(scope="session")
 def service():
-    conn = GraphConnection.create(graph_name="synapse_integration_test")
+    conn = GraphConnection.create(database="memgraph")
     ensure_schema(conn)
     conn.execute("MATCH (n) DETACH DELETE n")
 
