@@ -5,7 +5,7 @@ DISPATCHES_TO (iface_method → impl_method) is the traversal-friendly inverse
 of IMPLEMENTS, written at index time so paths can cross interface dispatch
 boundaries without mixed-direction variable-length patterns.
 
-FalkorDB does not support parameterized variable-length relationship bounds,
+Graph databases do not support parameterized variable-length relationship bounds,
 so the depth integer is inlined into the Cypher string after validation
 (must be int, clamped 1-10).
 """

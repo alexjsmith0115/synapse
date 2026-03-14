@@ -14,6 +14,15 @@ def _conn(return_value: list) -> MagicMock:
     return conn
 
 
+def _record(keys: list[str], values: list) -> MagicMock:
+    """Build a mock neo4j.Record so dict(r) produces a named-key dict."""
+    data = dict(zip(keys, values))
+    row = MagicMock()
+    row.keys.return_value = keys
+    row.__getitem__ = lambda self, k: data[k]
+    return row
+
+
 def test_analyze_change_impact_aggregates() -> None:
     conn = MagicMock()
     conn.query.side_effect = [
@@ -105,7 +114,11 @@ def test_find_type_impact_empty() -> None:
 
 
 def test_audit_layering_violations() -> None:
-    conn = _conn([["UsersController", "GetAll", "AppDbContext.Users"]])
+    row = _record(
+        ["ctrl.name", "m.name", "db.full_name"],
+        ["UsersController", "GetAll", "AppDbContext.Users"],
+    )
+    conn = _conn([row])
     result = audit_architecture(conn, "layering_violations")
     assert result["rule"] == "layering_violations"
     assert result["count"] == 1
@@ -113,7 +126,11 @@ def test_audit_layering_violations() -> None:
 
 
 def test_audit_untested_services() -> None:
-    conn = _conn([["UserService", "/proj/Services/UserService.cs"]])
+    row = _record(
+        ["svc.name", "svc.file_path"],
+        ["UserService", "/proj/Services/UserService.cs"],
+    )
+    conn = _conn([row])
     result = audit_architecture(conn, "untested_services")
     assert result["rule"] == "untested_services"
     assert result["count"] == 1
@@ -184,3 +201,21 @@ def test_analyze_change_impact_tests_includes_interface_dispatch() -> None:
         "test_coverage query must accept tests that reach the method "
         "via its interface (IMPLEMENTS edge)"
     )
+
+
+def test_audit_architecture_violations_have_named_keys():
+    """Violations should use column names as keys, not integers."""
+    # Simulate a neo4j.Record: dict() uses keys() + __getitem__, not __iter__
+    mock_row = MagicMock()
+    mock_row.keys.return_value = ["ctrl.name", "m.name", "db.full_name"]
+    mock_row.__getitem__ = lambda self, k: {"ctrl.name": "MyCtrl", "m.name": "MyMethod", "db.full_name": "SomeDb.Save"}[k]
+
+    conn = MagicMock()
+    conn.query.return_value = [mock_row]
+
+    result = audit_architecture(conn, "layering_violations")
+    assert len(result["violations"]) == 1
+    violation = result["violations"][0]
+    assert 0 not in violation, "violations must not use integer keys"
+    assert "ctrl.name" in violation, "violations must use column names as keys"
+    assert violation["ctrl.name"] == "MyCtrl"

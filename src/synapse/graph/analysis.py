@@ -155,7 +155,7 @@ def audit_architecture(conn: GraphConnection, rule: str) -> dict:
     description, cypher = _AUDIT_RULES[rule]
     rows = conn.query(cypher)
 
-    violations = [dict(zip(range(len(r)), r)) for r in rows]
+    violations = [dict(r) for r in rows]
 
     return {
         "rule": rule,
