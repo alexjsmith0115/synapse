@@ -3,7 +3,8 @@
 - Design all classes and functions with testability in mind. Use Dependency Injection liberally.
 - Keep classes and functions small, clear, and with a singular purpose (SRP).
 - Use comments sparingly. Comments should only exist to clarify a design choice/decision, not to explain what the code is doing. (WHY not WHAT)
-- Make sure all unit and integration tests pass before considering a task complete. 
+- Make sure all unit and integration tests pass before considering a task complete.
+- Every bugfix must include a regression test that would have caught the bug.
 
 ## Common Commands
 
