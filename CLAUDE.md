@@ -14,7 +14,7 @@ source .venv/bin/activate
 # Unit tests (no external dependencies, ~1.7s)
 pytest tests/unit/ -v
 
-# Integration tests (requires FalkorDB on localhost:6379 and .NET SDK)
-docker run -p 6379:6379 -it --rm falkordb/falkordb:latest  # start FalkorDB
+# Integration tests (requires Memgraph on localhost:7687 and .NET SDK)
+docker run -p 7687:7687 -it --rm memgraph/memgraph:latest  # start Memgraph (in-memory; data lost on restart — tests always re-index from scratch)
 pytest tests/integration/ -v -m integration
 ```

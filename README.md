@@ -2,18 +2,18 @@
 
 > **Work in progress.** Synapse is under active development. APIs, CLI commands, and graph schema may change without notice.
 
-Synapse is an LSP-powered, FalkorDB-backed tool that builds a queryable graph of a C# codebase. It indexes symbols, inheritance, interface implementations, method calls, and override relationships, then exposes them via an MCP server (for AI assistants) and a CLI (for humans).
+Synapse is an LSP-powered, Memgraph-backed tool that builds a queryable graph of a C# codebase. It indexes symbols, inheritance, interface implementations, method calls, and override relationships, then exposes them via an MCP server (for AI assistants) and a CLI (for humans).
 
 ## Prerequisites
 
 - **Python 3.11+**
-- **FalkorDB** running on `localhost:6379` (default)
+- **Memgraph** running on `localhost:7687` (default)
 - **.NET SDK** — required for the C# language server to index projects
 
-Start FalkorDB with Docker:
+Start Memgraph with Docker:
 
 ```bash
-docker run -p 6379:6379 --rm falkordb/falkordb:latest
+docker run -p 7687:7687 --rm memgraph/memgraph:latest
 ```
 
 ## Installation
@@ -41,7 +41,7 @@ Add Synapse to your MCP client config (e.g. Claude Desktop's `claude_desktop_con
 }
 ```
 
-By default the server connects to FalkorDB at `localhost:6379`. There are no required environment variables.
+By default the server connects to Memgraph at `localhost:7687`. There are no required environment variables.
 
 ---
 
@@ -198,9 +198,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run unit tests (no FalkorDB or .NET required)
+# Run unit tests (no Memgraph or .NET required)
 pytest tests/unit/
 
-# Run integration tests (requires FalkorDB on localhost:6379 and .NET SDK)
+# Run integration tests (requires Memgraph on localhost:7687 and .NET SDK)
 pytest tests/integration/ -m integration
 ```

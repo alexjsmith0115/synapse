@@ -1,7 +1,7 @@
 """
 MCP tool integration tests.
 
-Requires FalkorDB on localhost:6379 and .NET SDK.
+Requires Memgraph on localhost:7687 and .NET SDK.
 Run with: pytest tests/integration/test_mcp_tools.py -v -m integration
 """
 from __future__ import annotations
