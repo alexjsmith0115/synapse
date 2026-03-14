@@ -1,13 +1,28 @@
 import pytest
 from unittest.mock import MagicMock
-from falkordb.node import Node as FalkorNode
 from synapse.graph.lookups import find_callers, find_implementations, get_hierarchy, list_summarized, search_symbols, _VALID_KINDS, _TEST_PATH_PATTERN, find_dependencies as qs_find_deps
 
 qs_search = search_symbols
 
 
-def _node(labels, props):
-    return FalkorNode(node_id=1, labels=labels, properties=props)
+class _MockNode:
+    """Minimal neo4j graph.Node stand-in for unit tests."""
+    def __init__(self, labels: list[str], props: dict, element_id: str | None = None) -> None:
+        self._props = props
+        self.labels = frozenset(labels)
+        self.element_id = element_id or str(id(self))
+
+    def keys(self): return list(self._props.keys())
+    def values(self): return list(self._props.values())
+    def items(self): return list(self._props.items())
+    def __getitem__(self, key): return self._props[key]
+    def __iter__(self): return iter(self._props)
+    def __len__(self): return len(self._props)
+    def get(self, key, default=None): return self._props.get(key, default)
+
+
+def _node(labels, props, element_id=None):
+    return _MockNode(labels, props, element_id=element_id)
 
 
 def _conn(return_value):
@@ -17,7 +32,7 @@ def _conn(return_value):
 
 
 def test_find_implementations_exact_match_does_not_fallback():
-    impl = FalkorNode(node_id=10, labels=["Class"], properties={"full_name": "MyNs.MyClass"})
+    impl = _node(["Class"], {"full_name": "MyNs.MyClass"})
     conn = _conn([[impl]])
     result = find_implementations(conn, "MyNs.IMyInterface")
     assert len(result) == 1
@@ -25,7 +40,7 @@ def test_find_implementations_exact_match_does_not_fallback():
 
 
 def test_find_implementations_falls_back_to_short_name():
-    impl = FalkorNode(node_id=10, labels=["Class"], properties={"full_name": "MyNs.MyClass"})
+    impl = _node(["Class"], {"full_name": "MyNs.MyClass"})
     conn = MagicMock()
     # First call (exact match) returns empty; second call (suffix fallback) returns result
     conn.query.side_effect = [[], [[impl]]]
@@ -66,8 +81,8 @@ def test_find_callers_direct_only_when_disabled():
 
 
 def test_find_callers_includes_interface_dispatch_by_default():
-    direct_caller_node = FalkorNode(node_id=1, labels=["Method"], properties={"full_name": "A.Direct"})
-    iface_caller_node = FalkorNode(node_id=2, labels=["Method"], properties={"full_name": "A.ViaInterface"})
+    direct_caller_node = _node(["Method"], {"full_name": "A.Direct"})
+    iface_caller_node = _node(["Method"], {"full_name": "A.ViaInterface"})
     conn = MagicMock()
     conn.query.side_effect = [[[direct_caller_node]], [[iface_caller_node]]]
     result = find_callers(conn, "Svc.DoWork")
@@ -76,8 +91,10 @@ def test_find_callers_includes_interface_dispatch_by_default():
 
 
 def test_find_callers_deduplicates_across_both_queries():
-    shared_node_a = FalkorNode(node_id=5, labels=["Method"], properties={"full_name": "A.Both"})
-    shared_node_b = FalkorNode(node_id=5, labels=["Method"], properties={"full_name": "A.Both"})
+    # Two distinct objects with same element_id simulate two traversal paths to the same node
+    shared_id = "elem-5"
+    shared_node_a = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
+    shared_node_b = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
     conn = MagicMock()
     conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]]]
     result = find_callers(conn, "Svc.DoWork")
@@ -114,7 +131,7 @@ def test_find_callers_exclude_via_iface():
     """exclude_test_callers=True with interface dispatch on:
     both queries (direct + via-iface) must include WHERE and bind test_pattern.
     """
-    caller_node = FalkorNode(node_id=1, labels=["Method"], properties={"full_name": "A.Caller"})
+    caller_node = _node(["Method"], {"full_name": "A.Caller"})
     conn = MagicMock()
     conn.query.side_effect = [[[caller_node]], []]
     find_callers(conn, "Svc.DoWork", include_interface_dispatch=True, exclude_test_callers=True)
@@ -126,7 +143,7 @@ def test_find_callers_exclude_via_iface():
 
 
 def test_get_hierarchy_includes_implements():
-    iface = FalkorNode(node_id=20, labels=["Interface"], properties={"full_name": "MyNs.IFoo"})
+    iface = _node(["Interface"], {"full_name": "MyNs.IFoo"})
     conn = MagicMock()
     # Three queries: parents, children, implements
     conn.query.side_effect = [[], [], [[iface]]]
@@ -150,19 +167,20 @@ def test_get_hierarchy_always_has_all_three_keys():
 
 
 def test_list_summarized_deduplicates():
-    # Two distinct Python objects with the same node_id simulate two traversal paths
-    # to the same graph node — the real production scenario
-    node_a = _node(["Class", "Summarized"], {"full_name": "A.B"})
-    node_b = _node(["Class", "Summarized"], {"full_name": "A.B"})
-    assert node_a is not node_b  # different objects
-    assert node_a.id == node_b.id  # same graph node
+    # Two distinct Python objects with the same element_id simulate two traversal
+    # paths to the same graph node — the real production scenario
+    shared_id = "elem-42"
+    node_a = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
+    node_b = _node(["Class", "Summarized"], {"full_name": "A.B"}, element_id=shared_id)
+    assert node_a is not node_b                       # different objects
+    assert node_a.element_id == node_b.element_id     # same graph node
     conn = _conn([[node_a], [node_b]])
     result = list_summarized(conn)
     assert len(result) == 1
 
 
 def test_search_symbols_namespace_filter():
-    node = FalkorNode(node_id=30, labels=["Method"], properties={"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    node = _node(["Method"], {"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
     conn = _conn([[node]])
     result = qs_search(conn, "Do", namespace="MyNs.Svc")
     assert len(result) == 1
@@ -171,7 +189,7 @@ def test_search_symbols_namespace_filter():
 
 
 def test_search_symbols_file_path_filter():
-    node = FalkorNode(node_id=31, labels=["Method"], properties={"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
+    node = _node(["Method"], {"full_name": "MyNs.Svc.DoWork", "name": "DoWork"})
     conn = _conn([[node]])
     result = qs_search(conn, "Do", file_path="src/Svc.cs")
     assert len(result) == 1
@@ -197,7 +215,7 @@ def test_search_symbols_no_filters_unchanged():
 
 
 def test_find_dependencies_depth_1_default():
-    dep = FalkorNode(node_id=40, labels=["Class"], properties={"full_name": "Ns.Dep"})
+    dep = _node(["Class"], {"full_name": "Ns.Dep"})
     conn = _conn([[dep, 1]])
     result = qs_find_deps(conn, "Ns.Cls")
     assert len(result) == 1
@@ -207,7 +225,7 @@ def test_find_dependencies_depth_1_default():
 
 
 def test_find_dependencies_depth_2():
-    dep = FalkorNode(node_id=41, labels=["Class"], properties={"full_name": "Ns.TransitiveDep"})
+    dep = _node(["Class"], {"full_name": "Ns.TransitiveDep"})
     conn = _conn([[dep, 2]])
     result = qs_find_deps(conn, "Ns.Cls", depth=2)
     assert result[0]["depth"] == 2
@@ -223,7 +241,7 @@ def test_find_dependencies_depth_capped_at_5():
 
 
 def test_find_dependencies_result_has_depth_field():
-    dep = FalkorNode(node_id=42, labels=["Class"], properties={"full_name": "Ns.Dep"})
+    dep = _node(["Class"], {"full_name": "Ns.Dep"})
     conn = _conn([[dep, 1]])
     result = qs_find_deps(conn, "Ns.Cls")
     assert "depth" in result[0]

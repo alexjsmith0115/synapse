@@ -81,7 +81,7 @@ def find_callers(
     result = []
     for row in direct + via_iface:
         node = row[0]
-        key = node.id if hasattr(node, "id") else node.get("full_name")
+        key = node.element_id
         if key not in seen:
             seen.add(key)
             result.append(node)
@@ -108,7 +108,7 @@ def find_callees(
     result = []
     for row in rows + via_dispatch:
         node = row[0]
-        key = node.id if hasattr(node, "id") else node.get("full_name")
+        key = node.element_id
         if key not in seen:
             seen.add(key)
             result.append(node)
@@ -177,12 +177,12 @@ def list_summarized(conn: GraphConnection, project_path: str | None = None) -> l
         )
     else:
         rows = conn.query("MATCH (n:Summarized) WITH DISTINCT n RETURN n")
-    seen: set[int] = set()
+    seen: set[str] = set()
     result = []
     for r in rows:
         node = r[0]
-        if node.id not in seen:
-            seen.add(node.id)
+        if node.element_id not in seen:
+            seen.add(node.element_id)
             result.append(node)
     return result
 
@@ -211,7 +211,7 @@ def get_index_status(conn: GraphConnection, project_path: str) -> dict | None:
     )
     return {
         "path": project_path,
-        "last_indexed": repo.properties.get("last_indexed"),
+        "last_indexed": repo.get("last_indexed"),
         "file_count": file_count[0][0] if file_count else 0,
         "symbol_count": symbol_count[0][0] if symbol_count else 0,
     }
