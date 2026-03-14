@@ -1,3 +1,5 @@
+import concurrent.futures
+import pytest
 from unittest.mock import MagicMock, patch
 from synapse.graph.connection import GraphConnection
 
@@ -48,3 +50,31 @@ def test_dialect_stored_on_instance():
     mock_driver = MagicMock()
     conn = GraphConnection(mock_driver, database="memgraph", dialect="neo4j")
     assert conn.dialect == "neo4j"
+
+
+def test_query_with_timeout_returns_records():
+    """Returns query results normally when the query completes within the timeout."""
+    mock_driver = MagicMock()
+    records = [MagicMock(), MagicMock()]
+    mock_driver.execute_query.return_value = (records, MagicMock(), [])
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+
+    result = conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=10.0)
+
+    assert result == records
+
+
+def test_query_with_timeout_raises_timeout_error():
+    """Raises TimeoutError when the query exceeds the timeout."""
+    mock_driver = MagicMock()
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+
+    mock_future = MagicMock()
+    mock_future.result.side_effect = concurrent.futures.TimeoutError()
+    mock_executor = MagicMock()
+    mock_executor.submit.return_value = mock_future
+
+    with patch("synapse.graph.connection.concurrent.futures.ThreadPoolExecutor") as mock_tpe:
+        mock_tpe.return_value = mock_executor
+        with pytest.raises(TimeoutError, match="timeout"):
+            conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=0.001)

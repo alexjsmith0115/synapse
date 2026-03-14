@@ -354,4 +354,4 @@ def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
         raise ValueError("Mutating Cypher statement not allowed")
-    return conn.query(cypher)
+    return conn.query_with_timeout(cypher)

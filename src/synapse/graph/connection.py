@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 from typing import Literal
 
 from neo4j import GraphDatabase
@@ -52,6 +53,24 @@ class GraphConnection:
         """
         with self._driver.session(database=self._database) as session:
             session.run(cypher, params or {})
+
+    def query_with_timeout(self, cypher: str, params: dict | None = None, timeout_s: float = 10.0) -> list:
+        """Run a read query with a client-side timeout.
+
+        Uses a background thread so the calling thread returns promptly on timeout.
+        The background database query is not cancelled — it runs to completion
+        independently. Raises TimeoutError if the query exceeds timeout_s seconds.
+        """
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        try:
+            future = executor.submit(self.query, cypher, params)
+            return future.result(timeout=timeout_s)
+        except concurrent.futures.TimeoutError:
+            raise TimeoutError(
+                f"Query exceeded {timeout_s:.0f}s timeout. Add filters or a LIMIT clause."
+            )
+        finally:
+            executor.shutdown(wait=False)
 
     def close(self) -> None:
         self._driver.close()

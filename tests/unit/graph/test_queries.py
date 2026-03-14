@@ -88,9 +88,19 @@ def test_list_projects_queries_repository_nodes() -> None:
 
 
 def test_execute_readonly_query_allows_match() -> None:
-    conn = _conn([[]])
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = [[]]
     execute_readonly_query(conn, "MATCH (n) RETURN n")
-    conn.query.assert_called_once()
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_propagates_timeout_error():
+    """execute_readonly_query propagates TimeoutError from query_with_timeout."""
+    conn = MagicMock()
+    conn.query_with_timeout.side_effect = TimeoutError("Query exceeded 10s timeout. Add filters or a LIMIT clause.")
+
+    with pytest.raises(TimeoutError, match="timeout"):
+        execute_readonly_query(conn, "MATCH (n) RETURN n")
 
 
 def test_execute_readonly_query_blocks_create() -> None:
