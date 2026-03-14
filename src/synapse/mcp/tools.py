@@ -9,7 +9,7 @@ _GRAPH_SCHEMA = {
         "File": ["path", "name"],
         "Package": ["name"],
         "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature"],
-        "Interface": ["full_name", "name", "file_path", "line", "end_line"],
+        "Interface": ["full_name", "name", "kind", "file_path", "line", "end_line"],
         "Method": ["full_name", "name", "file_path", "line", "end_line", "signature"],
         "Property": ["full_name", "name", "file_path", "line", "end_line"],
         "Field": ["full_name", "name", "file_path", "line", "end_line"],

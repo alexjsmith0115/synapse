@@ -154,3 +154,11 @@ def test_upsert_repository_strips_trailing_slash() -> None:
         "Trailing slash must be stripped to prevent duplicate Repository nodes"
     )
     assert params["path"] == "/Users/alex/Dev/myrepo"
+
+
+def test_upsert_interface_sets_kind_property() -> None:
+    """Interface nodes must carry kind='interface' for consistent property access."""
+    conn = _conn()
+    upsert_interface(conn, "Ns.IFoo", "IFoo")
+    cypher = conn.execute.call_args[0][0]
+    assert "n.kind" in cypher, "upsert_interface must set n.kind in the SET clause"

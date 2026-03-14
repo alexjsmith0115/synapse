@@ -34,7 +34,7 @@ def upsert_package(conn: GraphConnection, full_name: str, name: str) -> None:
 
 def upsert_interface(conn: GraphConnection, full_name: str, name: str, file_path: str = "", line: int | None = None, end_line: int = 0) -> None:
     conn.execute(
-        "MERGE (n:Interface {full_name: $full_name}) SET n.name = $name, n.file_path = $file_path, n.line = $line, n.end_line = $end_line",
+        "MERGE (n:Interface {full_name: $full_name}) SET n.name = $name, n.kind = 'interface', n.file_path = $file_path, n.line = $line, n.end_line = $end_line",
         {"full_name": full_name, "name": name, "file_path": file_path, "line": line, "end_line": end_line},
     )
 
