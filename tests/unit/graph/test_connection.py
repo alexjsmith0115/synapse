@@ -78,3 +78,40 @@ def test_query_with_timeout_raises_timeout_error():
         mock_tpe.return_value = mock_executor
         with pytest.raises(TimeoutError, match="timeout"):
             conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=0.001)
+
+
+def test_query_with_timeout_shuts_down_executor_with_wait_on_success():
+    """Executor is properly shut down (wait=True) on the success path, not abandoned to GC."""
+    mock_driver = MagicMock()
+    records = [MagicMock()]
+    mock_driver.execute_query.return_value = (records, MagicMock(), [])
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+
+    mock_future = MagicMock()
+    mock_future.result.return_value = records
+    mock_executor = MagicMock()
+    mock_executor.submit.return_value = mock_future
+
+    with patch("synapse.graph.connection.concurrent.futures.ThreadPoolExecutor") as mock_tpe:
+        mock_tpe.return_value = mock_executor
+        conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=10.0)
+
+    mock_executor.shutdown.assert_called_once_with(wait=True)
+
+
+def test_query_with_timeout_shuts_down_executor_with_no_wait_on_timeout():
+    """Executor is shut down (wait=False) on the timeout path to avoid blocking the caller."""
+    mock_driver = MagicMock()
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+
+    mock_future = MagicMock()
+    mock_future.result.side_effect = concurrent.futures.TimeoutError()
+    mock_executor = MagicMock()
+    mock_executor.submit.return_value = mock_future
+
+    with patch("synapse.graph.connection.concurrent.futures.ThreadPoolExecutor") as mock_tpe:
+        mock_tpe.return_value = mock_executor
+        with pytest.raises(TimeoutError):
+            conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=0.001)
+
+    mock_executor.shutdown.assert_called_once_with(wait=False)

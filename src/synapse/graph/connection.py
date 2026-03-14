@@ -62,15 +62,17 @@ class GraphConnection:
         independently. Raises TimeoutError if the query exceeds timeout_s seconds.
         """
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self.query, cypher, params)
         try:
-            future = executor.submit(self.query, cypher, params)
-            return future.result(timeout=timeout_s)
+            result = future.result(timeout=timeout_s)
         except concurrent.futures.TimeoutError:
+            executor.shutdown(wait=False)
             raise TimeoutError(
                 f"Query exceeded {timeout_s:.0f}s timeout. Add filters or a LIMIT clause."
             )
-        finally:
-            executor.shutdown(wait=False)
+        else:
+            executor.shutdown(wait=True)
+            return result
 
     def close(self) -> None:
         self._driver.close()
