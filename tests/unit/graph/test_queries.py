@@ -17,6 +17,22 @@ def _conn(return_value: list) -> MagicMock:
     return conn
 
 
+class _MockNode:
+    """Minimal neo4j graph.Node stand-in for unit tests."""
+    def __init__(self, labels: list[str], props: dict, element_id: str | None = None) -> None:
+        self._props = props
+        self.labels = frozenset(labels)
+        self.element_id = element_id or str(id(self))
+
+    def keys(self): return list(self._props.keys())
+    def values(self): return list(self._props.values())
+    def items(self): return list(self._props.items())
+    def __getitem__(self, key): return self._props[key]
+    def __iter__(self): return iter(self._props)
+    def __len__(self): return len(self._props)
+    def get(self, key, default=None): return self._props.get(key, default)
+
+
 def test_get_symbol_returns_none_when_not_found() -> None:
     conn = _conn([])
     result = get_symbol(conn, "MyNs.MyClass")
@@ -189,8 +205,7 @@ def test_get_index_status_returns_none_when_not_found() -> None:
 
 
 def test_get_index_status_strips_trailing_slash() -> None:
-    repo_node = MagicMock()
-    repo_node.properties = {"last_indexed": "2026-01-01"}
+    repo_node = _MockNode(["Repository"], {"last_indexed": "2026-01-01"})
     conn = MagicMock()
     conn.query.side_effect = [[[repo_node]], [[3]], [[42]]]
     get_index_status(conn, "/proj/")
@@ -199,8 +214,7 @@ def test_get_index_status_strips_trailing_slash() -> None:
 
 
 def test_get_index_status_returns_counts() -> None:
-    repo_node = MagicMock()
-    repo_node.properties = {"last_indexed": "2026-01-01"}
+    repo_node = _MockNode(["Repository"], {"last_indexed": "2026-01-01"})
     conn = MagicMock()
     conn.query.side_effect = [[[repo_node]], [[5]], [[99]]]
     result = get_index_status(conn, "/proj")
