@@ -1,25 +1,30 @@
-from redis.exceptions import ResponseError
+from __future__ import annotations
+
+from typing import Literal
 
 from synapse.graph.connection import GraphConnection
 
-_INDICES = [
-    "CREATE INDEX FOR (n:Repository) ON (n.path)",
-    "CREATE INDEX FOR (n:Directory) ON (n.path)",
-    "CREATE INDEX FOR (n:File) ON (n.path)",
-    "CREATE INDEX FOR (n:Package) ON (n.full_name)",
-    "CREATE INDEX FOR (n:Class) ON (n.full_name)",
-    "CREATE INDEX FOR (n:Interface) ON (n.full_name)",
-    "CREATE INDEX FOR (n:Method) ON (n.full_name)",
-    "CREATE INDEX FOR (n:Property) ON (n.full_name)",
-    "CREATE INDEX FOR (n:Field) ON (n.full_name)",
+# (label, property) pairs — source of truth for all index definitions
+_INDEX_DEFS = [
+    ("Repository", "path"),
+    ("Directory", "path"),
+    ("File", "path"),
+    ("Package", "full_name"),
+    ("Class", "full_name"),
+    ("Interface", "full_name"),
+    ("Method", "full_name"),
+    ("Property", "full_name"),
+    ("Field", "full_name"),
 ]
 
 
+def _make_index_statement(label: str, prop: str, dialect: Literal["memgraph", "neo4j"]) -> str:
+    if dialect == "neo4j":
+        return f"CREATE INDEX FOR (n:{label}) ON (n.{prop})"
+    return f"CREATE INDEX ON :{label}({prop})"
+
+
 def ensure_schema(conn: GraphConnection) -> None:
-    """Create graph indices, tolerating already-exists errors on re-index."""
-    for statement in _INDICES:
-        try:
-            conn.execute(statement)
-        except ResponseError as e:
-            if "already indexed" not in str(e):
-                raise
+    """Create graph indices. Idempotent on Memgraph; safe to re-run."""
+    for label, prop in _INDEX_DEFS:
+        conn.execute(_make_index_statement(label, prop, conn.dialect))
