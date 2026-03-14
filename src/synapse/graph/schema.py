@@ -27,4 +27,4 @@ def _make_index_statement(label: str, prop: str, dialect: Literal["memgraph", "n
 def ensure_schema(conn: GraphConnection) -> None:
     """Create graph indices. Idempotent on Memgraph; safe to re-run."""
     for label, prop in _INDEX_DEFS:
-        conn.execute(_make_index_statement(label, prop, conn.dialect))
+        conn.execute_implicit(_make_index_statement(label, prop, conn.dialect))

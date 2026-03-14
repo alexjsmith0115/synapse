@@ -28,6 +28,15 @@ def test_execute_returns_none():
     assert result is None
 
 
+def test_execute_implicit_uses_session_run():
+    mock_driver = MagicMock()
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    conn.execute_implicit("CREATE INDEX ON :Foo(bar)")
+    mock_driver.session.assert_called_once_with(database="memgraph")
+    session_ctx = mock_driver.session.return_value.__enter__.return_value
+    session_ctx.run.assert_called_once_with("CREATE INDEX ON :Foo(bar)", {})
+
+
 def test_close_calls_driver_close():
     mock_driver = MagicMock()
     conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")

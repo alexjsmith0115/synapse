@@ -15,7 +15,7 @@ source .venv/bin/activate
 pytest tests/unit/ -v
 
 # Integration tests (requires Memgraph on localhost:7687 and .NET SDK)
-docker run -p 7687:7687 -it --rm memgraph/memgraph:latest  # start Memgraph (in-memory; data lost on restart — tests always re-index from scratch)
+docker compose up -d  # start Memgraph + Memgraph Lab (Lab UI at http://localhost:3000; in-memory — data lost on restart, tests always re-index from scratch)
 pytest tests/integration/test_mcp_tools.py -v -m integration      # MCP tool integration tests
 pytest tests/integration/test_cli_commands.py -v -m integration   # CLI command integration tests
 ```

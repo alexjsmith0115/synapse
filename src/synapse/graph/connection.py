@@ -44,5 +44,14 @@ class GraphConnection:
             cypher, params or {}, database_=self._database
         )
 
+    def execute_implicit(self, cypher: str, params: dict | None = None) -> None:
+        """Run a statement in an implicit (auto-commit) transaction.
+
+        Required for DDL statements (e.g. CREATE INDEX) on Memgraph, which
+        rejects index manipulation inside explicit multi-command transactions.
+        """
+        with self._driver.session(database=self._database) as session:
+            session.run(cypher, params or {})
+
     def close(self) -> None:
         self._driver.close()
