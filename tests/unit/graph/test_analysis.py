@@ -94,10 +94,14 @@ def test_find_interface_contract_no_interface() -> None:
 
 
 def test_find_type_impact_categorizes() -> None:
-    conn = _conn([
-        ["Svc.Method", "/proj/Svc.cs", "prod"],
-        ["Test.Verify", "/tests/Verify.cs", "test"],
-    ])
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[None]],  # Query 1: no interfaces
+        [
+            ["Svc.Method", "/proj/Svc.cs", "prod"],
+            ["Test.Verify", "/tests/Verify.cs", "test"],
+        ],  # Query 2: references
+    ]
     result = find_type_impact(conn, "Ns.MyModel")
     assert result["type"] == "Ns.MyModel"
     assert result["prod_count"] == 1
@@ -106,11 +110,44 @@ def test_find_type_impact_categorizes() -> None:
 
 
 def test_find_type_impact_empty() -> None:
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[[None]], []]
     result = find_type_impact(conn, "Unused.Type")
     assert result["references"] == []
     assert result["prod_count"] == 0
     assert result["test_count"] == 0
+
+
+def test_find_type_impact_includes_interface_mediated_dependents() -> None:
+    """Dependents that reference an interface the type implements are included."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [["Ns.IFooService"]],  # Query 1: target implements IFooService
+        [
+            ["FooService.Init", "/src/FooService.cs", "prod"],   # direct reference
+            ["Controller.Action", "/src/Controller.cs", "prod"], # via IFooService
+        ],  # Query 2: references to Ns.FooService or Ns.IFooService
+    ]
+    result = find_type_impact(conn, "Ns.FooService")
+    assert result["prod_count"] == 2
+    assert result["test_count"] == 0
+    # Verify Query 2 was called with both type names
+    q2_params = conn.query.call_args_list[1][0][1]
+    assert "Ns.FooService" in q2_params["type_names"]
+    assert "Ns.IFooService" in q2_params["type_names"]
+
+
+def test_find_type_impact_no_interfaces_uses_direct_only() -> None:
+    """When a type implements no interfaces, only direct REFERENCES are returned."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[None]],  # Query 1: no interfaces (OPTIONAL MATCH returns None row)
+        [["Direct.User", "/src/Direct.cs", "prod"]],
+    ]
+    result = find_type_impact(conn, "Ns.BarService")
+    q2_params = conn.query.call_args_list[1][0][1]
+    assert q2_params["type_names"] == ["Ns.BarService"]
+    assert result["prod_count"] == 1
 
 
 def test_audit_layering_violations() -> None:

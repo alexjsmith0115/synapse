@@ -93,17 +93,27 @@ def find_interface_contract(conn: GraphConnection, method: str) -> dict:
 
 
 def find_type_impact(conn: GraphConnection, type_name: str) -> dict:
-    """Find all symbols that reference a type, categorized as prod or test.
+    """Find all symbols that reference a type or its interfaces, categorized as prod or test.
 
-    Uses unlabeled (n) because REFERENCES edges can originate from any
-    symbol type (Method, Class, Property, Field).
+    Follows the IMPLEMENTS chain so that dependents referencing an interface
+    (e.g. IFooService) are included when querying the concrete type (FooService).
+    Uses two queries to keep the logic consistent with the rest of this module.
     """
+    iface_rows = conn.query(
+        "MATCH (target {full_name: $type}) "
+        "OPTIONAL MATCH (target)-[:IMPLEMENTS]->(iface:Interface) "
+        "RETURN iface.full_name",
+        {"type": type_name},
+    )
+    # OPTIONAL MATCH returns one row with None when no interfaces are found
+    type_names = [type_name] + [r[0] for r in iface_rows if r[0] is not None]
+
     rows = conn.query(
-        "MATCH (n)-[:REFERENCES]->(t {full_name: $type}) "
-        "WHERE n.full_name IS NOT NULL "
+        "MATCH (n)-[:REFERENCES]->(t) "
+        "WHERE t.full_name IN $type_names AND n.full_name IS NOT NULL "
         "RETURN n.full_name, n.file_path, "
         "CASE WHEN n.file_path CONTAINS 'Tests' THEN 'test' ELSE 'prod' END AS context",
-        {"type": type_name},
+        {"type_names": type_names},
     )
 
     references = [{"full_name": r[0], "file_path": r[1], "context": r[2]} for r in rows]
