@@ -101,13 +101,13 @@ def test_find_callers_deduplicates_across_both_queries():
     assert len(result) == 1
 
 
-def test_find_callers_default_no_filter():
-    """Default call must NOT inject the test-pattern parameter."""
+def test_find_callers_default_excludes_tests():
+    """Default call must inject the test-pattern parameter (exclude_test_callers=True by default)."""
     conn = MagicMock()
     conn.query.return_value = []
     find_callers(conn, "Svc.DoWork")
     query_str = conn.query.call_args_list[0][0][0]
-    assert "$test_pattern" not in query_str
+    assert "$test_pattern" in query_str
 
 
 def test_find_callers_exclude_direct_early_return():

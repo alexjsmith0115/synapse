@@ -49,7 +49,7 @@ def find_callers(
     conn: GraphConnection,
     method_full_name: str,
     include_interface_dispatch: bool = True,
-    exclude_test_callers: bool = False,
+    exclude_test_callers: bool = True,
 ) -> list[dict]:
     if exclude_test_callers:
         direct = conn.query(

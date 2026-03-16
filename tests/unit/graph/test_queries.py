@@ -8,6 +8,7 @@ from synapse.graph.lookups import (
     find_type_references, find_dependencies,
     get_containing_type, get_members_overview,
     get_implemented_interfaces,
+    _TEST_PATH_PATTERN,
 )
 
 
@@ -70,6 +71,17 @@ def test_find_callers_passes_full_name() -> None:
     cypher, params = conn.query.call_args[0][0], conn.query.call_args[0][1]
     assert "CALLS" in cypher
     assert params["full_name"] == "MyNs.A.Run()"
+
+
+def test_find_callers_excludes_tests_by_default() -> None:
+    """Default should filter test callers."""
+    conn = _conn([])
+    find_callers(conn, "MyNs.A.Run()")
+    cypher = conn.query.call_args[0][0]
+    params = conn.query.call_args[0][1]
+    assert "test_pattern" in params
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
+    assert "NOT caller.file_path =~" in cypher
 
 
 def test_search_symbols_with_kind_filter() -> None:

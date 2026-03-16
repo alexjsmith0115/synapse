@@ -106,7 +106,10 @@ def source(full_name: str, include_class: bool = False) -> None:
 
 
 @app.command()
-def callers(method_full_name: str) -> None:
+def callers(
+    method_full_name: str,
+    include_tests: bool = typer.Option(False, "--include-tests", help="Include test callers"),
+) -> None:
     """Find all methods that call a given method."""
     svc = _get_service()
     if not _require_label(
@@ -114,7 +117,7 @@ def callers(method_full_name: str) -> None:
         "'{name}' is a {actual}, not a Method. Try a specific method like '{name}.MethodName'.",
     ):
         raise typer.Exit(1)
-    results = svc.find_callers(method_full_name)
+    results = svc.find_callers(method_full_name, exclude_test_callers=not include_tests)
     if not results:
         typer.echo("No results.")
         return
