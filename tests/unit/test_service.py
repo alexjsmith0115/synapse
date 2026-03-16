@@ -278,6 +278,25 @@ def test_get_hierarchy_unwraps_nodes():
     assert result["implements"] == [{"full_name": "A.IFoo", "_labels": ["Interface"]}]
 
 
+def test_get_constructor_returns_constructor_node():
+    from synapse.graph.lookups import get_constructor
+    conn = MagicMock()
+    ctor_node = _node(["Method"], {"full_name": "Ns.Foo.Foo", "name": "Foo"})
+    conn.query.return_value = [[ctor_node]]
+    result = get_constructor(conn, "Ns.Foo")
+    assert result is not None
+    assert result["name"] == "Foo"
+    conn.query.assert_called_once()
+
+
+def test_get_constructor_returns_none_when_no_constructor():
+    from synapse.graph.lookups import get_constructor
+    conn = MagicMock()
+    conn.query.return_value = []
+    result = get_constructor(conn, "Ns.Foo")
+    assert result is None
+
+
 def test_index_method_implements_calls_indexer() -> None:
     """SynapseService.index_method_implements must delegate to MethodImplementsIndexer."""
     svc = _service()
