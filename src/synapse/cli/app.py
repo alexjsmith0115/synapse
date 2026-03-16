@@ -112,7 +112,7 @@ def callers(
 ) -> None:
     """Find all methods that call a given method.
 
-    When a short name matches both an interface and concrete class, the concrete implementation is selected automatically."""
+    When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     if not _require_label(
         svc, method_full_name, "Method",
@@ -148,7 +148,7 @@ def callees(method_full_name: str) -> None:
 def implementations(interface_name: str) -> None:
     """Find all concrete implementations of an interface.
 
-    When a short name matches both an interface and concrete class, the interface is selected automatically."""
+    When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     if not _require_label(
         svc, interface_name, "Interface",
@@ -269,7 +269,7 @@ def context(
 ) -> None:
     """Get the full context needed to understand or modify a symbol.
 
-    When a short name matches both an interface and concrete class, the concrete implementation is selected automatically."""
+    When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     result = _get_service().get_context_for(full_name, scope=scope, max_lines=max_lines)
     typer.echo(result or "Not found")
 
@@ -298,7 +298,7 @@ def entry_points(
 ) -> None:
     """Find all entry points that eventually call a method.
 
-    When a short name matches both an interface and concrete class, the concrete implementation is selected automatically."""
+    When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     result = svc.find_entry_points(method, max_depth, exclude_test_callers=not include_tests)
     if not result["entry_points"]:
@@ -330,7 +330,7 @@ def impact(
 ) -> None:
     """Analyze the blast radius of changing a method.
 
-    When a short name matches both an interface and concrete class, the concrete implementation is selected automatically."""
+    When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     result = svc.analyze_change_impact(method)
     typer.echo(f"Impact analysis for: {result['target']}")
@@ -355,7 +355,7 @@ def contract(
 ) -> None:
     """Find the interface contract and sibling implementations for a method.
 
-    When a short name matches both an interface and concrete class, the interface is selected automatically."""
+    When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     result = svc.find_interface_contract(method)
     if not result["interface"]:

@@ -58,6 +58,8 @@ class SynapseService:
         """Resolve a possibly-short name to a fully qualified name.
 
         preference: 'concrete' prefers :Class, 'interface' prefers :Interface.
+        For type nodes, filters directly by label. For method nodes, checks the
+        containing type's label (via CONTAINS edge) to resolve interface-vs-concrete pairs.
         Raises ValueError if the name is ambiguous after applying preference.
         """
         result = resolve_full_name(self._conn, name)
@@ -68,15 +70,37 @@ class SynapseService:
             labeled = resolve_full_name_with_labels(self._conn, name)
             if isinstance(labeled, list):
                 target_label = "Class" if preference == "concrete" else "Interface"
+                # Try direct label match (works for type-level ambiguity)
                 filtered = [fn for fn, labels in labeled if target_label in labels]
                 if len(filtered) == 1:
                     return filtered[0]
+
+                # For method-level ambiguity, check containing type's label
+                all_methods = all("Method" in labels for _, labels in labeled)
+                if all_methods and len(labeled) > 1:
+                    filtered = self._filter_methods_by_parent_label(
+                        [fn for fn, _ in labeled], target_label,
+                    )
+                    if len(filtered) == 1:
+                        return filtered[0]
 
         options = ", ".join(result[:10])
         raise ValueError(
             f"Ambiguous name '{name}' — matches: {options}. "
             "Use the fully qualified name."
         )
+
+    def _filter_methods_by_parent_label(
+        self, method_full_names: list[str], target_label: str,
+    ) -> list[str]:
+        """Return methods whose containing type has the given label."""
+        rows = self._conn.query(
+            "MATCH (parent)-[:CONTAINS]->(m:Method) "
+            "WHERE m.full_name IN $names "
+            "RETURN m.full_name, labels(parent)",
+            {"names": method_full_names},
+        )
+        return [r[0] for r in rows if target_label in r[1]]
 
     def _staleness_warning(self, full_name: str) -> str | None:
         """Return a warning string if the symbol's file is stale, else None."""
@@ -168,7 +192,7 @@ class SynapseService:
         return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
 
     def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
-        method_full_name = self._resolve(method_full_name)
+        method_full_name = self._resolve(method_full_name, preference="concrete")
         return [_p(item) for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
 
     def get_hierarchy(self, class_name: str) -> dict:
@@ -725,8 +749,8 @@ class SynapseService:
         return "\n\n---\n\n".join(sections)
 
     def trace_call_chain(self, start: str, end: str, max_depth: int = 6) -> dict:
-        start = self._resolve(start)
-        end = self._resolve(end)
+        start = self._resolve(start, preference="concrete")
+        end = self._resolve(end, preference="concrete")
         return trace_call_chain(self._conn, start, end, max_depth)
 
     def find_entry_points(
@@ -740,7 +764,7 @@ class SynapseService:
         return find_entry_points(self._conn, method, max_depth, exclude_pattern, exclude_test_callers)
 
     def get_call_depth(self, method: str, depth: int = 3) -> dict:
-        method = self._resolve(method)
+        method = self._resolve(method, preference="concrete")
         return get_call_depth(self._conn, method, depth)
 
     def analyze_change_impact(self, method: str) -> dict:

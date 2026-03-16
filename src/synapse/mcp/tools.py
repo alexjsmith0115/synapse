@@ -94,7 +94,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
         Accepts both full names (e.g. "MyNs.IFoo") and short names (e.g. "IFoo").
         Short names use a suffix match when an exact match is not found.
-        When a short name matches both an interface and concrete class, the interface is selected automatically.
+        When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         return service.find_implementations(interface_name)
 
@@ -115,7 +115,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         e.g. MyApp.Tests/, tests/, IntegrationTests/). Set
         exclude_test_callers=False to include them.
 
-        When a short name matches both an interface and concrete class, the concrete implementation is selected automatically.
+        When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         return service.find_callers(method_full_name, include_interface_dispatch, exclude_test_callers)
 
@@ -243,7 +243,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
         max_lines: if source exceeds this many lines, show structure overview instead of full source.
         Set to 0 for structure-only. Set to -1 to disable the limit.
-        When a short name matches both an interface and concrete class, the concrete implementation is selected automatically.
+        When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         result = service.get_context_for(full_name, scope=scope, max_lines=max_lines)
         if result:
@@ -276,7 +276,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         Test entry points are excluded by default. Set exclude_test_callers=False to include them.
         Returns {entry_points: [{entry, path}], target, max_depth}.
         Each entry point appears once with the shortest path to the target.
-        When a short name matches both an interface and concrete class, the concrete implementation is selected automatically.
+        When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         return service.find_entry_points(method, max_depth, exclude_pattern, exclude_test_callers)
 
@@ -294,7 +294,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
         Returns {target, direct_callers, transitive_callers, test_coverage, direct_callees, total_affected}.
         total_affected counts upstream (callers) only — callees are downstream context.
-        When a short name matches both an interface and concrete class, the concrete implementation is selected automatically.
+        When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         return service.analyze_change_impact(method)
 
@@ -303,7 +303,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         """Find the interface contract a method satisfies and all sibling implementations.
 
         Returns {method, interface, contract_method, sibling_implementations}.
-        When a short name matches both an interface and concrete class, the interface is selected automatically.
+        When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         return service.find_interface_contract(method)
 

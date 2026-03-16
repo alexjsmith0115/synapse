@@ -1212,3 +1212,61 @@ def test_resolve_preference_still_raises_if_multiple_match() -> None:
         mock_labels.return_value = [("Ns.A.TaskService", ["Class"]), ("Ns.B.TaskService", ["Class"])]
         with pytest.raises(ValueError, match="Ambiguous"):
             svc._resolve("TaskService", preference="concrete")
+
+
+def test_resolve_preference_method_checks_parent_type() -> None:
+    """When both candidates are :Method, prefer the one whose parent is :Class (concrete)."""
+    conn = MagicMock()
+    # Parent label query returns both methods with their parent labels
+    conn.query.return_value = [
+        ["Ns.MeetingService.CreateAsync", ["Class"]],
+        ["Ns.IMeetingService.CreateAsync", ["Interface"]],
+    ]
+    svc = SynapseService(conn)
+    with patch("synapse.service.resolve_full_name") as mock_resolve, \
+         patch("synapse.service.resolve_full_name_with_labels") as mock_labels:
+        mock_resolve.return_value = ["Ns.IMeetingService.CreateAsync", "Ns.MeetingService.CreateAsync"]
+        mock_labels.return_value = [
+            ("Ns.IMeetingService.CreateAsync", ["Method"]),
+            ("Ns.MeetingService.CreateAsync", ["Method"]),
+        ]
+        result = svc._resolve("CreateAsync", preference="concrete")
+    assert result == "Ns.MeetingService.CreateAsync"
+
+
+def test_resolve_preference_method_interface_checks_parent() -> None:
+    """When both candidates are :Method, prefer the one whose parent is :Interface."""
+    conn = MagicMock()
+    conn.query.return_value = [
+        ["Ns.MeetingService.CreateAsync", ["Class"]],
+        ["Ns.IMeetingService.CreateAsync", ["Interface"]],
+    ]
+    svc = SynapseService(conn)
+    with patch("synapse.service.resolve_full_name") as mock_resolve, \
+         patch("synapse.service.resolve_full_name_with_labels") as mock_labels:
+        mock_resolve.return_value = ["Ns.IMeetingService.CreateAsync", "Ns.MeetingService.CreateAsync"]
+        mock_labels.return_value = [
+            ("Ns.IMeetingService.CreateAsync", ["Method"]),
+            ("Ns.MeetingService.CreateAsync", ["Method"]),
+        ]
+        result = svc._resolve("CreateAsync", preference="interface")
+    assert result == "Ns.IMeetingService.CreateAsync"
+
+
+def test_resolve_preference_method_still_ambiguous_if_multiple_concrete() -> None:
+    """If multiple methods have :Class parents, still raise."""
+    conn = MagicMock()
+    conn.query.return_value = [
+        ["Ns.A.CreateAsync", ["Class"]],
+        ["Ns.B.CreateAsync", ["Class"]],
+    ]
+    svc = SynapseService(conn)
+    with patch("synapse.service.resolve_full_name") as mock_resolve, \
+         patch("synapse.service.resolve_full_name_with_labels") as mock_labels:
+        mock_resolve.return_value = ["Ns.A.CreateAsync", "Ns.B.CreateAsync"]
+        mock_labels.return_value = [
+            ("Ns.A.CreateAsync", ["Method"]),
+            ("Ns.B.CreateAsync", ["Method"]),
+        ]
+        with pytest.raises(ValueError, match="Ambiguous"):
+            svc._resolve("CreateAsync", preference="concrete")
