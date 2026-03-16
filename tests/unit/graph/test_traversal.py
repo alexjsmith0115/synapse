@@ -177,3 +177,37 @@ def test_find_entry_points_exclude_tests_composes_with_exclude_pattern() -> None
     params = conn.query.call_args[0][1]
     assert params["exclude_pattern"] == ".*\\.Tests\\..*"
     assert params["test_pattern"] == _TEST_PATH_PATTERN
+
+
+def test_find_entry_points_test_pattern_filters_callers_in_not_exists() -> None:
+    """When exclude_test_callers=True, the NOT EXISTS clause must also filter
+    callers by $test_pattern so methods whose only callers are in test paths
+    are recognized as roots."""
+    conn = _conn([])
+    find_entry_points(conn, "Svc.Do", exclude_test_callers=True)
+    cypher = conn.query.call_args[0][0]
+    # Extract the NOT EXISTS block
+    not_exists_start = cypher.index("NOT EXISTS")
+    brace_depth = 0
+    not_exists_block = ""
+    for i, ch in enumerate(cypher[not_exists_start:]):
+        if ch == "{":
+            brace_depth += 1
+        elif ch == "}":
+            brace_depth -= 1
+            if brace_depth == 0:
+                not_exists_block = cypher[not_exists_start:not_exists_start + i + 1]
+                break
+    assert "$test_pattern" in not_exists_block, (
+        "NOT EXISTS block must filter callers by $test_pattern so test callers "
+        "don't prevent non-test methods from being recognized as roots. "
+        f"Got NOT EXISTS block: {not_exists_block}"
+    )
+
+
+def test_find_entry_points_no_test_pattern_in_not_exists_when_disabled() -> None:
+    """When exclude_test_callers=False, test_pattern is empty so the clause is a no-op."""
+    conn = _conn([])
+    find_entry_points(conn, "Svc.Do", exclude_test_callers=False)
+    params = conn.query.call_args[0][1]
+    assert params["test_pattern"] == ""
