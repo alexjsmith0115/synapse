@@ -263,3 +263,21 @@ def test_index_project_calls_method_implements_indexer() -> None:
         Indexer(conn, lsp).index_project("/proj", "csharp")
 
     mock_instance.index.assert_called_once()
+
+
+def test_reindex_file_preserves_summaries(mock_conn) -> None:
+    """reindex_file must save summaries before deleting nodes and restore them after re-indexing."""
+    lsp = MagicMock()
+    lsp.get_document_symbols.return_value = []
+
+    with patch("synapse.indexer.indexer.collect_summaries") as mock_collect, \
+         patch("synapse.indexer.indexer.restore_summaries") as mock_restore, \
+         patch("synapse.indexer.indexer.SymbolResolver"):
+        mock_collect.return_value = [
+            {"full_name": "Ns.C", "summary": "A class", "summary_updated_at": "2026-03-16T00:00:00+00:00"},
+        ]
+        indexer = Indexer(mock_conn, lsp)
+        indexer.reindex_file("/proj/Foo.cs", "/proj")
+
+    mock_collect.assert_called_once_with(mock_conn, "/proj/Foo.cs")
+    mock_restore.assert_called_once_with(mock_conn, mock_collect.return_value)

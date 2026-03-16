@@ -14,6 +14,7 @@ from synapse.graph.nodes import (
     upsert_class, upsert_directory, upsert_field, upsert_file,
     upsert_interface, upsert_method, upsert_package, upsert_property,
     upsert_repository, delete_file_nodes,
+    collect_summaries, restore_summaries,
 )
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
@@ -104,9 +105,11 @@ class Indexer:
             self._lsp.shutdown()
 
     def reindex_file(self, file_path: str, root_path: str) -> None:
+        saved_summaries = collect_summaries(self._conn, file_path)
         delete_file_nodes(self._conn, file_path)
         symbols = self._lsp.get_document_symbols(file_path)
         self._index_file_structure(file_path, root_path, symbols)
+        restore_summaries(self._conn, saved_summaries)
 
         name_to_full_names: dict[str, list[str]] = {}
         kind_map: dict[str, SymbolKind] = {}
