@@ -6,6 +6,7 @@ and architectural patterns.
 """
 
 from synapse.graph.connection import GraphConnection
+from synapse.graph.lookups import _TEST_PATH_PATTERN
 
 
 def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
@@ -16,9 +17,9 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     direct = conn.query(
         "MATCH (c:Method)-[:CALLS]->(t:Method) "
         "WHERE (t.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(t)) "
-        "AND NOT c.file_path CONTAINS 'Tests' "
+        "AND NOT c.file_path =~ $test_pattern "
         "RETURN DISTINCT c.full_name, c.file_path",
-        {"method": method},
+        {"method": method, "test_pattern": _TEST_PATH_PATTERN},
     )
     transitive = conn.query(
         "MATCH (c:Method)-[:CALLS*2..4]->(m) "
@@ -112,8 +113,8 @@ def find_type_impact(conn: GraphConnection, type_name: str) -> dict:
         "MATCH (n)-[:REFERENCES]->(t) "
         "WHERE t.full_name IN $type_names AND n.full_name IS NOT NULL "
         "RETURN n.full_name, n.file_path, "
-        "CASE WHEN n.file_path CONTAINS 'Tests' THEN 'test' ELSE 'prod' END AS context",
-        {"type_names": type_names},
+        "CASE WHEN n.file_path =~ $test_pattern THEN 'test' ELSE 'prod' END AS context",
+        {"type_names": type_names, "test_pattern": _TEST_PATH_PATTERN},
     )
 
     references = [{"full_name": r[0], "file_path": r[1], "context": r[2]} for r in rows]

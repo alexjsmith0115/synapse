@@ -6,6 +6,7 @@ from synapse.graph.analysis import (
     find_interface_contract,
     find_type_impact,
 )
+from synapse.graph.lookups import _TEST_PATH_PATTERN
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -194,9 +195,33 @@ def test_analyze_change_impact_direct_callers_excludes_tests() -> None:
     conn.query.side_effect = [[], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     direct_cypher = conn.query.call_args_list[0][0][0]
-    assert "Tests" in direct_cypher and "NOT" in direct_cypher, (
-        "direct_callers query must filter out test files"
+    assert "NOT" in direct_cypher and "test_pattern" in direct_cypher, (
+        "direct_callers query must filter out test files via regex"
     )
+
+
+def test_analyze_change_impact_direct_callers_uses_regex_not_substring() -> None:
+    """direct_callers filter must use _TEST_PATH_PATTERN regex, not CONTAINS 'Tests'."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    direct_cypher = conn.query.call_args_list[0][0][0]
+    params = conn.query.call_args_list[0][0][1]
+    assert "CONTAINS" not in direct_cypher, "Should use regex, not CONTAINS"
+    assert "test_pattern" in params
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
+
+
+def test_find_type_impact_uses_regex_not_substring() -> None:
+    """Prod/test categorization must use _TEST_PATH_PATTERN, not CONTAINS 'Tests'."""
+    conn = MagicMock()
+    conn.query.side_effect = [[[None]], []]
+    find_type_impact(conn, "Ns.MyType")
+    q2_cypher = conn.query.call_args_list[1][0][0]
+    params = conn.query.call_args_list[1][0][1]
+    assert "CONTAINS" not in q2_cypher, "Should use regex, not CONTAINS"
+    assert "test_pattern" in params
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
 
 
 def test_analyze_change_impact_transitive_includes_interface_dispatch() -> None:
