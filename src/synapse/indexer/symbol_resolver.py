@@ -96,7 +96,11 @@ class SymbolResolver:
         try:
             with self._ls.open_file(rel_path):
                 for caller_full_name, callee_simple, call_line_1, call_col_0 in call_sites:
-                    self._resolve_call(caller_full_name, rel_path, call_line_1 - 1, call_col_0, callee_simple, symbol_map=symbol_map)
+                    self._resolve_call(
+                        caller_full_name, rel_path, call_line_1 - 1, call_col_0,
+                        callee_simple, symbol_map=symbol_map,
+                        call_line_1=call_line_1, call_col_0=call_col_0,
+                    )
                 for ref in type_refs:
                     self._resolve_type_ref(ref, rel_path)
         except Exception:
@@ -106,6 +110,8 @@ class SymbolResolver:
         self, caller_full_name: str, rel_path: str, line_0: int, col_0: int,
         callee_simple_name: str | None = None,
         symbol_map: dict[tuple[str, int], str] | None = None,
+        call_line_1: int | None = None,
+        call_col_0: int | None = None,
     ) -> None:
         try:
             definitions = self._ls.request_definition(rel_path, line_0, col_0)
@@ -126,7 +132,7 @@ class SymbolResolver:
                     if callee_full_name:
                         callee_full_name = self._resolve_callee_name(callee_full_name)
                         if callee_full_name and callee_full_name != caller_full_name:
-                            upsert_calls(self._conn, caller_full_name, callee_full_name)
+                            upsert_calls(self._conn, caller_full_name, callee_full_name, line=call_line_1, col=call_col_0)
                             return
 
         # Fallback: resolve via containing symbol (may fail for single-line declarations)
@@ -155,7 +161,7 @@ class SymbolResolver:
         callee_full_name = build_full_name(symbol)
         callee_full_name = self._resolve_callee_name(callee_full_name)
         if callee_full_name and callee_full_name != caller_full_name:
-            upsert_calls(self._conn, caller_full_name, callee_full_name)
+            upsert_calls(self._conn, caller_full_name, callee_full_name, line=call_line_1, col=call_col_0)
 
     def _resolve_callee_name(self, full_name: str) -> str:
         """

@@ -192,6 +192,41 @@ def test_resolver_skips_references_when_name_map_ambiguous():
     assert not any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
 
 
+def test_resolve_call_passes_line_col_to_upsert_calls(tmp_path):
+    """SymbolResolver should pass call-site position to upsert_calls."""
+    cs_file = tmp_path / "A.cs"
+    cs_file.write_text("namespace X { class A { void M() { B(); } } }")
+
+    conn = MagicMock()
+    ls = MagicMock()
+    ls.repository_root_path = str(tmp_path)
+    # request_definition returns a definition location
+    ls.request_definition.return_value = [{
+        "absolutePath": str(cs_file),
+        "relativePath": "A.cs",
+        "range": {"start": {"line": 0, "character": 30}},
+    }]
+
+    # symbol_map keyed by (file_path, line_0) → full_name
+    symbol_map = {(str(cs_file), 0): "X.A.B"}
+
+    # call_extractor returns (caller, callee_simple, line_1, col_0)
+    extractor = MagicMock()
+    extractor.extract.return_value = [("X.A.M", "B", 1, 35)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(conn, ls, call_extractor=extractor, type_ref_extractor=type_ref_extractor)
+
+    with patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_upsert:
+        resolver.resolve_single_file(str(cs_file), symbol_map)
+
+    mock_upsert.assert_called_once()
+    _, kwargs = mock_upsert.call_args[0], mock_upsert.call_args[1]
+    assert kwargs.get("line") == 1  # 1-indexed from extractor
+    assert kwargs.get("col") == 35
+
+
 def test_resolve_call_resolves_overloaded_callee_name() -> None:
     """If graph stores 'X.M(int)' but symbol_map has 'X.M', the CALLS edge must use the stored overloaded name."""
     conn = MagicMock()
