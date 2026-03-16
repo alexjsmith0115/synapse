@@ -276,6 +276,20 @@ def get_members_overview(conn: GraphConnection, full_name: str) -> list[dict]:
     return [r[0] for r in rows]
 
 
+def get_called_members(
+    conn: GraphConnection,
+    method_full_name: str,
+    dep_full_name: str,
+) -> list[dict]:
+    """Return only the members of dep that method actually calls."""
+    rows = conn.query(
+        "MATCH (m:Method {full_name: $method})-[:CALLS]->(callee)<-[:CONTAINS]-(dep {full_name: $dep}) "
+        "RETURN DISTINCT callee",
+        {"method": method_full_name, "dep": dep_full_name},
+    )
+    return [r[0] for r in rows]
+
+
 def get_constructor(conn: GraphConnection, full_name: str) -> dict | None:
     rows = conn.query(
         "MATCH (cls {full_name: $full_name})-[:CONTAINS]->(m:Method) "

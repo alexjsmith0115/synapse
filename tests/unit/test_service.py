@@ -625,11 +625,11 @@ def test_test_coverage_section_returns_none_when_empty():
 def test_relevant_deps_section_shows_member_signatures():
     svc = _service()
     dep = _node(["Interface"], {"full_name": "Ns.IRepo"})
-    with patch("synapse.service.find_relevant_deps", return_value=[dep]):
-        with patch("synapse.service.get_members_overview", return_value=[
-            {"full_name": "Ns.IRepo.Save", "name": "Save", "signature": "Task Save(Entity)"},
-        ]):
-            result = svc._relevant_deps_section("Ns.MyClass", "Ns.MyClass.DoWork")
+    with patch("synapse.service.find_relevant_deps", return_value=[dep]), \
+         patch("synapse.service.get_called_members", return_value=[
+             {"full_name": "Ns.IRepo.Save", "name": "Save", "signature": "Task Save(Entity)"},
+         ]):
+        result = svc._relevant_deps_section("Ns.MyClass", "Ns.MyClass.DoWork")
     assert "## Constructor Dependencies (used by this method)" in result
     assert "Ns.IRepo" in result
     assert "Save" in result
@@ -640,6 +640,35 @@ def test_relevant_deps_section_returns_none_when_empty():
     with patch("synapse.service.find_relevant_deps", return_value=[]):
         result = svc._relevant_deps_section("Ns.MyClass", "Ns.MyClass.DoWork")
     assert result is None
+
+
+def test_relevant_deps_section_shows_only_called_members() -> None:
+    conn = MagicMock()
+    svc = SynapseService(conn)
+    dep_node = {"full_name": "Ns.DbContext", "name": "DbContext"}
+    with patch("synapse.service.find_relevant_deps", return_value=[dep_node]), \
+         patch("synapse.service.get_called_members") as mock_called:
+        mock_called.return_value = [
+            {"full_name": "Ns.DbContext.MeetingNotes", "name": "MeetingNotes", "type_name": "DbSet<MeetingNote>"},
+        ]
+        result = svc._relevant_deps_section("Ns.Svc", "Ns.Svc.Create")
+    assert result is not None
+    assert "MeetingNotes" in result
+
+
+def test_relevant_deps_section_fallback_to_all_members() -> None:
+    conn = MagicMock()
+    svc = SynapseService(conn)
+    dep_node = {"full_name": "Ns.DbContext", "name": "DbContext"}
+    with patch("synapse.service.find_relevant_deps", return_value=[dep_node]), \
+         patch("synapse.service.get_called_members", return_value=[]), \
+         patch("synapse.service.get_members_overview") as mock_members:
+        mock_members.return_value = [
+            {"full_name": "Ns.DbContext.All", "name": "All", "type_name": "DbSet<All>"},
+        ]
+        result = svc._relevant_deps_section("Ns.Svc", "Ns.Svc.Create")
+    assert result is not None
+    assert "all members shown" in result.lower()
 
 
 def test_get_context_for_default_scope_unchanged(tmp_path):

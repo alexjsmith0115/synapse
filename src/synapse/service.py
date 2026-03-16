@@ -19,6 +19,7 @@ from synapse.graph.lookups import (
     find_relevant_deps,
     find_all_deps,
     find_test_coverage,
+    get_called_members,
     _TEST_PATH_PATTERN,
 )
 from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
@@ -416,8 +417,15 @@ class SynapseService:
         dep_lines = []
         for dep_node in deps:
             dep_fn = _p(dep_node)["full_name"]
-            members = get_members_overview(self._conn, dep_fn)
-            dep_lines.append(f"### {dep_fn}\n" + "\n".join(_member_line(m) for m in members))
+            called = get_called_members(self._conn, method_full_name, dep_fn)
+            if called:
+                dep_lines.append(f"### {dep_fn}\n" + "\n".join(_member_line(m) for m in called))
+            else:
+                members = get_members_overview(self._conn, dep_fn)
+                dep_lines.append(
+                    f"### {dep_fn}\n*(all members shown — no direct method calls detected)*\n"
+                    + "\n".join(_member_line(m) for m in members)
+                )
         return "## Constructor Dependencies (used by this method)\n\n" + "\n\n".join(dep_lines)
 
     def _callees_section(self, full_name: str) -> str | None:

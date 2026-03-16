@@ -6,7 +6,7 @@ from synapse.graph.lookups import (
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info,
     find_type_references, find_dependencies,
-    get_containing_type, get_members_overview,
+    get_containing_type, get_members_overview, get_called_members,
     get_implemented_interfaces,
     resolve_full_name_with_labels,
     _TEST_PATH_PATTERN,
@@ -210,6 +210,22 @@ def test_get_members_overview_returns_children() -> None:
     ])
     results = get_members_overview(conn, "Ns.C")
     assert len(results) == 2
+
+
+def test_get_called_members_returns_called_only() -> None:
+    conn = _conn([
+        [{"full_name": "Ns.Db.SaveChangesAsync", "name": "SaveChangesAsync", "signature": "Task SaveChangesAsync()"}],
+        [{"full_name": "Ns.Db.MeetingNotes", "name": "MeetingNotes", "type_name": "DbSet<MeetingNote>"}],
+    ])
+    results = get_called_members(conn, "Ns.Svc.Create", "Ns.Db")
+    assert len(results) == 2
+    assert results[0]["full_name"] == "Ns.Db.SaveChangesAsync"
+
+
+def test_get_called_members_returns_empty_for_no_calls() -> None:
+    conn = _conn([])
+    results = get_called_members(conn, "Ns.Svc.Create", "Ns.Db")
+    assert results == []
 
 
 def test_get_implemented_interfaces_returns_interfaces() -> None:
