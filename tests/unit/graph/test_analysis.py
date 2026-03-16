@@ -9,6 +9,21 @@ from synapse.graph.analysis import (
 from synapse.graph.lookups import _TEST_PATH_PATTERN
 
 
+class _MockNode:
+    """Minimal neo4j graph.Node stand-in for unit tests."""
+    def __init__(self, labels: list[str], props: dict, element_id: str | None = None) -> None:
+        self._props = props
+        self.labels = frozenset(labels)
+        self.element_id = element_id or str(id(self))
+    def keys(self): return list(self._props.keys())
+    def values(self): return list(self._props.values())
+    def items(self): return list(self._props.items())
+    def __getitem__(self, key): return self._props[key]
+    def __iter__(self): return iter(self._props)
+    def __len__(self): return len(self._props)
+    def get(self, key, default=None): return self._props.get(key, default)
+
+
 def _conn(return_value: list) -> MagicMock:
     conn = MagicMock()
     conn.query.return_value = return_value
@@ -30,6 +45,8 @@ def test_analyze_change_impact_aggregates() -> None:
         [["Direct.Caller", "/proj/D.cs"]],  # direct callers
         [["Trans.Caller", "/proj/T.cs"]],  # transitive callers
         [["Test.Method", "/tests/T.cs"]],  # test coverage
+        [],  # callees (direct)
+        [],  # callees (interface dispatch)
     ]
     result = analyze_change_impact(conn, "Svc.Method")
     assert result["target"] == "Svc.Method"
@@ -45,6 +62,8 @@ def test_analyze_change_impact_deduplicates_total() -> None:
         [["Shared.Caller", "/proj/S.cs"]],  # direct
         [["Shared.Caller", "/proj/S.cs"]],  # also in transitive
         [],  # no tests
+        [],  # callees (direct)
+        [],  # callees (interface dispatch)
     ]
     result = analyze_change_impact(conn, "Svc.Method")
     assert result["total_affected"] == 1  # deduplicated
@@ -52,7 +71,7 @@ def test_analyze_change_impact_deduplicates_total() -> None:
 
 def test_analyze_change_impact_empty() -> None:
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     result = analyze_change_impact(conn, "Isolated.Method")
     assert result["direct_callers"] == []
     assert result["total_affected"] == 0
@@ -192,7 +211,7 @@ def test_audit_empty_results() -> None:
 def test_analyze_change_impact_direct_callers_excludes_tests() -> None:
     """direct_callers must not include test methods; test_coverage is the correct field."""
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     direct_cypher = conn.query.call_args_list[0][0][0]
     assert "NOT" in direct_cypher and "test_pattern" in direct_cypher, (
@@ -203,7 +222,7 @@ def test_analyze_change_impact_direct_callers_excludes_tests() -> None:
 def test_analyze_change_impact_direct_callers_uses_regex_not_substring() -> None:
     """direct_callers filter must use _TEST_PATH_PATTERN regex, not CONTAINS 'Tests'."""
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     direct_cypher = conn.query.call_args_list[0][0][0]
     params = conn.query.call_args_list[0][0][1]
@@ -227,7 +246,7 @@ def test_find_type_impact_uses_regex_not_substring() -> None:
 def test_analyze_change_impact_transitive_includes_interface_dispatch() -> None:
     """Transitive query must cross the interface dispatch gap."""
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     transitive_cypher = conn.query.call_args_list[1][0][0]
     assert "IMPLEMENTS" in transitive_cypher, (
@@ -244,7 +263,7 @@ def test_analyze_change_impact_direct_includes_interface_dispatch() -> None:
     to the interface method so the query must follow it.
     """
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     direct_cypher = conn.query.call_args_list[0][0][0]
     assert "IMPLEMENTS" in direct_cypher, (
@@ -256,7 +275,7 @@ def test_analyze_change_impact_direct_includes_interface_dispatch() -> None:
 def test_analyze_change_impact_tests_includes_interface_dispatch() -> None:
     """test_coverage must capture tests that call through a controller→interface path."""
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], [], [], [], []]
     analyze_change_impact(conn, "Ns.Svc.Method")
     tests_cypher = conn.query.call_args_list[2][0][0]
     assert "IMPLEMENTS" in tests_cypher, (
@@ -281,3 +300,35 @@ def test_audit_architecture_violations_have_named_keys():
     assert 0 not in violation, "violations must not use integer keys"
     assert "ctrl.name" in violation, "violations must use column names as keys"
     assert violation["ctrl.name"] == "MyCtrl"
+
+
+def test_analyze_change_impact_includes_direct_callees() -> None:
+    """Result should include direct_callees from find_callees."""
+    callee_node = _MockNode(["Method"], {"full_name": "Repo.Save", "file_path": "/proj/Repo.cs"})
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [],  # direct callers
+        [],  # transitive callers
+        [],  # test coverage
+        [[callee_node]],  # callees (direct)
+        [],  # callees (interface dispatch)
+    ]
+    result = analyze_change_impact(conn, "Svc.Method")
+    assert "direct_callees" in result
+    assert len(result["direct_callees"]) == 1
+    assert result["direct_callees"][0] == {"full_name": "Repo.Save", "file_path": "/proj/Repo.cs"}
+
+
+def test_analyze_change_impact_callees_not_in_total_affected() -> None:
+    """Callees are downstream context, not 'affected' — total_affected stays upstream-only."""
+    callee_node = _MockNode(["Method"], {"full_name": "Repo.Save", "file_path": "/proj/Repo.cs"})
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [["Direct.Caller", "/proj/D.cs"]],  # direct callers
+        [],  # transitive
+        [],  # tests
+        [[callee_node]],  # callees (direct)
+        [],  # callees (interface dispatch)
+    ]
+    result = analyze_change_impact(conn, "Svc.Method")
+    assert result["total_affected"] == 1  # only the caller, not the callee

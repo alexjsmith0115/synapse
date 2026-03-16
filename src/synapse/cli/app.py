@@ -299,6 +299,7 @@ def impact(
     typer.echo(f"  Direct callers: {len(result['direct_callers'])}")
     typer.echo(f"  Transitive callers: {len(result['transitive_callers'])}")
     typer.echo(f"  Test coverage: {len(result['test_coverage'])}")
+    typer.echo(f"  Direct callees: {len(result.get('direct_callees', []))}")
     typer.echo(f"  Total affected: {result['total_affected']}")
     for c in result["direct_callers"]:
         typer.echo(f"    [direct] {c['full_name']}")
@@ -306,6 +307,8 @@ def impact(
         typer.echo(f"    [transitive] {c['full_name']}")
     for t in result["test_coverage"]:
         typer.echo(f"    [test] {t['full_name']}")
+    for c in result.get("direct_callees", []):
+        typer.echo(f"    [callee] {c['full_name']}")
 
 
 @app.command("contract")

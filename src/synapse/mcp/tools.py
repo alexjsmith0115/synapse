@@ -266,9 +266,10 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def analyze_change_impact(method: str) -> dict:
-        """Analyze the impact of changing a method: direct callers, transitive callers, test coverage.
+        """Analyze the impact of changing a method: direct callers, transitive callers, test coverage, and direct callees.
 
-        Returns {target, direct_callers, transitive_callers, test_coverage, total_affected}.
+        Returns {target, direct_callers, transitive_callers, test_coverage, direct_callees, total_affected}.
+        total_affected counts upstream (callers) only — callees are downstream context.
         """
         return service.analyze_change_impact(method)
 

@@ -6,7 +6,7 @@ and architectural patterns.
 """
 
 from synapse.graph.connection import GraphConnection
-from synapse.graph.lookups import _TEST_PATH_PATTERN
+from synapse.graph.lookups import _TEST_PATH_PATTERN, find_callees
 
 
 def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
@@ -39,6 +39,12 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     transitive_callers = [{"full_name": r[0], "file_path": r[1]} for r in transitive]
     test_coverage = [{"full_name": r[0], "file_path": r[1]} for r in tests]
 
+    callees_raw = find_callees(conn, method)
+    direct_callees = []
+    for node in callees_raw:
+        props = dict(node) if hasattr(node, "element_id") else node
+        direct_callees.append({"full_name": props["full_name"], "file_path": props.get("file_path", "")})
+
     all_names = {r["full_name"] for r in direct_callers + transitive_callers + test_coverage}
 
     return {
@@ -46,6 +52,7 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
         "direct_callers": direct_callers,
         "transitive_callers": transitive_callers,
         "test_coverage": test_coverage,
+        "direct_callees": direct_callees,
         "total_affected": len(all_names),
     }
 
