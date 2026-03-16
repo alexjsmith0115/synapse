@@ -15,7 +15,9 @@ from synapse.graph.nodes import (
     upsert_interface, upsert_method, upsert_package, upsert_property,
     upsert_repository, delete_file_nodes,
     collect_summaries, restore_summaries,
+    set_attributes,
 )
+from synapse.indexer.attribute_extractor import CSharpAttributeExtractor
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
 from synapse.indexer.import_extractor import CSharpImportExtractor
@@ -74,6 +76,19 @@ class Indexer:
             except OSError:
                 log.warning("Could not read %s for base type extraction", file_path)
 
+        if on_progress:
+            on_progress("Extracting attributes...")
+
+        attr_extractor = CSharpAttributeExtractor()
+        for file_path in files:
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    source = f.read()
+                file_symbols = symbols_by_file.get(file_path, [])
+                self._index_attributes(file_path, source, file_symbols, attr_extractor)
+            except OSError:
+                log.warning("Could not read %s for attribute extraction", file_path)
+
         # Phase 1.5: method-level IMPLEMENTS edges (requires all class-level IMPLEMENTS to exist)
         MethodImplementsIndexer(self._conn).index()
 
@@ -121,6 +136,7 @@ class Indexer:
             with open(file_path, encoding="utf-8") as f:
                 source = f.read()
             self._index_base_types(file_path, source, name_to_full_names, kind_map)
+            self._index_attributes(file_path, source, symbols, CSharpAttributeExtractor())
         except OSError:
             log.warning("Could not read %s for base type extraction", file_path)
 
@@ -203,6 +219,31 @@ class Indexer:
                 upsert_field(self._conn, symbol.full_name, symbol.name, "", file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line)
             case _:
                 log.debug("Skipping symbol of unhandled kind: %s", symbol.kind)
+
+    def _index_attributes(
+        self,
+        file_path: str,
+        source: str,
+        symbols: list[IndexSymbol],
+        extractor: CSharpAttributeExtractor,
+    ) -> None:
+        results = extractor.extract(file_path, source)
+        if not results:
+            return
+
+        # Build name -> full_name lookup scoped to this file
+        name_to_full: dict[str, list[str]] = {}
+        for sym in symbols:
+            name_to_full.setdefault(sym.name, []).append(sym.full_name)
+
+        for simple_name, attrs in results:
+            full_names = name_to_full.get(simple_name, [])
+            if len(full_names) == 1:
+                set_attributes(self._conn, full_names[0], attrs)
+            else:
+                # Multiple symbols with same simple name in this file — set on all matches
+                for fn in full_names:
+                    set_attributes(self._conn, fn, attrs)
 
     def _index_base_types(
         self,
