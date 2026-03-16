@@ -1,9 +1,11 @@
+import json
 from unittest.mock import MagicMock
 from synapse.graph.nodes import (
     upsert_repository, upsert_directory, upsert_file,
     upsert_package, upsert_interface, upsert_class, upsert_method,
     upsert_property, upsert_field, delete_file_nodes,
     set_summary, remove_summary, collect_summaries, restore_summaries,
+    set_attributes,
 )
 
 
@@ -203,3 +205,28 @@ def test_restore_summaries_skips_empty_list() -> None:
     conn = _conn()
     restore_summaries(conn, [])
     conn.execute.assert_not_called()
+
+
+def test_set_attributes_stores_json_list() -> None:
+    conn = _conn()
+    set_attributes(conn, "Ns.MyController", ["ApiController", "Route"])
+    conn.execute.assert_called_once()
+    cypher, params = conn.execute.call_args[0]
+    assert "SET n.attributes" in cypher
+    assert params["attrs"] == json.dumps(["ApiController", "Route"])
+    assert params["full_name"] == "Ns.MyController"
+
+
+def test_set_attributes_empty_list() -> None:
+    conn = _conn()
+    set_attributes(conn, "Ns.Plain", [])
+    _, params = conn.execute.call_args[0]
+    assert params["attrs"] == "[]"
+
+
+def test_set_attributes_uses_match_not_merge() -> None:
+    conn = _conn()
+    set_attributes(conn, "Ns.Foo", ["Bar"])
+    cypher = conn.execute.call_args[0][0]
+    assert "MATCH" in cypher
+    assert "MERGE" not in cypher

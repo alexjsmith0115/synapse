@@ -16,11 +16,11 @@ _GRAPH_SCHEMA = {
         "Directory": ["path", "name"],
         "File": ["path", "name"],
         "Package": ["name"],
-        "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature"],
-        "Interface": ["full_name", "name", "kind", "file_path", "line", "end_line"],
-        "Method": ["full_name", "name", "file_path", "line", "end_line", "signature"],
-        "Property": ["full_name", "name", "file_path", "line", "end_line"],
-        "Field": ["full_name", "name", "file_path", "line", "end_line"],
+        "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature", "attributes"],
+        "Interface": ["full_name", "name", "kind", "file_path", "line", "end_line", "attributes"],
+        "Method": ["full_name", "name", "file_path", "line", "end_line", "signature", "attributes"],
+        "Property": ["full_name", "name", "file_path", "line", "end_line", "attributes"],
+        "Field": ["full_name", "name", "file_path", "line", "end_line", "attributes"],
     },
     "relationship_types": {
         "CONTAINS": "Repository/Directory/File/Class/Interface → any",
@@ -34,6 +34,7 @@ _GRAPH_SCHEMA = {
         "execute_query(cypher=...) accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
         "Nodes with summaries also carry the :Summarized label and a 'summary' property.",
         "Class.kind values: 'class', 'abstract_class', 'enum', 'record'.",
+        "Nodes may have an 'attributes' property (JSON list of C# attribute names, e.g. '[\"ApiController\",\"HttpGet\"]').",
     ],
 }
 

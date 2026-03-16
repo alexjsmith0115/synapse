@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 from synapse.graph.connection import GraphConnection
@@ -126,6 +127,13 @@ def remove_summary(conn: GraphConnection, full_name: str) -> None:
         "MATCH (n:Summarized {full_name: $full_name}) "
         "REMOVE n:Summarized REMOVE n.summary REMOVE n.summary_updated_at",
         {"full_name": full_name},
+    )
+
+
+def set_attributes(conn: GraphConnection, full_name: str, attributes: list[str]) -> None:
+    conn.execute(
+        "MATCH (n {full_name: $full_name}) SET n.attributes = $attrs",
+        {"full_name": full_name, "attrs": json.dumps(attributes)},
     )
 
 
