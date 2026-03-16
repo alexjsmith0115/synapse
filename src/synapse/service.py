@@ -534,9 +534,94 @@ class SynapseService:
 
         return "\n\n---\n\n".join(sections)
 
+    _TYPE_CALLER_LIMIT = 10
+    _TYPE_METHOD_LIMIT = 10
+
     def _context_edit_type(self, full_name: str, is_interface: bool = False) -> str:
-        # Placeholder — implemented in Task 10
-        return self._target_section(full_name)
+        sections: list[str] = []
+
+        sections.append(self._target_section(full_name))
+
+        # Interface contracts (only for classes)
+        if not is_interface:
+            iface_section = self._interfaces_section(full_name)
+            if iface_section:
+                sections.append(iface_section)
+
+        # Callers of public methods
+        members = get_members_overview(self._conn, full_name)
+        all_member_props = [_p(m) for m in members]
+        methods = [mp for mp in all_member_props if "Method" in mp.get("_labels", [])]
+
+        methods_with_callers = []
+        for method in methods:
+            method_fn = method["full_name"]
+            results = find_callers_with_sites(self._conn, method_fn)
+            if results:
+                methods_with_callers.append((method, results))
+
+        # Sort by caller count descending, limit to top N methods
+        methods_with_callers.sort(key=lambda x: len(x[1]), reverse=True)
+        omitted_methods = max(0, len(methods_with_callers) - self._TYPE_METHOD_LIMIT)
+        callers_parts = []
+        for method, results in methods_with_callers[:self._TYPE_METHOD_LIMIT]:
+            sig = method.get("signature", method.get("name", "?"))
+            method_lines = [f"### {method['full_name']} — {sig}"]
+            for entry in results[:self._TYPE_CALLER_LIMIT]:
+                caller_props = _p(entry["caller"])
+                sites = entry["call_sites"]
+                line_str = self._format_call_sites(sites)
+                fp = caller_props.get("file_path", "")
+                fn = caller_props["full_name"]
+                if line_str:
+                    method_lines.append(f"- `{fn}` — {fp} ({line_str})")
+                else:
+                    method_lines.append(f"- `{fn}` — {fp}")
+            if len(results) > self._TYPE_CALLER_LIMIT:
+                method_lines.append(f"... and {len(results) - self._TYPE_CALLER_LIMIT} more callers")
+            callers_parts.append("\n".join(method_lines))
+
+        if callers_parts:
+            header = "## Callers of Public Methods"
+            if omitted_methods > 0:
+                header += f"\n\n(showing top {self._TYPE_METHOD_LIMIT} methods by caller count; {omitted_methods} more omitted)"
+            sections.append(header + "\n\n" + "\n\n".join(callers_parts))
+        elif methods:
+            pass  # methods exist but none have callers — omit section
+        else:
+            sections.append("## Callers of Public Methods\n\nNo public methods found.")
+
+        # Constructor dependencies (all, not filtered — skip for interfaces)
+        if not is_interface:
+            deps = find_all_deps(self._conn, full_name)
+            if deps:
+                dep_lines = []
+                for dep_node in deps:
+                    dep_fn = _p(dep_node)["full_name"]
+                    dep_members = get_members_overview(self._conn, dep_fn)
+                    dep_lines.append(f"### {dep_fn}\n" + "\n".join(_member_line(m) for m in dep_members))
+                sections.append("## Constructor Dependencies\n\n" + "\n\n".join(dep_lines))
+
+        # Test coverage (flat list across all methods)
+        all_tests: list[dict] = []
+        seen_tests: set[str] = set()
+        for method in methods:
+            for t in find_test_coverage(self._conn, method["full_name"]):
+                if t["full_name"] not in seen_tests:
+                    seen_tests.add(t["full_name"])
+                    all_tests.append(t)
+        if all_tests:
+            test_lines = [f"- `{t['full_name']}` — {t['file_path']}" for t in all_tests]
+            sections.append("## Test Coverage\n\n" + "\n".join(test_lines))
+
+        # Summaries
+        interfaces = get_implemented_interfaces(self._conn, full_name)
+        summary_fns = [full_name] + [_p(iface)["full_name"] for iface in interfaces]
+        summaries_section = self._summaries_section(summary_fns)
+        if summaries_section:
+            sections.append(summaries_section)
+
+        return "\n\n---\n\n".join(sections)
 
     def trace_call_chain(self, start: str, end: str, max_depth: int = 6) -> dict:
         start = self._resolve(start)

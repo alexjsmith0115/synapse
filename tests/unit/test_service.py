@@ -783,3 +783,95 @@ def test_get_context_for_scope_edit_rejects_property():
         result = svc.get_context_for("Ns.Foo.Name", scope="edit")
     assert "scope='edit' requires" in result
     assert "property" in result
+
+
+def test_get_context_for_scope_edit_class_includes_all_sections(tmp_path):
+    source_file = tmp_path / "Svc.cs"
+    source_file.write_text(
+        "namespace Ns {\n"
+        "    class Svc : ISvc {\n"
+        "        public void DoWork() {}\n"
+        "    }\n"
+        "}\n"
+    )
+
+    svc = _service()
+    symbol = _node(["Class"], {"full_name": "Ns.Svc", "name": "Svc", "kind": "class"})
+    method = _node(["Method"], {"full_name": "Ns.Svc.DoWork", "name": "DoWork", "signature": "void DoWork()"})
+    caller = _node(["Method"], {"full_name": "Ns.Ctrl.Action", "file_path": "/src/Ctrl.cs"})
+    dep = _node(["Interface"], {"full_name": "Ns.IRepo"})
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=symbol),
+        get_symbol_source_info=MagicMock(return_value={
+            "file_path": str(source_file), "line": 1, "end_line": 3,
+        }),
+        get_implemented_interfaces=MagicMock(return_value=[
+            _node(["Interface"], {"full_name": "Ns.ISvc", "name": "ISvc"}),
+        ]),
+        get_members_overview=MagicMock(return_value=[method]),
+        find_callers_with_sites=MagicMock(return_value=[
+            {"caller": caller, "call_sites": [[10, 0]]},
+        ]),
+        find_all_deps=MagicMock(return_value=[dep]),
+        find_test_coverage=MagicMock(return_value=[
+            {"full_name": "Ns.Tests.SvcTests.TestDoWork", "file_path": "/tests/SvcTests.cs"},
+        ]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.Svc", scope="edit")
+
+    assert "## Target:" in result
+    assert "## Implemented Interfaces" in result
+    assert "## Callers" in result
+    assert "DoWork" in result
+    assert "`Ns.Ctrl.Action`" in result
+    assert "## Constructor Dependencies" in result
+    assert "Ns.IRepo" in result
+    assert "## Test Coverage" in result
+
+
+def test_get_context_for_scope_edit_interface_skips_constructor_deps():
+    svc = _service()
+    symbol = _node(["Interface"], {"full_name": "Ns.ISvc", "name": "ISvc", "kind": "interface"})
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=symbol),
+        get_symbol_source_info=MagicMock(return_value={
+            "file_path": "/src/ISvc.cs", "line": 0, "end_line": 5,
+        }),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        get_members_overview=MagicMock(return_value=[]),
+        find_callers_with_sites=MagicMock(return_value=[]),
+        find_all_deps=MagicMock(return_value=[]),
+        find_test_coverage=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.ISvc", scope="edit")
+
+    assert "## Target:" in result
+    assert "## Constructor Dependencies" not in result
+    assert "## Implemented Interfaces" not in result
+
+
+def test_get_context_for_scope_edit_class_no_methods_shows_note():
+    svc = _service()
+    symbol = _node(["Class"], {"full_name": "Ns.Empty", "name": "Empty", "kind": "class"})
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=symbol),
+        get_symbol_source_info=MagicMock(return_value={
+            "file_path": "/src/Empty.cs", "line": 0, "end_line": 1,
+        }),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        get_members_overview=MagicMock(return_value=[]),
+        find_all_deps=MagicMock(return_value=[]),
+        find_test_coverage=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.Empty", scope="edit")
+
+    assert "No public methods found" in result
