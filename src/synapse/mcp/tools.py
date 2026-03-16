@@ -222,7 +222,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_dependencies(full_name, depth)
 
     @mcp.tool()
-    def get_context_for(full_name: str, scope: str | None = None) -> str:
+    def get_context_for(full_name: str, scope: str | None = None, max_lines: int = 200) -> str:
         """Get rich context for a symbol: source, hierarchy, dependencies, and summaries.
 
         scope controls detail level:
@@ -232,8 +232,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         - "edit": task-oriented edit context — source, interface contract, direct callers with call-site
           lines, constructor dependencies relevant to the symbol, test coverage, summaries.
           Works for methods (filtered deps) and classes/interfaces (all deps, callers grouped by method).
+
+        max_lines: if source exceeds this many lines, show structure overview instead of full source.
+        Set to 0 for structure-only. Set to -1 to disable the limit.
         """
-        result = service.get_context_for(full_name, scope=scope)
+        result = service.get_context_for(full_name, scope=scope, max_lines=max_lines)
         if result:
             warning = service._staleness_warning(full_name)
             if warning:

@@ -301,7 +301,7 @@ class SynapseService:
                 result = parent + "\n\n" + result
         return result
 
-    def get_context_for(self, full_name: str, scope: str | None = None) -> str | None:
+    def get_context_for(self, full_name: str, scope: str | None = None, max_lines: int = 200) -> str | None:
         full_name = self._resolve(full_name)
         symbol = get_symbol(self._conn, full_name)
         if symbol is None:
@@ -317,24 +317,35 @@ class SynapseService:
         elif scope == "method":
             if not labels & {"Method", "Property"}:
                 return f"scope='method' requires a method or property, but '{full_name}' is a {props.get('kind', 'unknown')}."
-            return self._context_method(full_name)
+            return self._context_method(full_name, max_lines=max_lines)
         elif scope == "edit":
             if labels & {"Method"}:
-                return self._context_edit_method(full_name)
+                return self._context_edit_method(full_name, max_lines=max_lines)
             elif labels & {"Class", "Interface"}:
-                return self._context_edit_type(full_name, is_interface=bool(labels & {"Interface"}))
+                return self._context_edit_type(full_name, is_interface=bool(labels & {"Interface"}), max_lines=max_lines)
             else:
                 kind = props.get("kind", "unknown")
                 return f"scope='edit' requires a method, class, or interface, but '{full_name}' is a {kind}."
         elif scope is not None:
             return f"Unknown scope '{scope}'. Valid values: 'structure', 'method', 'edit'."
 
-        return self._context_full(full_name)
+        return self._context_full(full_name, labels=labels, max_lines=max_lines)
 
     # -- Shared section builders used by _context_full / _context_structure / _context_method --
 
-    def _target_section(self, full_name: str) -> str:
+    def _target_section(self, full_name: str, max_lines: int = -1, labels: set[str] | None = None) -> str:
         source = self.get_symbol_source(full_name)
+        if source is not None and max_lines >= 0:
+            line_count = source.count("\n") + 1
+            if line_count > max_lines:
+                note = f"[Source exceeds {max_lines} lines — showing structure. Use scope='method' on individual methods for full source.]"
+                if labels and labels & {"Class", "Interface"}:
+                    members = get_members_overview(self._conn, full_name)
+                    member_lines = "\n".join(_member_line(m) for m in members)
+                    return f"## Target: {full_name}\n\n{note}\n\n{member_lines}"
+                else:
+                    sig_line = source.split("\n", 1)[0]
+                    return f"## Target: {full_name}\n\n{note}\n\n{sig_line}"
         return f"## Target: {full_name}\n\n{source or 'Source not available (re-index may be required)'}"
 
     def _interfaces_section(self, type_full_name: str) -> str | None:
@@ -431,10 +442,10 @@ class SynapseService:
             return None
         return "## Summaries\n\n" + "\n\n".join(entries)
 
-    def _context_full(self, full_name: str) -> str:
+    def _context_full(self, full_name: str, labels: set[str] | None = None, max_lines: int = -1) -> str:
         sections: list[str] = []
 
-        sections.append(self._target_section(full_name))
+        sections.append(self._target_section(full_name, max_lines=max_lines, labels=labels or set()))
 
         parent = get_containing_type(self._conn, full_name)
         if parent:
@@ -508,10 +519,10 @@ class SynapseService:
             return f"No structure information available for `{full_name}`."
         return "\n\n---\n\n".join(sections)
 
-    def _context_method(self, full_name: str) -> str:
+    def _context_method(self, full_name: str, max_lines: int = -1) -> str:
         sections: list[str] = []
 
-        sections.append(self._target_section(full_name))
+        sections.append(self._target_section(full_name, max_lines=max_lines, labels={"Method"}))
 
         # Interface contract
         contract = find_interface_contract(self._conn, full_name)
@@ -547,10 +558,10 @@ class SynapseService:
 
         return "\n\n---\n\n".join(sections)
 
-    def _context_edit_method(self, full_name: str) -> str:
+    def _context_edit_method(self, full_name: str, max_lines: int = -1) -> str:
         sections: list[str] = []
 
-        sections.append(self._target_section(full_name))
+        sections.append(self._target_section(full_name, max_lines=max_lines, labels={"Method"}))
 
         # Interface contract
         contract = find_interface_contract(self._conn, full_name)
@@ -601,10 +612,11 @@ class SynapseService:
     _TYPE_CALLER_LIMIT = 10
     _TYPE_METHOD_LIMIT = 10
 
-    def _context_edit_type(self, full_name: str, is_interface: bool = False) -> str:
+    def _context_edit_type(self, full_name: str, is_interface: bool = False, max_lines: int = -1) -> str:
         sections: list[str] = []
 
-        sections.append(self._target_section(full_name))
+        labels = {"Interface"} if is_interface else {"Class"}
+        sections.append(self._target_section(full_name, max_lines=max_lines, labels=labels))
 
         # Interface contracts (only for classes)
         if not is_interface:

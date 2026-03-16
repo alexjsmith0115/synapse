@@ -258,9 +258,10 @@ def dependencies(full_name: str) -> None:
 def context(
     full_name: str,
     scope: Annotated[str | None, typer.Option(help="Scope: 'structure', 'method', 'edit', or omit for full")] = None,
+    max_lines: int = typer.Option(200, "--max-lines", help="Auto-fallback to structure if source exceeds this many lines (-1 = unlimited)"),
 ) -> None:
     """Get the full context needed to understand or modify a symbol."""
-    result = _get_service().get_context_for(full_name, scope=scope)
+    result = _get_service().get_context_for(full_name, scope=scope, max_lines=max_lines)
     typer.echo(result or "Not found")
 
 

@@ -995,3 +995,132 @@ def test_find_usages_property_returns_callers() -> None:
 
     assert result["kind"] == "Property"
     assert len(result["callers"]) == 1
+
+
+# --- max_lines fallback tests ---
+
+
+def test_get_context_for_falls_back_to_structure_when_source_exceeds_max_lines(tmp_path) -> None:
+    """When source > max_lines, show structure overview instead of full source."""
+    source_file = tmp_path / "BigClass.cs"
+    source_lines = "\n".join([f"// line {i}" for i in range(300)])
+    source_file.write_text(source_lines)
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    class_node = _node(["Class"], {
+        "full_name": "Ns.BigClass", "name": "BigClass", "kind": "class",
+        "line": 0, "end_line": 299,
+    })
+    member = _node(["Method"], {
+        "full_name": "Ns.BigClass.DoWork", "name": "DoWork",
+        "signature": "void DoWork()",
+    })
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=class_node),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 299}),
+        get_containing_type=MagicMock(return_value=None),
+        get_members_overview=MagicMock(return_value=[member]),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        find_callees=MagicMock(return_value=[]),
+        query_find_dependencies=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.BigClass", max_lines=50)
+
+    assert "Source exceeds 50 lines" in result
+    assert "scope='method'" in result
+    assert "DoWork" in result  # member signature visible
+
+
+def test_get_context_for_shows_full_source_when_under_max_lines(tmp_path) -> None:
+    """When source <= max_lines, show full source as usual."""
+    source_file = tmp_path / "Small.cs"
+    source_file.write_text("public class Small {}\nint x;\n")
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    class_node = _node(["Class"], {
+        "full_name": "Ns.Small", "name": "Small", "kind": "class",
+        "line": 0, "end_line": 1,
+    })
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=class_node),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 1}),
+        get_containing_type=MagicMock(return_value=None),
+        get_members_overview=MagicMock(return_value=[]),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        find_callees=MagicMock(return_value=[]),
+        query_find_dependencies=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.Small", max_lines=200)
+
+    assert "Source exceeds" not in result
+    assert "public class Small" in result
+
+
+def test_get_context_for_max_lines_zero_always_uses_structure(tmp_path) -> None:
+    """max_lines=0 means always use structure view."""
+    source_file = tmp_path / "X.cs"
+    source_file.write_text("class X {}\n")
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    class_node = _node(["Class"], {
+        "full_name": "Ns.X", "name": "X", "kind": "class",
+        "line": 0, "end_line": 0,
+    })
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=class_node),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 0}),
+        get_containing_type=MagicMock(return_value=None),
+        get_members_overview=MagicMock(return_value=[]),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        find_callees=MagicMock(return_value=[]),
+        query_find_dependencies=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.X", max_lines=0)
+
+    assert "Source exceeds 0 lines" in result
+
+
+def test_get_context_for_negative_max_lines_disables_fallback(tmp_path) -> None:
+    """Negative max_lines means unlimited — no fallback."""
+    source_file = tmp_path / "Huge.cs"
+    source_lines = "\n".join([f"// line {i}" for i in range(500)])
+    source_file.write_text(source_lines)
+
+    conn = MagicMock()
+    svc = SynapseService(conn)
+
+    class_node = _node(["Class"], {
+        "full_name": "Ns.Huge", "name": "Huge", "kind": "class",
+        "line": 0, "end_line": 499,
+    })
+
+    with patch.multiple(
+        "synapse.service",
+        get_symbol=MagicMock(return_value=class_node),
+        get_symbol_source_info=MagicMock(return_value={"file_path": str(source_file), "line": 0, "end_line": 499}),
+        get_containing_type=MagicMock(return_value=None),
+        get_members_overview=MagicMock(return_value=[]),
+        get_implemented_interfaces=MagicMock(return_value=[]),
+        find_callees=MagicMock(return_value=[]),
+        query_find_dependencies=MagicMock(return_value=[]),
+        get_summary=MagicMock(return_value=None),
+    ):
+        result = svc.get_context_for("Ns.Huge", max_lines=-1)
+
+    assert "Source exceeds" not in result
+    assert "// line 0" in result
