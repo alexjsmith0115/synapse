@@ -35,6 +35,11 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def index_project(path: str, language: str = "csharp") -> str:
+        """Index a project's codebase into the graph. Destructive: drops all existing graph data for this project and re-indexes from scratch.
+
+        Uses LSP for structural analysis (symbols, inheritance, implementations) and tree-sitter for call site detection.
+        Currently only supports C# projects (language='csharp').
+        """
         service.index_project(path, language)
         return f"Indexed {path}"
 
@@ -45,6 +50,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def delete_project(path: str) -> str:
+        """Delete a project and all its graph data (nodes, edges, summaries). This is irreversible."""
         service.delete_project(path)
         return f"Deleted {path}"
 
@@ -55,7 +61,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_symbol(full_name: str) -> dict | None:
-        """Get a symbol node by full name (supports short names)."""
+        """Get a symbol's metadata (file path, line range, kind, full name) by full name or short name. Does not return source code — use get_symbol_source for that."""
         result = service.get_symbol(full_name)
         if result:
             warning = service._staleness_warning(full_name)
@@ -65,7 +71,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
-        """Fetch the source code of a specific symbol by full name. Use include_class_signature=True to include the enclosing class declaration."""
+        """Fetch the source code of a specific symbol by full name. Reads from the file on disk using the line range recorded at index time. Use include_class_signature=True to include the enclosing class declaration."""
         result = service.get_symbol_source(full_name, include_class_signature)
         if result is not None:
             return result
@@ -147,6 +153,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
     @mcp.tool()
     def get_summary(full_name: str) -> str | None:
+        """Retrieve a previously stored summary for a symbol. Returns None if no summary has been set."""
         return service.get_summary(full_name)
 
     @mcp.tool()
