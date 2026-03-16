@@ -217,6 +217,30 @@ def type_refs(full_name: str) -> None:
         typer.echo(f"{fn} ({kind})")
 
 
+@app.command("usages")
+def usages(
+    full_name: str = typer.Argument(help="Symbol to find usages of"),
+    include_tests: bool = typer.Option(False, "--include-tests", help="Include test usages"),
+) -> None:
+    """Find all code that uses a symbol (callers + type references)."""
+    svc = _get_service()
+    result = svc.find_usages(full_name, exclude_test_callers=not include_tests)
+    if "error" in result:
+        typer.echo(result["error"])
+        raise typer.Exit(1)
+    typer.echo(f"Usages of {result['symbol']} ({result['kind']}):")
+    if "callers" in result:
+        for c in result["callers"]:
+            typer.echo(f"  [caller] {c['full_name']}")
+    if "type_references" in result:
+        for r in result["type_references"]:
+            typer.echo(f"  [ref:{r['kind']}] {r['symbol']['full_name']}")
+    if "method_callers" in result:
+        for method_fn, callers in result["method_callers"].items():
+            for c in callers:
+                typer.echo(f"  [caller of {method_fn.rsplit('.', 1)[-1]}] {c['full_name']}")
+
+
 @app.command()
 def dependencies(full_name: str) -> None:
     """Find all types referenced by a symbol."""

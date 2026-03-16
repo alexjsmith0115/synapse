@@ -67,3 +67,20 @@ def test_list_projects_has_description():
     """list_projects must have a docstring so FastMCP generates a tool description."""
     fns = _register(MagicMock())
     assert fns["list_projects"].__doc__, "list_projects must have a docstring"
+
+
+def test_find_usages_tool_delegates_to_service() -> None:
+    service = MagicMock()
+    service.find_usages.return_value = {"symbol": "Ns.Svc", "kind": "Class", "type_references": [], "method_callers": {}}
+    fns = _register(service)
+    result = fns["find_usages"]("Ns.Svc")
+    service.find_usages.assert_called_once_with("Ns.Svc", True)
+    assert result["kind"] == "Class"
+
+
+def test_find_usages_tool_passes_exclude_flag() -> None:
+    service = MagicMock()
+    service.find_usages.return_value = {"symbol": "Ns.M", "kind": "Method", "callers": []}
+    fns = _register(service)
+    fns["find_usages"]("Ns.M", exclude_test_callers=False)
+    service.find_usages.assert_called_once_with("Ns.M", False)

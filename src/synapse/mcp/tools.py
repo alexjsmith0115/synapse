@@ -201,6 +201,17 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_type_references(full_name)
 
     @mcp.tool()
+    def find_usages(full_name: str, exclude_test_callers: bool = True) -> dict:
+        """Find all code that uses a symbol — auto-detects symbol kind.
+
+        For methods/properties/fields: returns callers (CALLS edges).
+        For classes/interfaces: returns type references (REFERENCES edges)
+        plus callers of each method on the type.
+        Test usages are excluded by default. Set exclude_test_callers=False to include them.
+        """
+        return service.find_usages(full_name, exclude_test_callers)
+
+    @mcp.tool()
     def find_dependencies(full_name: str, depth: int = 1) -> list[dict]:
         """Find field-type dependencies for the given symbol.
 
