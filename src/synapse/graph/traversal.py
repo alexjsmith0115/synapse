@@ -13,6 +13,9 @@ so the depth integer is inlined into the Cypher string after validation
 from synapse.graph.connection import GraphConnection
 from synapse.graph.lookups import _TEST_PATH_PATTERN
 
+_CONTROLLER_CLASS_ATTRS = frozenset({"ApiController"})
+_HTTP_VERB_ATTRS = frozenset({"HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch"})
+
 
 def _clamp_depth(depth: int, max_allowed: int = 10) -> int:
     return max(1, min(int(depth), max_allowed))
@@ -54,6 +57,11 @@ def find_entry_points(
 ) -> dict:
     """Walk backwards to find root callers with no incoming CALLS edges from non-excluded sources.
 
+    Uses two query strategies and merges results (shortest path per entry wins):
+      1. Root callers — methods with no incoming CALLS from non-excluded sources.
+      2. Attributed controllers — methods on [ApiController] classes or decorated
+         with HTTP verb attributes ([HttpGet], [HttpPost], etc.).
+
     exclude_pattern: optional regex applied to caller full_names during traversal.
     Callers matching the pattern are invisible — so their callees become roots.
     For example, passing ".*\\.Tests\\..*" promotes controller actions to roots
@@ -65,7 +73,10 @@ def find_entry_points(
     depth = _clamp_depth(max_depth)
     test_pattern = _TEST_PATH_PATTERN if exclude_test_callers else ""
     test_clause = "AND ($test_pattern = '' OR NOT entry.file_path =~ $test_pattern) "
-    rows = conn.query(
+    params = {"method": method, "exclude_pattern": exclude_pattern, "test_pattern": test_pattern}
+
+    # Query 1: root callers (no incoming CALLS from non-excluded sources)
+    root_rows = conn.query(
         f"MATCH p=(entry:Method)-[:CALLS|DISPATCHES_TO*1..{depth}]->(m:Method) "
         "WHERE NOT EXISTS { "
         "    MATCH (caller)-[:CALLS]->(entry) "
@@ -80,12 +91,44 @@ def find_entry_points(
         "WITH entry, collect(path)[0] AS path "
         "RETURN path "
         "LIMIT 20",
-        {"method": method, "exclude_pattern": exclude_pattern, "test_pattern": test_pattern},
+        params,
     )
+
+    # Query 2: attributed controller methods (class has [ApiController] or method has HTTP verb attrs)
+    attr_rows = conn.query(
+        f"MATCH p=(entry:Method)-[:CALLS|DISPATCHES_TO*1..{depth}]->(m:Method) "
+        "WHERE m.full_name = $method "
+        "AND ("
+        "  EXISTS { MATCH (cls)-[:CONTAINS]->(entry) WHERE cls.attributes CONTAINS 'ApiController' }"
+        "  OR entry.attributes CONTAINS 'HttpGet'"
+        "  OR entry.attributes CONTAINS 'HttpPost'"
+        "  OR entry.attributes CONTAINS 'HttpPut'"
+        "  OR entry.attributes CONTAINS 'HttpDelete'"
+        "  OR entry.attributes CONTAINS 'HttpPatch'"
+        ") "
+        "AND ($exclude_pattern = '' OR NOT entry.full_name =~ $exclude_pattern) "
+        f"{test_clause}"
+        "WITH entry, [n in nodes(p) | n.full_name] AS path "
+        "ORDER BY size(path) ASC "
+        "WITH entry, collect(path)[0] AS path "
+        "RETURN path "
+        "LIMIT 20",
+        params,
+    )
+
+    # Merge: shortest path per entry point wins
+    best: dict[str, list[str]] = {}
+    for rows in (root_rows, attr_rows):
+        for r in rows:
+            path = r[0]
+            entry = path[0]
+            if entry not in best or len(path) < len(best[entry]):
+                best[entry] = path
+
     return {
         "entry_points": [
-            {"entry": r[0][0], "path": r[0]}
-            for r in rows
+            {"entry": entry, "path": path}
+            for entry, path in best.items()
         ],
         "target": method,
         "max_depth": depth,

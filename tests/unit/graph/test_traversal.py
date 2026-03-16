@@ -39,7 +39,11 @@ def test_trace_call_chain_depth_in_cypher() -> None:
 
 
 def test_find_entry_points_returns_paths() -> None:
-    conn = _conn([[["Controller.Action", "Svc.Do", "Repo.Save"]]])
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[["Controller.Action", "Svc.Do", "Repo.Save"]]],  # root query
+        [],  # attributed query
+    ]
     result = find_entry_points(conn, "Repo.Save")
     assert len(result["entry_points"]) == 1
     assert result["entry_points"][0]["entry"] == "Controller.Action"
@@ -48,7 +52,8 @@ def test_find_entry_points_returns_paths() -> None:
 
 
 def test_find_entry_points_empty() -> None:
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     result = find_entry_points(conn, "Orphan.Method")
     assert result["entry_points"] == []
 
@@ -84,9 +89,10 @@ def test_trace_call_chain_traverses_dispatches_to() -> None:
 
 def test_find_entry_points_traverses_dispatches_to() -> None:
     """Query must traverse DISPATCHES_TO to find entry points that reach $method via an interface."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "A.Service.CreateAsync")
-    cypher = conn.query.call_args[0][0]
+    cypher = conn.query.call_args_list[0][0][0]
     assert "DISPATCHES_TO" in cypher, (
         "find_entry_points must traverse DISPATCHES_TO edges so controller→interface→service "
         "paths are included"
@@ -95,10 +101,11 @@ def test_find_entry_points_traverses_dispatches_to() -> None:
 
 def test_find_entry_points_exclude_pattern_in_cypher() -> None:
     """exclude_pattern uses NOT EXISTS to filter callers, not a post-filter on roots."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_pattern=".*\\.Tests\\..*")
-    cypher = conn.query.call_args[0][0]
-    params = conn.query.call_args[0][1]
+    cypher = conn.query.call_args_list[0][0][0]
+    params = conn.query.call_args_list[0][0][1]
     assert "NOT EXISTS" in cypher
     assert "$exclude_pattern" in cypher
     assert params["exclude_pattern"] == ".*\\.Tests\\..*"
@@ -106,18 +113,23 @@ def test_find_entry_points_exclude_pattern_in_cypher() -> None:
 
 def test_find_entry_points_no_exclude_clause_when_pattern_empty() -> None:
     """$exclude_pattern is always passed; empty string makes it a no-op."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do")
-    params = conn.query.call_args[0][1]
+    params = conn.query.call_args_list[0][0][1]
     assert params["exclude_pattern"] == ""
 
 
 def test_find_entry_points_exclude_promotes_callers_to_roots() -> None:
     """When a caller matches the exclude pattern, the Cypher uses NOT EXISTS so its
     own callers (e.g. controller actions) are evaluated as potential roots instead."""
-    conn = _conn([[["Controller.Action", "Service.Method"]]])
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[["Controller.Action", "Service.Method"]]],  # root query
+        [],  # attributed query
+    ]
     result = find_entry_points(conn, "Service.Method", exclude_pattern=".*Test.*")
-    cypher = conn.query.call_args[0][0]
+    cypher = conn.query.call_args_list[0][0][0]
     # NOT EXISTS is the structural indicator that callers are filtered during traversal
     assert "NOT EXISTS" in cypher
     # r[0][0] is the entry point
@@ -126,9 +138,10 @@ def test_find_entry_points_exclude_promotes_callers_to_roots() -> None:
 
 def test_find_entry_points_deduplicates_by_entry() -> None:
     """Query uses ORDER BY + collect to return one path per entry (shortest first)."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Repo.Save")
-    cypher = conn.query.call_args[0][0]
+    cypher = conn.query.call_args_list[0][0][0]
     assert "ORDER BY size(path)" in cypher
     assert "collect(path)[0]" in cypher
 
@@ -154,27 +167,30 @@ def test_trace_call_chain_crosses_interface_boundary() -> None:
 
 def test_find_entry_points_excludes_tests_by_default() -> None:
     """By default, entry points whose file_path matches the test path pattern are excluded."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do")
-    params = conn.query.call_args[0][1]
-    cypher = conn.query.call_args[0][0]
+    params = conn.query.call_args_list[0][0][1]
+    cypher = conn.query.call_args_list[0][0][0]
     assert params["test_pattern"] == _TEST_PATH_PATTERN
     assert "$test_pattern" in cypher
 
 
 def test_find_entry_points_include_tests_when_requested() -> None:
     """When exclude_test_callers=False, test_pattern is empty and no test filtering occurs."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_test_callers=False)
-    params = conn.query.call_args[0][1]
+    params = conn.query.call_args_list[0][0][1]
     assert params["test_pattern"] == ""
 
 
 def test_find_entry_points_exclude_tests_composes_with_exclude_pattern() -> None:
     """Both exclude_pattern and test_pattern can be active simultaneously."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_pattern=".*\\.Tests\\..*", exclude_test_callers=True)
-    params = conn.query.call_args[0][1]
+    params = conn.query.call_args_list[0][0][1]
     assert params["exclude_pattern"] == ".*\\.Tests\\..*"
     assert params["test_pattern"] == _TEST_PATH_PATTERN
 
@@ -183,9 +199,10 @@ def test_find_entry_points_test_pattern_filters_callers_in_not_exists() -> None:
     """When exclude_test_callers=True, the NOT EXISTS clause must also filter
     callers by $test_pattern so methods whose only callers are in test paths
     are recognized as roots."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_test_callers=True)
-    cypher = conn.query.call_args[0][0]
+    cypher = conn.query.call_args_list[0][0][0]
     # Extract the NOT EXISTS block
     not_exists_start = cypher.index("NOT EXISTS")
     brace_depth = 0
@@ -207,7 +224,43 @@ def test_find_entry_points_test_pattern_filters_callers_in_not_exists() -> None:
 
 def test_find_entry_points_test_pattern_is_empty_when_disabled() -> None:
     """When exclude_test_callers=False, test_pattern is empty string, making all test-path clauses no-ops."""
-    conn = _conn([])
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_test_callers=False)
-    params = conn.query.call_args[0][1]
+    params = conn.query.call_args_list[0][0][1]
     assert params["test_pattern"] == ""
+
+
+def test_find_entry_points_attributed_controller() -> None:
+    """Controller methods with [ApiController] attribute are entry points even with callers."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [],  # First query (root callers) returns nothing
+        [[["Ns.Controller.Action", "Ns.Svc.Do"]]],  # Second query (attributed) returns a path
+    ]
+    result = find_entry_points(conn, "Ns.Svc.Do")
+    assert len(result["entry_points"]) == 1
+    assert result["entry_points"][0]["entry"] == "Ns.Controller.Action"
+
+
+def test_find_entry_points_attributed_deduplicates_with_roots() -> None:
+    """If a method appears in both root and attributed results, keep shortest path."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[["Ns.Controller.Action", "Ns.Svc.Do"]]],  # Root query
+        [[["Ns.Controller.Action", "Ns.Mid.Call", "Ns.Svc.Do"]]],  # Attributed query (longer path)
+    ]
+    result = find_entry_points(conn, "Ns.Svc.Do")
+    assert len(result["entry_points"]) == 1
+    assert result["entry_points"][0]["path"] == ["Ns.Controller.Action", "Ns.Svc.Do"]
+
+
+def test_find_entry_points_attributed_query_checks_attributes() -> None:
+    """The attributed query must check for controller/HTTP verb attributes."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    find_entry_points(conn, "Ns.Svc.Do")
+    assert conn.query.call_count == 2
+    attributed_cypher = conn.query.call_args_list[1][0][0]
+    assert "attributes" in attributed_cypher
+    assert "ApiController" in attributed_cypher
