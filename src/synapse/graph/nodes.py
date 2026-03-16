@@ -90,6 +90,29 @@ def delete_file_nodes(conn: GraphConnection, file_path: str) -> None:
     )
 
 
+def collect_summaries(conn: GraphConnection, file_path: str) -> list[dict]:
+    """Collect all summaries from :Summarized nodes under a file, for save/restore across re-indexing."""
+    rows = conn.query(
+        "MATCH (f:File {path: $path})-[:CONTAINS*]->(n:Summarized) "
+        "RETURN n.full_name, n.summary, n.summary_updated_at",
+        {"path": file_path},
+    )
+    return [
+        {"full_name": r[0], "summary": r[1], "summary_updated_at": r[2]}
+        for r in rows
+    ]
+
+
+def restore_summaries(conn: GraphConnection, summaries: list[dict]) -> None:
+    """Restore previously collected summaries. Silently skips nodes that no longer exist."""
+    for s in summaries:
+        conn.execute(
+            "MATCH (n {full_name: $full_name}) "
+            "SET n:Summarized, n.summary = $content, n.summary_updated_at = $ts",
+            {"full_name": s["full_name"], "content": s["summary"], "ts": s["summary_updated_at"]},
+        )
+
+
 def set_summary(conn: GraphConnection, full_name: str, content: str) -> None:
     conn.execute(
         "MATCH (n {full_name: $full_name}) "

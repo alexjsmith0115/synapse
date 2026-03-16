@@ -3,7 +3,7 @@ from synapse.graph.nodes import (
     upsert_repository, upsert_directory, upsert_file,
     upsert_package, upsert_interface, upsert_class, upsert_method,
     upsert_property, upsert_field, delete_file_nodes,
-    set_summary, remove_summary,
+    set_summary, remove_summary, collect_summaries, restore_summaries,
 )
 
 
@@ -162,3 +162,44 @@ def test_upsert_interface_sets_kind_property() -> None:
     upsert_interface(conn, "Ns.IFoo", "IFoo")
     cypher = conn.execute.call_args[0][0]
     assert "n.kind = 'interface'" in cypher, "upsert_interface must set n.kind = 'interface' in the SET clause"
+
+
+def test_collect_summaries_queries_summarized_nodes_under_file() -> None:
+    conn = _conn()
+    conn.query.return_value = [
+        ("MyNs.MyClass", "Class summary", "2026-03-16T00:00:00+00:00"),
+        ("MyNs.MyClass.DoWork", "Method summary", "2026-03-16T00:00:00+00:00"),
+    ]
+    result = collect_summaries(conn, "/proj/Foo.cs")
+    cypher = conn.query.call_args[0][0]
+    params = conn.query.call_args[0][1]
+    assert "Summarized" in cypher
+    assert "CONTAINS" in cypher
+    assert params["path"] == "/proj/Foo.cs"
+    assert len(result) == 2
+    assert result[0] == {
+        "full_name": "MyNs.MyClass",
+        "summary": "Class summary",
+        "summary_updated_at": "2026-03-16T00:00:00+00:00",
+    }
+
+
+def test_restore_summaries_reapplies_label_and_properties() -> None:
+    conn = _conn()
+    summaries = [
+        {"full_name": "MyNs.MyClass", "summary": "Class summary", "summary_updated_at": "2026-03-16T00:00:00+00:00"},
+    ]
+    restore_summaries(conn, summaries)
+    cypher = conn.execute.call_args[0][0]
+    params = conn.execute.call_args[0][1]
+    assert "Summarized" in cypher
+    assert "SET" in cypher
+    assert params["full_name"] == "MyNs.MyClass"
+    assert params["content"] == "Class summary"
+    assert params["ts"] == "2026-03-16T00:00:00+00:00"
+
+
+def test_restore_summaries_skips_empty_list() -> None:
+    conn = _conn()
+    restore_summaries(conn, [])
+    conn.execute.assert_not_called()
