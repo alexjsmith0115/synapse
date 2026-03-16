@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from synapse.service import SynapseService
+
+SymbolKindLiteral = Literal[
+    "Class", "Interface", "Method", "Property", "Field",
+    "Namespace", "File", "Directory", "Repository",
+]
+AuditRuleLiteral = Literal["layering_violations", "untested_services"]
 
 _GRAPH_SCHEMA = {
     "node_labels": {
@@ -131,14 +139,13 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     @mcp.tool()
     def search_symbols(
         query: str,
-        kind: str | None = None,
+        kind: SymbolKindLiteral | None = None,
         namespace: str | None = None,
         file_path: str | None = None,
     ) -> list[dict]:
         """Search for symbols by name substring.
 
-        kind: filter by node type. Valid values: Class, Interface, Method, Property,
-              Field, Namespace, File, Directory, Repository.
+        kind: filter by node type.
         namespace: filter to symbols whose full_name starts with this prefix
                    (e.g. "MyNs.Services").
         file_path: filter to symbols defined in this file path.
@@ -275,10 +282,9 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_type_impact(type_name)
 
     @mcp.tool()
-    def audit_architecture(rule: str) -> dict:
+    def audit_architecture(rule: AuditRuleLiteral) -> dict:
         """Run an architectural audit rule against the codebase graph.
 
-        Valid rules: layering_violations, untested_services.
         Returns {rule, description, violations: [dict], count}.
         These rules are C#/.NET-specific.
         """
