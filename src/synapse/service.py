@@ -11,7 +11,7 @@ from synapse.graph.lookups import (
     list_projects, get_index_status, execute_readonly_query,
     get_method_symbol_map, get_symbol_source_info, check_staleness,
     get_containing_type, get_members_overview, get_implemented_interfaces,
-    resolve_full_name,
+    get_constructor, resolve_full_name,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
 )
@@ -34,6 +34,12 @@ def _p(node) -> dict:
             result["_labels"] = list(node.labels)
         return result
     return node
+
+
+def _member_line(m) -> str:
+    mp = _p(m)
+    sig = mp.get("signature") or mp.get("type_name") or ""
+    return f"  {mp.get('name', '?')}: {sig}"
 
 
 class SynapseService:
@@ -227,84 +233,191 @@ class SynapseService:
                 result = parent + "\n\n" + result
         return result
 
-    def get_context_for(self, full_name: str) -> str | None:
+    def get_context_for(self, full_name: str, scope: str | None = None) -> str | None:
         full_name = self._resolve(full_name)
         symbol = get_symbol(self._conn, full_name)
         if symbol is None:
             return None
 
+        props = _p(symbol)
+        labels = set(props.get("_labels", []))
+
+        if scope == "structure":
+            if not labels & {"Class", "Interface"}:
+                return f"scope='structure' requires a type (class or interface), but '{full_name}' is a {props.get('kind', 'unknown')}."
+            return self._context_structure(full_name)
+        elif scope == "method":
+            if not labels & {"Method", "Property"}:
+                return f"scope='method' requires a method or property, but '{full_name}' is a {props.get('kind', 'unknown')}."
+            return self._context_method(full_name)
+        elif scope is not None:
+            return f"Unknown scope '{scope}'. Valid values: 'structure', 'method'."
+
+        return self._context_full(full_name)
+
+    # -- Shared section builders used by _context_full / _context_structure / _context_method --
+
+    def _target_section(self, full_name: str) -> str:
+        source = self.get_symbol_source(full_name)
+        return f"## Target: {full_name}\n\n{source or 'Source not available (re-index may be required)'}"
+
+    def _interfaces_section(self, type_full_name: str) -> str | None:
+        interfaces = get_implemented_interfaces(self._conn, type_full_name)
+        if not interfaces:
+            return None
+        iface_blocks = []
+        for iface in interfaces:
+            iface_fn = _p(iface)["full_name"]
+            iface_members = get_members_overview(self._conn, iface_fn)
+            lines = [_member_line(m) for m in iface_members]
+            iface_blocks.append(f"### {iface_fn}\n" + "\n".join(lines))
+        return "## Implemented Interfaces\n\n" + "\n\n".join(iface_blocks)
+
+    def _callees_section(self, full_name: str) -> str | None:
+        callees = self.find_callees(full_name)
+        if not callees:
+            return None
+        lines = [f"- `{c['full_name']}` — {c.get('signature', '')}" for c in callees]
+        return "## Called Methods\n\n" + "\n".join(lines)
+
+    def _dependencies_section(self, full_name: str) -> str | None:
+        deps = self.find_dependencies(full_name)
+        if not deps:
+            return None
+        dep_lines = []
+        seen_types: set[str] = set()
+        for dep in deps:
+            type_fn = dep["type"]["full_name"]
+            if type_fn in seen_types:
+                continue
+            seen_types.add(type_fn)
+            type_members = get_members_overview(self._conn, type_fn)
+            dep_lines.append(f"### {type_fn}\n" + "\n".join(_member_line(m) for m in type_members))
+        return "## Parameter & Return Types\n\n" + "\n\n".join(dep_lines)
+
+    def _summaries_section(self, full_names: list[str]) -> str | None:
+        entries = []
+        for fn in full_names:
+            s = get_summary(self._conn, fn)
+            if s:
+                entries.append(f"**{fn}:** {s}")
+        if not entries:
+            return None
+        return "## Summaries\n\n" + "\n\n".join(entries)
+
+    def _context_full(self, full_name: str) -> str:
         sections: list[str] = []
 
-        source = self.get_symbol_source(full_name)
-        sections.append(f"## Target: {full_name}\n\n{source or 'Source not available (re-index may be required)'}")
+        sections.append(self._target_section(full_name))
 
         parent = get_containing_type(self._conn, full_name)
         if parent:
             parent_fn = _p(parent)["full_name"]
             members = get_members_overview(self._conn, parent_fn)
-            member_lines = []
-            for m in members:
-                mp = _p(m)
-                sig = mp.get("signature") or mp.get("type_name") or ""
-                member_lines.append(f"  {mp.get('name', '?')}: {sig}")
             sections.append(
                 f"## Containing Type: {parent_fn}\n\n"
-                + "\n".join(member_lines)
+                + "\n".join(_member_line(m) for m in members)
             )
 
-            interfaces = get_implemented_interfaces(self._conn, parent_fn)
-            if interfaces:
-                iface_lines = []
-                for iface in interfaces:
-                    iface_fn = _p(iface)["full_name"]
-                    iface_members = get_members_overview(self._conn, iface_fn)
-                    iface_sigs = [f"  {_p(m).get('name', '?')}: {_p(m).get('signature', '')}" for m in iface_members]
-                    iface_lines.append(f"### {iface_fn}\n" + "\n".join(iface_sigs))
-                sections.append("## Implemented Interfaces\n\n" + "\n\n".join(iface_lines))
+            iface_section = self._interfaces_section(parent_fn)
+            if iface_section:
+                sections.append(iface_section)
 
-        callees = self.find_callees(full_name)
-        if callees:
-            callee_lines = [f"- `{c['full_name']}` — {c.get('signature', '')}" for c in callees]
-            sections.append("## Called Methods\n\n" + "\n".join(callee_lines))
+        callees_section = self._callees_section(full_name)
+        if callees_section:
+            sections.append(callees_section)
 
-        deps = self.find_dependencies(full_name)
-        if deps:
-            dep_lines = []
-            seen_types: set[str] = set()
-            for dep in deps:
-                type_fn = dep["type"]["full_name"]
-                if type_fn in seen_types:
-                    continue
-                seen_types.add(type_fn)
-                type_members = get_members_overview(self._conn, type_fn)
-                member_sigs = [f"  {_p(m).get('name', '?')}: {_p(m).get('signature', '') or _p(m).get('type_name', '')}" for m in type_members]
-                dep_lines.append(f"### {type_fn}\n" + "\n".join(member_sigs))
-            sections.append("## Parameter & Return Types\n\n" + "\n\n".join(dep_lines))
+        deps_section = self._dependencies_section(full_name)
+        if deps_section:
+            sections.append(deps_section)
 
-        # Surface any existing summaries for the symbol and its containing type/interfaces
-        summary_entries: list[str] = []
-        sym_summary = get_summary(self._conn, full_name)
-        if sym_summary:
-            summary_entries.append(f"**{full_name}:** {sym_summary}")
+        # Summaries: symbol + parent + parent's interfaces, or symbol + own interfaces
+        summary_fns = [full_name]
         if parent:
             parent_fn = _p(parent)["full_name"]
-            parent_summary = get_summary(self._conn, parent_fn)
-            if parent_summary:
-                summary_entries.append(f"**{parent_fn}:** {parent_summary}")
+            summary_fns.append(parent_fn)
             for iface in get_implemented_interfaces(self._conn, parent_fn):
-                iface_fn = _p(iface)["full_name"]
-                iface_summary = get_summary(self._conn, iface_fn)
-                if iface_summary:
-                    summary_entries.append(f"**{iface_fn}:** {iface_summary}")
+                summary_fns.append(_p(iface)["full_name"])
         else:
-            own_interfaces = get_implemented_interfaces(self._conn, full_name)
-            for iface in own_interfaces:
-                iface_fn = _p(iface)["full_name"]
-                iface_summary = get_summary(self._conn, iface_fn)
-                if iface_summary:
-                    summary_entries.append(f"**{iface_fn}:** {iface_summary}")
-        if summary_entries:
-            sections.append("## Summaries\n\n" + "\n\n".join(summary_entries))
+            for iface in get_implemented_interfaces(self._conn, full_name):
+                summary_fns.append(_p(iface)["full_name"])
+        summaries_section = self._summaries_section(summary_fns)
+        if summaries_section:
+            sections.append(summaries_section)
+
+        return "\n\n---\n\n".join(sections)
+
+    def _context_structure(self, full_name: str) -> str:
+        sections: list[str] = []
+
+        # Constructor source (if exists)
+        ctor = get_constructor(self._conn, full_name)
+        if ctor is not None:
+            ctor_fn = _p(ctor)["full_name"]
+            ctor_source = self.get_symbol_source(ctor_fn)
+            if ctor_source:
+                sections.append(f"## Constructor\n\n{ctor_source}")
+
+        # Member signatures
+        members = get_members_overview(self._conn, full_name)
+        if members:
+            sections.append(
+                f"## Members: {full_name}\n\n"
+                + "\n".join(_member_line(m) for m in members)
+            )
+
+        # Implemented interfaces
+        iface_section = self._interfaces_section(full_name)
+        if iface_section:
+            sections.append(iface_section)
+
+        # Summaries (type + interfaces only)
+        interfaces = get_implemented_interfaces(self._conn, full_name)
+        summary_fns = [full_name] + [_p(iface)["full_name"] for iface in interfaces]
+        summaries_section = self._summaries_section(summary_fns)
+        if summaries_section:
+            sections.append(summaries_section)
+
+        if not sections:
+            return f"No structure information available for `{full_name}`."
+        return "\n\n---\n\n".join(sections)
+
+    def _context_method(self, full_name: str) -> str:
+        sections: list[str] = []
+
+        sections.append(self._target_section(full_name))
+
+        # Interface contract
+        contract = find_interface_contract(self._conn, full_name)
+        if contract["interface"] is not None:
+            contract_lines = [
+                f"Interface: `{contract['interface']}`",
+                f"Contract method: `{contract['contract_method']}`",
+            ]
+            if contract["sibling_implementations"]:
+                siblings = ", ".join(
+                    f"{s['class_name']} ({s['file_path']})"
+                    for s in contract["sibling_implementations"]
+                )
+                contract_lines.append(f"Other implementations: {siblings}")
+            sections.append("## Interface Contract\n\n" + "\n".join(contract_lines))
+
+        callees_section = self._callees_section(full_name)
+        if callees_section:
+            sections.append(callees_section)
+
+        deps_section = self._dependencies_section(full_name)
+        if deps_section:
+            sections.append(deps_section)
+
+        # Summaries (method + containing type)
+        summary_fns = [full_name]
+        parent = get_containing_type(self._conn, full_name)
+        if parent:
+            summary_fns.append(_p(parent)["full_name"])
+        summaries_section = self._summaries_section(summary_fns)
+        if summaries_section:
+            sections.append(summaries_section)
 
         return "\n\n---\n\n".join(sections)
 

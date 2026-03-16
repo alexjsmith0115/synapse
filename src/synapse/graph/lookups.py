@@ -276,6 +276,16 @@ def get_members_overview(conn: GraphConnection, full_name: str) -> list[dict]:
     return [r[0] for r in rows]
 
 
+def get_constructor(conn: GraphConnection, full_name: str) -> dict | None:
+    rows = conn.query(
+        "MATCH (cls {full_name: $full_name})-[:CONTAINS]->(m:Method) "
+        "WHERE (cls:Class OR cls:Interface) AND m.name = cls.name "
+        "RETURN m",
+        {"full_name": full_name},
+    )
+    return rows[0][0] if rows else None
+
+
 def get_implemented_interfaces(conn: GraphConnection, class_full_name: str) -> list[dict]:
     rows = conn.query(
         "MATCH (c:Class {full_name: $full_name})-[:IMPLEMENTS]->(i:Interface) RETURN i",

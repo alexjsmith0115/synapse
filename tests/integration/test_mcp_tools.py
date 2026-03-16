@@ -275,6 +275,35 @@ def test_get_context_for(mcp_server: FastMCP) -> None:
     assert "TaskController" in ctx
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_structure_scope(mcp_server: FastMCP) -> None:
+    result = run(mcp_server.call_tool("get_context_for", {
+        "full_name": "SynapseTest.Services.TaskService",
+        "scope": "structure",
+    }))
+    ctx = text(result)
+    assert "## Members" in ctx
+    assert "TaskService" in ctx
+    # Structure scope should NOT contain full source body or callees
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_method_scope(mcp_server: FastMCP) -> None:
+    result = run(mcp_server.call_tool("get_context_for", {
+        "full_name": "SynapseTest.Services.TaskService.CreateTaskAsync",
+        "scope": "method",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "CreateTaskAsync" in ctx
+    # Method scope should NOT contain full containing type member list
+    assert "## Containing Type:" not in ctx
+    assert "## Members:" not in ctx
+
+
 # ---------------------------------------------------------------------------
 # Call chain / entry point / impact tools
 # ---------------------------------------------------------------------------

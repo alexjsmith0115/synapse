@@ -203,12 +203,15 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_dependencies(full_name, depth)
 
     @mcp.tool()
-    def get_context_for(full_name: str) -> str:
+    def get_context_for(full_name: str, scope: str | None = None) -> str:
         """Get rich context for a symbol: source, hierarchy, dependencies, and summaries.
 
-        Useful for giving an AI full context before asking it to modify a class.
+        scope controls detail level:
+        - None (default): full context — source, all members, interfaces, callees, dependencies, summaries
+        - "structure": type overview — constructor, member signatures, interfaces, summaries (no method bodies)
+        - "method": focused method context — source, interface contract, callees, dependencies, summaries
         """
-        result = service.get_context_for(full_name)
+        result = service.get_context_for(full_name, scope=scope)
         if result:
             warning = service._staleness_warning(full_name)
             if warning:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 
@@ -228,9 +228,12 @@ def dependencies(full_name: str) -> None:
 
 
 @app.command()
-def context(full_name: str) -> None:
+def context(
+    full_name: str,
+    scope: Annotated[str | None, typer.Option(help="Scope: 'structure', 'method', or omit for full")] = None,
+) -> None:
     """Get the full context needed to understand or modify a symbol."""
-    result = _get_service().get_context_for(full_name)
+    result = _get_service().get_context_for(full_name, scope=scope)
     typer.echo(result or "Not found")
 
 
