@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from synapse.graph.connection import GraphConnection
+from synapse.plugin import LanguagePlugin, LanguageRegistry, default_registry
+from synapse.plugin.python import PythonPlugin
+from synapse.indexer.python_base_type_extractor import PythonBaseTypeExtractor
+from synapse.indexer.python_import_extractor import PythonImportExtractor
+
+
+def test_name_returns_python():
+    assert PythonPlugin().name == "python"
+
+
+def test_file_extensions_returns_py():
+    assert PythonPlugin().file_extensions == frozenset({".py"})
+
+
+def test_is_language_plugin():
+    assert isinstance(PythonPlugin(), LanguagePlugin)
+
+
+def test_create_base_type_extractor_returns_python_type():
+    extractor = PythonPlugin().create_base_type_extractor()
+    assert isinstance(extractor, PythonBaseTypeExtractor)
+
+
+def test_create_import_extractor_default_source_root():
+    extractor = PythonPlugin().create_import_extractor()
+    assert isinstance(extractor, PythonImportExtractor)
+    assert extractor._source_root == ""
+
+
+def test_create_import_extractor_with_source_root():
+    extractor = PythonPlugin().create_import_extractor(source_root="/some/path")
+    assert isinstance(extractor, PythonImportExtractor)
+    assert extractor._source_root == "/some/path"
+
+
+def test_create_call_extractor_returns_none():
+    assert PythonPlugin().create_call_extractor() is None
+
+
+def test_create_attribute_extractor_returns_none():
+    assert PythonPlugin().create_attribute_extractor() is None
+
+
+def test_create_type_ref_extractor_returns_none():
+    assert PythonPlugin().create_type_ref_extractor() is None
+
+
+def test_default_registry_includes_python():
+    registry = default_registry()
+    assert registry.get("python") is not None
+
+
+def test_detect_returns_python_plugin_for_py_directory(tmp_path):
+    (tmp_path / "main.py").write_text("print('hello')")
+    registry = default_registry()
+    result = registry.detect(str(tmp_path))
+    names = [p.name for p in result]
+    assert "python" in names
+
+
+def test_upsert_symbol_imports_creates_imports_edge():
+    from synapse.graph.edges import upsert_symbol_imports
+
+    conn = MagicMock(spec=GraphConnection)
+    upsert_symbol_imports(conn, "/proj/main.py", "mypackage.MyClass")
+
+    conn.execute.assert_called_once()
+    cypher, params = conn.execute.call_args[0]
+    assert "IMPORTS" in cypher
+    assert "full_name" in cypher
+    assert "$sym" in cypher
+    assert params["file"] == "/proj/main.py"
+    assert params["sym"] == "mypackage.MyClass"
+
+
+def test_create_lsp_adapter_delegates_to_python_adapter():
+    with patch("synapse.lsp.python.PythonLSPAdapter.create") as mock_create:
+        mock_adapter = mock_create.return_value
+        result = PythonPlugin().create_lsp_adapter("/path/to/project")
+        mock_create.assert_called_once_with("/path/to/project")
+        assert result is mock_adapter

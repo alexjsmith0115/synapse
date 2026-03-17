@@ -111,6 +111,15 @@ def upsert_imports(conn: GraphConnection, file_path: str, package_full_name: str
     )
 
 
+def upsert_symbol_imports(conn: GraphConnection, file_path: str, symbol_full_name: str) -> None:
+    """Create IMPORTS edge from a File to any symbol node (not just Package). Used for Python from-import."""
+    conn.execute(
+        "MATCH (src:File {path: $file}), (dst {full_name: $sym}) "
+        "MERGE (src)-[:IMPORTS]->(dst)",
+        {"file": file_path, "sym": symbol_full_name},
+    )
+
+
 def upsert_references(conn: GraphConnection, source_full_name: str, target_full_name: str, kind: str) -> None:
     conn.execute(
         "MATCH (src {full_name: $source}), (dst {full_name: $target}) "
