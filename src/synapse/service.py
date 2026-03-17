@@ -26,8 +26,8 @@ from synapse.graph.traversal import trace_call_chain, find_entry_points, get_cal
 from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact, audit_architecture
 from synapse.indexer.indexer import Indexer
 from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
-from synapse.lsp.csharp import CSharpLSPAdapter
 from synapse.lsp.interface import LSPAdapter
+from synapse.plugin import LanguageRegistry, default_registry
 from synapse.watcher.watcher import FileWatcher
 
 log = logging.getLogger(__name__)
@@ -50,8 +50,13 @@ def _member_line(m) -> str:
 
 
 class SynapseService:
-    def __init__(self, conn: GraphConnection) -> None:
+    def __init__(
+        self,
+        conn: GraphConnection,
+        registry: LanguageRegistry | None = None,
+    ) -> None:
         self._conn = conn
+        self._registry = registry or default_registry()
         self._watchers: dict[str, FileWatcher] = {}
 
     def _resolve(self, name: str, preference: str | None = None) -> str:
@@ -123,18 +128,33 @@ class SynapseService:
         language: str = "csharp",
         on_progress: Callable[[str], None] | None = None,
     ) -> None:
+        plugins = self._registry.detect(path)
+        if not plugins:
+            raise ValueError(f"No language plugin found for project at {path!r}")
+        plugin = plugins[0]
         if on_progress:
             on_progress("Starting language server...")
-        lsp = CSharpLSPAdapter.create(path)
-        indexer = Indexer(self._conn, lsp)
-        indexer.index_project(path, language, on_progress=on_progress)
+        lsp = plugin.create_lsp_adapter(path)
+        indexer = Indexer(self._conn, lsp, plugin=plugin)
+        indexer.index_project(path, plugin.name, on_progress=on_progress)
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""
         from synapse.indexer.symbol_resolver import SymbolResolver
-        lsp = CSharpLSPAdapter.create(path)
+        plugins = self._registry.detect(path)
+        if not plugins:
+            raise ValueError(f"No language plugin found for project at {path!r}")
+        plugin = plugins[0]
+        lsp = plugin.create_lsp_adapter(path)
+        call_ext = plugin.create_call_extractor()
+        type_ref_ext = plugin.create_type_ref_extractor()
         symbol_map = get_method_symbol_map(self._conn)
-        SymbolResolver(self._conn, lsp.language_server).resolve(path, symbol_map)
+        SymbolResolver(
+            self._conn, lsp.language_server,
+            call_extractor=call_ext,
+            type_ref_extractor=type_ref_ext,
+            file_extensions=plugin.file_extensions,
+        ).resolve(path, symbol_map)
         lsp.shutdown()
 
     def index_method_implements(self) -> None:
@@ -155,9 +175,19 @@ class SynapseService:
     def watch_project(self, path: str, lsp_adapter: LSPAdapter | None = None) -> None:
         if path in self._watchers:
             return
-        lsp = lsp_adapter or CSharpLSPAdapter.create(path)
-        indexer = Indexer(self._conn, lsp)
-        indexer.index_project(path, "csharp", keep_lsp_running=True)
+        if lsp_adapter is not None:
+            # Explicit adapter provided (e.g., for testing or hot-reload scenarios)
+            plugin = None
+            lsp = lsp_adapter
+        else:
+            plugins = self._registry.detect(path)
+            if not plugins:
+                raise ValueError(f"No language plugin found for project at {path!r}")
+            plugin = plugins[0]
+            lsp = plugin.create_lsp_adapter(path)
+
+        indexer = Indexer(self._conn, lsp, plugin=plugin)
+        indexer.index_project(path, plugin.name if plugin else "csharp", keep_lsp_running=True)
 
         def on_change(file_path: str) -> None:
             log.info("Re-indexing changed file: %s", file_path)
@@ -167,7 +197,11 @@ class SynapseService:
             log.info("Removing deleted file: %s", file_path)
             indexer.delete_file(file_path)
 
-        watcher = FileWatcher(root_path=path, on_change=on_change, on_delete=on_delete)
+        watched_exts = plugin.file_extensions if plugin else None
+        watcher = FileWatcher(
+            root_path=path, on_change=on_change, on_delete=on_delete,
+            watched_extensions=watched_exts,
+        )
         watcher.start()
         self._watchers[path] = watcher
 
