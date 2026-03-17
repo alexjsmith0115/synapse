@@ -30,7 +30,7 @@ def _build_class_lines_per_file(
 
 class SymbolResolver:
     """
-    Walks .cs files once, runs call extraction and type reference extraction,
+    Walks source files once, runs call extraction and type reference extraction,
     then resolves both via LSP and writes CALLS and REFERENCES edges.
     """
 
@@ -41,12 +41,14 @@ class SymbolResolver:
         call_extractor: TreeSitterCallExtractor | None = None,
         type_ref_extractor: TreeSitterTypeRefExtractor | None = None,
         name_to_full_names: dict[str, list[str]] | None = None,
+        file_extensions: frozenset[str] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
         self._call_extractor = call_extractor or TreeSitterCallExtractor()
         self._type_ref_extractor = type_ref_extractor or TreeSitterTypeRefExtractor()
         self._name_to_full_names = name_to_full_names or {}
+        self._file_extensions = file_extensions or frozenset({".cs"})
 
     def resolve(
         self,
@@ -55,7 +57,7 @@ class SymbolResolver:
         class_symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> None:
         class_lines_per_file = _build_class_lines_per_file(class_symbol_map or {})
-        for file_path in self._iter_cs_files(root_path):
+        for file_path in self._iter_files(root_path):
             try:
                 source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -202,8 +204,9 @@ class SymbolResolver:
         if target_full_name:
             upsert_references(self._conn, ref.owner_full_name, target_full_name, ref.ref_kind)
 
-    @staticmethod
-    def _iter_cs_files(root_path: str):
-        for path in Path(root_path).rglob("*.cs"):
-            if not any(p in {".git", "bin", "obj"} for p in path.parts):
-                yield str(path)
+    def _iter_files(self, root_path: str):
+        for ext in self._file_extensions:
+            pattern = f"*{ext}"
+            for path in Path(root_path).rglob(pattern):
+                if not any(p in {".git", "bin", "obj", "__pycache__", ".venv", "node_modules"} for p in path.parts):
+                    yield str(path)

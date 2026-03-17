@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
@@ -17,23 +18,39 @@ from synapse.graph.nodes import (
     collect_summaries, restore_summaries,
     set_attributes,
 )
-from synapse.indexer.attribute_extractor import CSharpAttributeExtractor
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
-from synapse.indexer.import_extractor import CSharpImportExtractor
 from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
 from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
+
+if TYPE_CHECKING:
+    from synapse.plugin import LanguagePlugin
 
 log = logging.getLogger(__name__)
 
 
 class Indexer:
-    def __init__(self, conn: GraphConnection, lsp: LSPAdapter) -> None:
+    def __init__(self, conn: GraphConnection, lsp: LSPAdapter, plugin: LanguagePlugin | None = None) -> None:
         self._conn = conn
         self._lsp = lsp
-        self._import_extractor = CSharpImportExtractor()
-        self._base_type_extractor = CSharpBaseTypeExtractor()
+        if plugin is not None:
+            self._import_extractor = plugin.create_import_extractor()
+            self._base_type_extractor = plugin.create_base_type_extractor()
+            self._attribute_extractor_factory = plugin.create_attribute_extractor
+            self._call_extractor_factory = plugin.create_call_extractor
+            self._type_ref_extractor_factory = plugin.create_type_ref_extractor
+            self._file_extensions = plugin.file_extensions
+            self._language = plugin.name
+        else:
+            from synapse.indexer.import_extractor import CSharpImportExtractor
+            self._import_extractor = CSharpImportExtractor()
+            self._base_type_extractor = CSharpBaseTypeExtractor()
+            self._attribute_extractor_factory = None
+            self._call_extractor_factory = None
+            self._type_ref_extractor_factory = None
+            self._file_extensions = frozenset({".cs"})
+            self._language = "csharp"
 
     def index_project(
         self,
@@ -79,7 +96,11 @@ class Indexer:
         if on_progress:
             on_progress("Extracting attributes...")
 
-        attr_extractor = CSharpAttributeExtractor()
+        if self._attribute_extractor_factory is not None:
+            attr_extractor = self._attribute_extractor_factory()
+        else:
+            from synapse.indexer.attribute_extractor import CSharpAttributeExtractor
+            attr_extractor = CSharpAttributeExtractor()
         for file_path in files:
             try:
                 with open(file_path, encoding="utf-8") as f:
@@ -110,10 +131,15 @@ class Indexer:
         if on_progress:
             on_progress("Resolving call edges...")
 
+        call_ext = self._call_extractor_factory() if self._call_extractor_factory else None
+        type_ref_ext = self._type_ref_extractor_factory() if self._type_ref_extractor_factory else None
         SymbolResolver(
             self._conn,
             self._lsp.language_server,
+            call_extractor=call_ext,
+            type_ref_extractor=type_ref_ext,
             name_to_full_names=name_to_full_names,
+            file_extensions=self._file_extensions,
         ).resolve(root_path, symbol_map, class_symbol_map=class_symbol_map)
 
         if not keep_lsp_running:
@@ -136,7 +162,12 @@ class Indexer:
             with open(file_path, encoding="utf-8") as f:
                 source = f.read()
             self._index_base_types(file_path, source, name_to_full_names, kind_map)
-            self._index_attributes(file_path, source, symbols, CSharpAttributeExtractor())
+            if self._attribute_extractor_factory is not None:
+                attr_extractor = self._attribute_extractor_factory()
+            else:
+                from synapse.indexer.attribute_extractor import CSharpAttributeExtractor
+                attr_extractor = CSharpAttributeExtractor()
+            self._index_attributes(file_path, source, symbols, attr_extractor)
         except OSError:
             log.warning("Could not read %s for base type extraction", file_path)
 
@@ -151,17 +182,22 @@ class Indexer:
             for sym in symbols
             if sym.kind in _CLASS_KINDS
         }
+        call_ext = self._call_extractor_factory() if self._call_extractor_factory else None
+        type_ref_ext = self._type_ref_extractor_factory() if self._type_ref_extractor_factory else None
         SymbolResolver(
             self._conn,
             self._lsp.language_server,
+            call_extractor=call_ext,
+            type_ref_extractor=type_ref_ext,
             name_to_full_names=name_to_full_names,
+            file_extensions=self._file_extensions,
         ).resolve_single_file(file_path, symbol_map, class_symbol_map=class_symbol_map)
 
     def delete_file(self, file_path: str) -> None:
         delete_file_nodes(self._conn, file_path)
 
     def _index_file_structure(self, file_path: str, root_path: str, symbols: list[IndexSymbol]) -> None:
-        upsert_file(self._conn, file_path, os.path.basename(file_path), "csharp")
+        upsert_file(self._conn, file_path, os.path.basename(file_path), self._language)
         self._upsert_directory_chain(file_path, root_path)
         self._index_file_imports(file_path)
 
@@ -225,7 +261,7 @@ class Indexer:
         file_path: str,
         source: str,
         symbols: list[IndexSymbol],
-        extractor: CSharpAttributeExtractor,
+        extractor,
     ) -> None:
         results = extractor.extract(file_path, source)
         if not results:

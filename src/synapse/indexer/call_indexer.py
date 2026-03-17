@@ -27,10 +27,12 @@ class CallIndexer:
         conn: GraphConnection,
         ls: object,
         extractor: TreeSitterCallExtractor | None = None,
+        file_extensions: frozenset[str] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
         self._extractor = extractor or TreeSitterCallExtractor()
+        self._file_extensions = file_extensions or frozenset({".cs"})
 
     def index_calls(
         self,
@@ -44,7 +46,7 @@ class CallIndexer:
         :param symbol_map: maps (abs_file_path, 0-indexed line) -> method full_name.
                            Should contain only method symbols (not classes or properties).
         """
-        for file_path in self._iter_cs_files(root_path):
+        for file_path in self._iter_files(root_path):
             try:
                 source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
             except OSError:
@@ -96,8 +98,9 @@ class CallIndexer:
         if callee_full_name and callee_full_name != caller_full_name:
             upsert_calls(self._conn, caller_full_name, callee_full_name, line=call_line_1, col=call_col_0)
 
-    @staticmethod
-    def _iter_cs_files(root_path: str):
-        for path in Path(root_path).rglob("*.cs"):
-            if not any(p in {".git", "bin", "obj"} for p in path.parts):
-                yield str(path)
+    def _iter_files(self, root_path: str):
+        for ext in self._file_extensions:
+            pattern = f"*{ext}"
+            for path in Path(root_path).rglob(pattern):
+                if not any(p in {".git", "bin", "obj", "__pycache__", ".venv", "node_modules"} for p in path.parts):
+                    yield str(path)
