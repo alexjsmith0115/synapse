@@ -55,6 +55,29 @@ def upsert_calls(
         )
 
 
+def upsert_module_calls(
+    conn: GraphConnection,
+    caller_full_name: str,
+    callee_full_name: str,
+    line: int | None = None,
+    col: int | None = None,
+) -> None:
+    """CALLS edge from a module :Class node (kind='module') to a :Method node."""
+    if line is not None:
+        conn.execute(
+            "MATCH (src:Class {full_name: $caller}), (dst:Method {full_name: $callee}) "
+            "MERGE (src)-[r:CALLS]->(dst) "
+            "SET r.call_sites = coalesce(r.call_sites, []) + [[$line, $col]]",
+            {"caller": caller_full_name, "callee": callee_full_name, "line": line, "col": col},
+        )
+    else:
+        conn.execute(
+            "MATCH (src:Class {full_name: $caller}), (dst:Method {full_name: $callee}) "
+            "MERGE (src)-[:CALLS]->(dst)",
+            {"caller": caller_full_name, "callee": callee_full_name},
+        )
+
+
 def upsert_inherits(conn: GraphConnection, child_full_name: str, parent_full_name: str) -> None:
     conn.execute(
         "MATCH (src:Class {full_name: $child}), (dst:Class {full_name: $parent}) "
