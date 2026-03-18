@@ -40,7 +40,7 @@ class CallIndexer:
         symbol_map: dict[tuple[str, int], str],
     ) -> None:
         """
-        Index CALLS edges for all .cs files under root_path.
+        Index CALLS edges for all source files (matching configured file_extensions) under root_path.
 
         :param root_path: absolute path to the repository root.
         :param symbol_map: maps (abs_file_path, 0-indexed line) -> method full_name.

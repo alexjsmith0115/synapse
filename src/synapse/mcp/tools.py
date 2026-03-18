@@ -51,7 +51,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         """Index a project's codebase into the graph. Uses MERGE (upsert) so nodes are updated in place rather than deleted and recreated. Summaries and other non-structural properties are preserved.
 
         Uses LSP for structural analysis (symbols, inheritance, implementations) and tree-sitter for call site detection.
-        Currently only supports C# projects (language='csharp').
+        Supports C# (language='csharp') and Python (language='python') projects. Language is auto-detected from file extensions when not specified.
         """
         service.index_project(path, language)
         return f"Indexed {path}"
