@@ -146,14 +146,23 @@ def callees(method_full_name: str) -> None:
 
 @app.command()
 def implementations(interface_name: str) -> None:
-    """Find all concrete implementations of an interface.
+    """Find all concrete implementations of an interface or abstract class.
 
     When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
-    if not _require_label(
-        svc, interface_name, "Interface",
-        "'{name}' is a {actual}. To find what interfaces it implements, use: synapse hierarchy {name}",
-    ):
+    sym = svc.get_symbol(interface_name)
+    if sym is None:
+        typer.echo(f"Symbol not found: {interface_name}", err=True)
+        raise typer.Exit(1)
+    labels = sym.get("_labels", [])
+    is_abstract_class = "Class" in labels and sym.get("is_abstract") is True
+    if "Interface" not in labels and not is_abstract_class:
+        actual = labels[0] if labels else "Unknown"
+        typer.echo(
+            f"'{interface_name}' is a {actual}. To find what interfaces it implements, "
+            f"use: synapse hierarchy {interface_name}",
+            err=True,
+        )
         raise typer.Exit(1)
     results = svc.find_implementations(interface_name)
     if not results:

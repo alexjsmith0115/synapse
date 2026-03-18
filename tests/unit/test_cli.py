@@ -135,3 +135,13 @@ def test_callers_errors_when_symbol_not_found():
         result = runner.invoke(app, ["callers", "A.Missing"])
     assert result.exit_code != 0
     assert "not found" in result.output.lower()
+
+
+def test_implementations_accepts_abstract_class():
+    svc = MagicMock()
+    svc.get_symbol.return_value = {"full_name": "A.IAnimal", "_labels": ["Class"], "is_abstract": True}
+    svc.find_implementations.return_value = [{"full_name": "A.Dog", "signature": None}]
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["implementations", "A.IAnimal"])
+    assert result.exit_code == 0
+    assert "Dog" in result.output

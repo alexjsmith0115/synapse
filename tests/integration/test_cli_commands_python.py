@@ -110,23 +110,15 @@ def test_callees(python_service: SynapseService) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-@pytest.mark.xfail(
-    reason="implementations requires :Interface label; Python ABCs use :Class — "
-           "_require_label check exits with code 1"
-)
 def test_implementations(python_service: SynapseService) -> None:
-    """implementations command works for Python ABC classes.
-
-    Marked xfail: the CLI guard checks for :Interface label but Python ABCs
-    are indexed as :Class nodes, so _require_label() returns False and the
-    command exits 1. Document as known limitation.
-    """
+    """implementations command works for Python ABC classes."""
     result = _invoke(python_service, [
         "implementations",
         "synapsepytest.animals.IAnimal",
     ])
     assert result.exit_code == 0
-    assert "Animal" in result.output
+    assert "Dog" in result.output
+    assert "Cat" in result.output
 
 
 @pytest.mark.integration

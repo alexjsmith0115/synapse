@@ -173,8 +173,11 @@ def test_find_implementations(python_mcp: FastMCP) -> None:
         "interface_name": "synapsepytest.animals.IAnimal"
     }))
     impls = result_json(result)
-    # IAnimal is :Class (ABC), not :Interface, so result may be empty — assert no error
     assert isinstance(impls, list)
+    assert len(impls) >= 2, f"Expected at least Dog and Cat, got {impls}"
+    names = [i.get("full_name", "") for i in impls]
+    assert any("Dog" in n for n in names), f"Dog not found in {names}"
+    assert any("Cat" in n for n in names), f"Cat not found in {names}"
 
 
 @pytest.mark.integration
