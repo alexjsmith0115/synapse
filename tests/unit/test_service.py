@@ -63,7 +63,7 @@ def test_watch_project_registers_watcher() -> None:
 def test_unwatch_project_stops_watcher() -> None:
     svc = _service()
     mock_watcher = MagicMock()
-    svc._watchers["/proj"] = mock_watcher
+    svc._watchers["/proj"] = [mock_watcher]
 
     svc.unwatch_project("/proj")
 

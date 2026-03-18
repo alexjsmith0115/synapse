@@ -57,7 +57,7 @@ class SynapseService:
     ) -> None:
         self._conn = conn
         self._registry = registry or default_registry()
-        self._watchers: dict[str, FileWatcher] = {}
+        self._watchers: dict[str, list[FileWatcher]] = {}
 
     def _resolve(self, name: str, preference: str | None = None) -> str:
         """Resolve a possibly-short name to a fully qualified name.
@@ -131,12 +131,12 @@ class SynapseService:
         plugins = self._registry.detect(path)
         if not plugins:
             raise ValueError(f"No language plugin found for project at {path!r}")
-        plugin = plugins[0]
-        if on_progress:
-            on_progress("Starting language server...")
-        lsp = plugin.create_lsp_adapter(path)
-        indexer = Indexer(self._conn, lsp, plugin=plugin)
-        indexer.index_project(path, plugin.name, on_progress=on_progress)
+        for plugin in plugins:
+            if on_progress:
+                on_progress(f"Starting language server for {plugin.name}...")
+            lsp = plugin.create_lsp_adapter(path)
+            indexer = Indexer(self._conn, lsp, plugin=plugin)
+            indexer.index_project(path, plugin.name, on_progress=on_progress)
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""
@@ -144,18 +144,18 @@ class SynapseService:
         plugins = self._registry.detect(path)
         if not plugins:
             raise ValueError(f"No language plugin found for project at {path!r}")
-        plugin = plugins[0]
-        lsp = plugin.create_lsp_adapter(path)
-        call_ext = plugin.create_call_extractor()
-        type_ref_ext = plugin.create_type_ref_extractor()
         symbol_map = get_method_symbol_map(self._conn)
-        SymbolResolver(
-            self._conn, lsp.language_server,
-            call_extractor=call_ext,
-            type_ref_extractor=type_ref_ext,
-            file_extensions=plugin.file_extensions,
-        ).resolve(path, symbol_map)
-        lsp.shutdown()
+        for plugin in plugins:
+            lsp = plugin.create_lsp_adapter(path)
+            call_ext = plugin.create_call_extractor()
+            type_ref_ext = plugin.create_type_ref_extractor()
+            SymbolResolver(
+                self._conn, lsp.language_server,
+                call_extractor=call_ext,
+                type_ref_extractor=type_ref_ext,
+                file_extensions=plugin.file_extensions,
+            ).resolve(path, symbol_map)
+            lsp.shutdown()
 
     def index_method_implements(self) -> None:
         """Write method-level IMPLEMENTS edges for all indexed class-level IMPLEMENTS relationships.
@@ -177,15 +177,21 @@ class SynapseService:
             return
         if lsp_adapter is not None:
             # Explicit adapter provided (e.g., for testing or hot-reload scenarios)
-            plugin = None
-            lsp = lsp_adapter
+            self._watch_single(path, lsp_adapter=lsp_adapter, plugin=None)
         else:
             plugins = self._registry.detect(path)
             if not plugins:
                 raise ValueError(f"No language plugin found for project at {path!r}")
-            plugin = plugins[0]
-            lsp = plugin.create_lsp_adapter(path)
+            for plugin in plugins:
+                self._watch_single(path, lsp_adapter=None, plugin=plugin)
 
+    def _watch_single(
+        self,
+        path: str,
+        lsp_adapter: LSPAdapter | None,
+        plugin,
+    ) -> None:
+        lsp = lsp_adapter if lsp_adapter is not None else plugin.create_lsp_adapter(path)
         indexer = Indexer(self._conn, lsp, plugin=plugin)
         indexer.index_project(path, plugin.name if plugin else "csharp", keep_lsp_running=True)
 
@@ -203,11 +209,11 @@ class SynapseService:
             watched_extensions=watched_exts,
         )
         watcher.start()
-        self._watchers[path] = watcher
+        self._watchers.setdefault(path, []).append(watcher)
 
     def unwatch_project(self, path: str) -> None:
-        watcher = self._watchers.pop(path, None)
-        if watcher:
+        watchers = self._watchers.pop(path, [])
+        for watcher in watchers:
             watcher.stop()
 
     # --- Queries ---
