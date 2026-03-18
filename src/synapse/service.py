@@ -26,6 +26,8 @@ from synapse.graph.traversal import trace_call_chain, find_entry_points, get_cal
 from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact, audit_architecture
 from synapse.indexer.indexer import Indexer
 from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
+from synapse.indexer.overrides_indexer import OverridesIndexer
+from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import LSPAdapter
 from synapse.plugin import LanguageRegistry, default_registry
 from synapse.watcher.watcher import FileWatcher
@@ -140,7 +142,6 @@ class SynapseService:
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""
-        from synapse.indexer.symbol_resolver import SymbolResolver
         plugins = self._registry.detect(path)
         if not plugins:
             raise ValueError(f"No language plugin found for project at {path!r}")
@@ -149,12 +150,56 @@ class SynapseService:
             lsp = plugin.create_lsp_adapter(path)
             call_ext = plugin.create_call_extractor()
             type_ref_ext = plugin.create_type_ref_extractor()
-            SymbolResolver(
+
+            module_full_names: set[str] = set()
+            if plugin.name == "python":
+                module_map: dict[str, str] = {}
+                rows = self._conn.query(
+                    "MATCH (n:Class {kind: 'module'}) RETURN n.full_name, n.file_path"
+                )
+                for full_name, file_path in rows:
+                    if full_name and file_path:
+                        module_full_names.add(full_name)
+                        module_map[file_path] = full_name
+                if call_ext is not None and hasattr(call_ext, "_module_name_resolver"):
+                    call_ext._module_name_resolver = lambda fp, _m=module_map: _m.get(fp)
+
+            resolver = SymbolResolver(
                 self._conn, lsp.language_server,
                 call_extractor=call_ext,
                 type_ref_extractor=type_ref_ext,
                 file_extensions=plugin.file_extensions,
-            ).resolve(path, symbol_map)
+                module_full_names=module_full_names,
+            )
+            resolver.resolve(path, symbol_map)
+
+            if plugin.name == "python" and hasattr(resolver, "_unresolved_sites"):
+                for site_msg in resolver._unresolved_sites:
+                    log.debug(site_msg)
+
+            if plugin.name == "python" and call_ext is not None:
+                calls_count_rows = self._conn.query(
+                    "MATCH ()-[r:CALLS]->() WHERE r.call_sites IS NOT NULL RETURN count(r)"
+                )
+                resolved = calls_count_rows[0][0] if calls_count_rows else 0
+                total = getattr(call_ext, "_sites_seen", 0)
+                if total > 0:
+                    pct = resolved / total * 100
+                    unresolved = total - resolved
+                    log.info(
+                        "Call resolution: %d/%d resolved (%.1f%%), %d unresolved",
+                        resolved, total, pct, unresolved,
+                    )
+                    if resolved == 0:
+                        log.warning(
+                            "Call resolution produced zero CALLS edges (%d sites attempted) — "
+                            "check that LSP is running and fixture uses typed code",
+                            total,
+                        )
+
+            if plugin.name == "python":
+                OverridesIndexer(self._conn).index()
+
             lsp.shutdown()
 
     def index_method_implements(self) -> None:

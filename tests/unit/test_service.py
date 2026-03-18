@@ -1255,3 +1255,194 @@ def test_resolve_preference_method_still_ambiguous_if_multiple_concrete() -> Non
         ]
         with pytest.raises(ValueError, match="Ambiguous"):
             svc._resolve("CreateAsync", preference="concrete")
+
+
+# ---------------------------------------------------------------------------
+# index_calls() Python wiring tests
+# ---------------------------------------------------------------------------
+# SymbolResolver and OverridesIndexer are imported at module level in service.py,
+# so they can be patched via "synapse.service.SymbolResolver" etc.
+
+def _make_python_plugin():
+    """Return a mock plugin with name='python'."""
+    plugin = MagicMock()
+    plugin.name = "python"
+    plugin.file_extensions = frozenset({".py"})
+    lsp = MagicMock()
+    lsp.language_server = MagicMock()
+    plugin.create_lsp_adapter.return_value = lsp
+    call_ext = MagicMock()
+    call_ext._sites_seen = 0
+    plugin.create_call_extractor.return_value = call_ext
+    plugin.create_type_ref_extractor.return_value = MagicMock()
+    return plugin, lsp
+
+
+def _make_csharp_plugin():
+    """Return a mock plugin with name='csharp'."""
+    plugin = MagicMock()
+    plugin.name = "csharp"
+    plugin.file_extensions = frozenset({".cs"})
+    lsp = MagicMock()
+    lsp.language_server = MagicMock()
+    plugin.create_lsp_adapter.return_value = lsp
+    plugin.create_call_extractor.return_value = MagicMock()
+    plugin.create_type_ref_extractor.return_value = MagicMock()
+    return plugin, lsp
+
+
+def test_index_calls_python_builds_module_full_names_and_passes_to_resolver() -> None:
+    """index_calls() for a Python plugin passes module_full_names to SymbolResolver."""
+    conn = MagicMock()
+    plugin, _lsp = _make_python_plugin()
+    registry = MagicMock()
+    registry.detect.return_value = [plugin]
+
+    svc = SynapseService(conn=conn, registry=registry)
+
+    with patch("synapse.service.get_method_symbol_map", return_value={}), \
+         patch("synapse.service.SymbolResolver") as MockResolver, \
+         patch("synapse.service.OverridesIndexer"):
+
+        mock_resolver_inst = MagicMock()
+        mock_resolver_inst._unresolved_sites = []
+        MockResolver.return_value = mock_resolver_inst
+
+        # Module query returns (full_name, file_path) rows
+        conn.query.side_effect = [
+            [("mypkg.mymod", "/proj/mymod.py"), ("mypkg.other", "/proj/other.py")],
+            [[0]],  # calls count
+        ]
+
+        svc.index_calls("/proj")
+
+        # SymbolResolver must have been called with module_full_names containing both modules
+        call_kwargs = MockResolver.call_args
+        module_full_names = call_kwargs.kwargs.get("module_full_names")
+        assert module_full_names is not None, "module_full_names not passed to SymbolResolver"
+        assert "mypkg.mymod" in module_full_names
+        assert "mypkg.other" in module_full_names
+
+
+def test_index_calls_python_wires_module_name_resolver() -> None:
+    """index_calls() wires _module_name_resolver on the call extractor for Python."""
+    conn = MagicMock()
+    plugin, _lsp = _make_python_plugin()
+
+    call_ext = MagicMock(spec=["_module_name_resolver", "_sites_seen"])
+    call_ext._module_name_resolver = None
+    call_ext._sites_seen = 0
+    plugin.create_call_extractor.return_value = call_ext
+
+    registry = MagicMock()
+    registry.detect.return_value = [plugin]
+
+    svc = SynapseService(conn=conn, registry=registry)
+
+    with patch("synapse.service.get_method_symbol_map", return_value={}), \
+         patch("synapse.service.SymbolResolver") as MockResolver, \
+         patch("synapse.service.OverridesIndexer"):
+
+        mock_resolver_inst = MagicMock()
+        mock_resolver_inst._unresolved_sites = []
+        MockResolver.return_value = mock_resolver_inst
+
+        conn.query.side_effect = [
+            [("mypkg.mymod", "/proj/mymod.py")],
+            [[0]],  # calls count
+        ]
+
+        svc.index_calls("/proj")
+
+        # After the call, _module_name_resolver should be set (not None)
+        assert call_ext._module_name_resolver is not None, "_module_name_resolver not wired"
+        # Verify it maps file path to module name
+        assert call_ext._module_name_resolver("/proj/mymod.py") == "mypkg.mymod"
+        assert call_ext._module_name_resolver("/proj/missing.py") is None
+
+
+def test_index_calls_python_calls_overrides_indexer() -> None:
+    """index_calls() for a Python plugin calls OverridesIndexer(conn).index()."""
+    conn = MagicMock()
+    plugin, _lsp = _make_python_plugin()
+    registry = MagicMock()
+    registry.detect.return_value = [plugin]
+
+    svc = SynapseService(conn=conn, registry=registry)
+
+    with patch("synapse.service.get_method_symbol_map", return_value={}), \
+         patch("synapse.service.SymbolResolver") as MockResolver, \
+         patch("synapse.service.OverridesIndexer") as MockOverrides:
+
+        mock_resolver_inst = MagicMock()
+        mock_resolver_inst._unresolved_sites = []
+        MockResolver.return_value = mock_resolver_inst
+
+        conn.query.side_effect = [
+            [],     # module query (no modules)
+            [[0]],  # calls count
+        ]
+
+        svc.index_calls("/proj")
+
+        MockOverrides.assert_called_once_with(conn)
+        MockOverrides.return_value.index.assert_called_once()
+
+
+def test_index_calls_python_iterates_unresolved_sites() -> None:
+    """index_calls() iterates resolver._unresolved_sites for DEBUG logging."""
+    conn = MagicMock()
+    plugin, _lsp = _make_python_plugin()
+    registry = MagicMock()
+    registry.detect.return_value = [plugin]
+
+    svc = SynapseService(conn=conn, registry=registry)
+
+    with patch("synapse.service.get_method_symbol_map", return_value={}), \
+         patch("synapse.service.SymbolResolver") as MockResolver, \
+         patch("synapse.service.OverridesIndexer"), \
+         patch("synapse.service.log") as mock_log:
+
+        mock_resolver_inst = MagicMock()
+        mock_resolver_inst._unresolved_sites = ["site1: unresolved", "site2: unresolved"]
+        MockResolver.return_value = mock_resolver_inst
+
+        conn.query.side_effect = [
+            [],     # module query
+            [[0]],  # calls count
+        ]
+
+        svc.index_calls("/proj")
+
+        # log.debug should be called for each unresolved site
+        debug_messages = [str(call.args) for call in mock_log.debug.call_args_list]
+        assert any("site1" in m for m in debug_messages), f"Expected site1 in debug log, got: {debug_messages}"
+        assert any("site2" in m for m in debug_messages), f"Expected site2 in debug log, got: {debug_messages}"
+
+
+def test_index_calls_csharp_no_module_full_names_no_overrides_indexer() -> None:
+    """index_calls() for a C# plugin does NOT build module_full_names or call OverridesIndexer."""
+    conn = MagicMock()
+    plugin, _lsp = _make_csharp_plugin()
+    registry = MagicMock()
+    registry.detect.return_value = [plugin]
+
+    svc = SynapseService(conn=conn, registry=registry)
+
+    with patch("synapse.service.get_method_symbol_map", return_value={}), \
+         patch("synapse.service.SymbolResolver") as MockResolver, \
+         patch("synapse.service.OverridesIndexer") as MockOverrides:
+
+        mock_resolver_inst = MagicMock()
+        MockResolver.return_value = mock_resolver_inst
+
+        svc.index_calls("/proj")
+
+        # OverridesIndexer must NOT be called for C#
+        MockOverrides.assert_not_called()
+
+        # SymbolResolver must NOT receive module_full_names (or it should be empty set)
+        call_kwargs = MockResolver.call_args
+        module_full_names = call_kwargs.kwargs.get("module_full_names")
+        # C# path: module_full_names should be empty set or not passed
+        assert not module_full_names, f"C# should not pass module_full_names, got: {module_full_names}"
