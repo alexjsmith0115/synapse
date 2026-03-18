@@ -41,6 +41,7 @@ class PythonCallExtractor:
         self._parser = Parser(self._language)
         self._query = Query(self._language, _PYTHON_CALLS_QUERY)
         self._QueryCursor = QueryCursor
+        self._sites_seen: int = 0
 
     def extract(
         self,
@@ -56,6 +57,8 @@ class PythonCallExtractor:
         """
         if not source.strip():
             return []
+
+        self._sites_seen = 0
 
         try:
             tree = self._parser.parse(bytes(source, "utf-8"))
@@ -96,6 +99,8 @@ class PythonCallExtractor:
                     caller = self._module_name_resolver(file_path)
                     if caller is None:
                         continue
+
+                self._sites_seen += 1
 
                 entry = (caller, callee_name, call_line_0 + 1, call_col_0)
                 if entry not in seen:
