@@ -191,9 +191,13 @@ def hierarchy(class_name: str) -> None:
 
 
 @app.command()
-def search(query: str, kind: Optional[str] = None) -> None:
+def search(
+    query: str,
+    kind: Optional[str] = None,
+    language: Annotated[str | None, typer.Option("--language", "-l", help="Filter by language (python, csharp)")] = None,
+) -> None:
     """Search symbols by name."""
-    results = _get_service().search_symbols(query, kind)
+    results = _get_service().search_symbols(query, kind, language=language)
     if not results:
         typer.echo("No results.")
         return

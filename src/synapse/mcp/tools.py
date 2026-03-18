@@ -147,6 +147,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         kind: SymbolKindLiteral | None = None,
         namespace: str | None = None,
         file_path: str | None = None,
+        language: str | None = None,
     ) -> list[dict]:
         """Search for symbols by name substring.
 
@@ -154,8 +155,9 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         namespace: filter to symbols whose full_name starts with this prefix
                    (e.g. "MyNs.Services").
         file_path: filter to symbols defined in this file path.
+        language: filter to symbols from a specific language (e.g. "python", "csharp").
         """
-        return service.search_symbols(query, kind, namespace, file_path)
+        return service.search_symbols(query, kind, namespace, file_path, language)
 
     @mcp.tool()
     def set_summary(full_name: str, content: str) -> str:
