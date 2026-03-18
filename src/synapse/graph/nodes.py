@@ -58,11 +58,20 @@ def upsert_method(
     line: int | None = None,
     end_line: int = 0,
     language: str = "",
+    is_classmethod: bool = False,
+    is_async: bool = False,
 ) -> None:
     conn.execute(
         "MERGE (n:Method {full_name: $full_name}) "
-        "SET n.name = $name, n.signature = $sig, n.is_abstract = $is_abstract, n.is_static = $is_static, n.file_path = $file_path, n.line = $line, n.end_line = $end_line, n.language = $language",
-        {"full_name": full_name, "name": name, "sig": signature, "is_abstract": is_abstract, "is_static": is_static, "file_path": file_path, "line": line, "end_line": end_line, "language": language},
+        "SET n.name = $name, n.signature = $sig, n.is_abstract = $is_abstract, n.is_static = $is_static, "
+        "n.file_path = $file_path, n.line = $line, n.end_line = $end_line, n.language = $language, "
+        "n.is_classmethod = $is_classmethod, n.is_async = $is_async",
+        {
+            "full_name": full_name, "name": name, "sig": signature,
+            "is_abstract": is_abstract, "is_static": is_static,
+            "file_path": file_path, "line": line, "end_line": end_line,
+            "language": language, "is_classmethod": is_classmethod, "is_async": is_async,
+        },
     )
 
 
@@ -135,6 +144,21 @@ def set_attributes(conn: GraphConnection, full_name: str, attributes: list[str])
     conn.execute(
         "MATCH (n {full_name: $full_name}) SET n.attributes = $attrs",
         {"full_name": full_name, "attrs": json.dumps(attributes)},
+    )
+
+
+_ALLOWED_FLAGS = frozenset({"is_abstract", "is_static", "is_classmethod", "is_async"})
+
+
+def set_metadata_flags(conn: GraphConnection, full_name: str, flags: dict) -> None:
+    """Write boolean metadata flags to an existing node. Only whitelisted flag names are accepted."""
+    safe_flags = {k: v for k, v in flags.items() if k in _ALLOWED_FLAGS}
+    if not safe_flags:
+        return
+    set_clauses = ", ".join(f"n.{k} = ${k}" for k in safe_flags)
+    conn.execute(
+        f"MATCH (n {{full_name: $full_name}}) SET {set_clauses}",
+        {"full_name": full_name, **safe_flags},
     )
 
 

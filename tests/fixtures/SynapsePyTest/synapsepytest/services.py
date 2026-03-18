@@ -12,6 +12,14 @@ class AnimalService:
     def version() -> str:
         return "1.0.0"
 
+    @classmethod
+    def from_name(cls, name: str) -> "AnimalService":
+        from synapsepytest.animals import Animal
+        return cls(Animal(name))
+
+    async def get_greeting_async(self) -> str:
+        return self.get_greeting()
+
 
 class Greeter:
     def __init__(self, service: AnimalService) -> None:

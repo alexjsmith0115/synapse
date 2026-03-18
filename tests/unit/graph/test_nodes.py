@@ -5,8 +5,9 @@ from synapse.graph.nodes import (
     upsert_package, upsert_interface, upsert_class, upsert_method,
     upsert_property, upsert_field, delete_file_nodes,
     set_summary, remove_summary, collect_summaries, restore_summaries,
-    set_attributes,
+    set_attributes, set_metadata_flags,
 )
+from synapse.lsp.interface import IndexSymbol, SymbolKind
 
 
 def _conn() -> MagicMock:
@@ -299,3 +300,101 @@ def test_upsert_functions_default_language_to_empty_string() -> None:
     upsert_interface(conn5, "MyNs.IAnimal", "IAnimal")
     _, params5 = conn5.execute.call_args[0][0], conn5.execute.call_args[0][1]
     assert params5["language"] == ""
+
+
+# --- set_metadata_flags tests ---
+
+def test_set_metadata_flags_writes_whitelisted_flags() -> None:
+    conn = _conn()
+    set_metadata_flags(conn, "Ns.C.M()", {"is_abstract": True, "is_static": False})
+    conn.execute.assert_called_once()
+    cypher, params = conn.execute.call_args[0]
+    assert "MATCH" in cypher
+    assert "n.is_abstract" in cypher
+    assert "n.is_static" in cypher
+    assert params["full_name"] == "Ns.C.M()"
+    assert params["is_abstract"] is True
+    assert params["is_static"] is False
+
+
+def test_set_metadata_flags_ignores_non_whitelisted_keys() -> None:
+    conn = _conn()
+    set_metadata_flags(conn, "Ns.C.M()", {"is_abstract": True, "dangerous": True})
+    conn.execute.assert_called_once()
+    cypher, params = conn.execute.call_args[0]
+    assert "dangerous" not in cypher
+    assert "dangerous" not in params
+    assert "is_abstract" in cypher
+
+
+def test_set_metadata_flags_noop_on_empty_dict() -> None:
+    conn = _conn()
+    set_metadata_flags(conn, "Ns.C.M()", {})
+    conn.execute.assert_not_called()
+
+
+def test_set_metadata_flags_noop_when_all_keys_non_whitelisted() -> None:
+    conn = _conn()
+    set_metadata_flags(conn, "Ns.C.M()", {"foo": True, "bar": False})
+    conn.execute.assert_not_called()
+
+
+def test_set_metadata_flags_classmethod_and_async() -> None:
+    conn = _conn()
+    set_metadata_flags(conn, "Ns.C.M()", {"is_classmethod": True, "is_async": True})
+    conn.execute.assert_called_once()
+    cypher, params = conn.execute.call_args[0]
+    assert "n.is_classmethod" in cypher
+    assert "n.is_async" in cypher
+    assert params["is_classmethod"] is True
+    assert params["is_async"] is True
+
+
+# --- upsert_method with is_classmethod and is_async ---
+
+def test_upsert_method_accepts_is_classmethod_and_is_async() -> None:
+    conn = _conn()
+    upsert_method(
+        conn, "Ns.C.from_name()", "from_name", "classmethod from_name(cls)",
+        is_abstract=False, is_static=False, is_classmethod=True, is_async=False,
+    )
+    cypher, params = conn.execute.call_args[0]
+    assert "n.is_classmethod" in cypher
+    assert params["is_classmethod"] is True
+    assert params["is_async"] is False
+
+
+def test_upsert_method_defaults_is_classmethod_and_is_async_to_false() -> None:
+    conn = _conn()
+    upsert_method(conn, "Ns.C.M()", "M", "void M()", False, False)
+    _, params = conn.execute.call_args[0]
+    assert params["is_classmethod"] is False
+    assert params["is_async"] is False
+
+
+# --- IndexSymbol with is_classmethod and is_async ---
+
+def test_index_symbol_accepts_is_classmethod_and_is_async() -> None:
+    sym = IndexSymbol(
+        name="from_name",
+        full_name="svc.AnimalService.from_name",
+        kind=SymbolKind.METHOD,
+        file_path="/proj/services.py",
+        line=10,
+        is_classmethod=True,
+        is_async=False,
+    )
+    assert sym.is_classmethod is True
+    assert sym.is_async is False
+
+
+def test_index_symbol_defaults_is_classmethod_and_is_async_to_false() -> None:
+    sym = IndexSymbol(
+        name="speak",
+        full_name="svc.Animal.speak",
+        kind=SymbolKind.METHOD,
+        file_path="/proj/animals.py",
+        line=5,
+    )
+    assert sym.is_classmethod is False
+    assert sym.is_async is False

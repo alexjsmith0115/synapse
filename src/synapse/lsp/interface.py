@@ -28,6 +28,8 @@ class IndexSymbol:
     signature: str = ""
     is_abstract: bool = False
     is_static: bool = False
+    is_classmethod: bool = False
+    is_async: bool = False
     base_types: list[str] = field(default_factory=list)
     """Full names of base classes or implemented interfaces."""
     parent_full_name: str | None = None

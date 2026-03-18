@@ -334,7 +334,7 @@ class Indexer:
             case SymbolKind.CLASS | SymbolKind.ABSTRACT_CLASS | SymbolKind.ENUM | SymbolKind.RECORD:
                 upsert_class(self._conn, symbol.full_name, symbol.name, kind_str, file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
             case SymbolKind.METHOD:
-                upsert_method(self._conn, symbol.full_name, symbol.name, symbol.signature, symbol.is_abstract, symbol.is_static, file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
+                upsert_method(self._conn, symbol.full_name, symbol.name, symbol.signature, symbol.is_abstract, symbol.is_static, file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language, is_classmethod=symbol.is_classmethod, is_async=symbol.is_async)
             case SymbolKind.PROPERTY:
                 upsert_property(self._conn, symbol.full_name, symbol.name, "", file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
             case SymbolKind.FIELD:
