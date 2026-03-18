@@ -84,3 +84,34 @@ def test_find_usages_tool_passes_exclude_flag() -> None:
     fns = _register(service)
     fns["find_usages"]("Ns.M", exclude_test_callers=False)
     service.find_usages.assert_called_once_with("Ns.M", False)
+
+
+def test_graph_schema_has_overrides_relationship() -> None:
+    assert "OVERRIDES" in _GRAPH_SCHEMA["relationship_types"]
+
+
+def test_graph_schema_method_has_language_property() -> None:
+    assert "language" in _GRAPH_SCHEMA["node_labels"]["Method"]
+
+
+def test_graph_schema_method_has_is_async_flag() -> None:
+    assert "is_async" in _GRAPH_SCHEMA["node_labels"]["Method"]
+
+
+def test_graph_schema_method_has_is_classmethod_flag() -> None:
+    assert "is_classmethod" in _GRAPH_SCHEMA["node_labels"]["Method"]
+
+
+def test_graph_schema_has_imports_relationship() -> None:
+    assert "IMPORTS" in _GRAPH_SCHEMA["relationship_types"]
+
+
+def test_graph_schema_nodes_have_language_property() -> None:
+    for label in ("Repository", "File", "Class", "Interface", "Method", "Property", "Field"):
+        assert "language" in _GRAPH_SCHEMA["node_labels"][label], f"{label} missing 'language'"
+
+
+def test_graph_schema_notes_include_python_kinds() -> None:
+    notes_text = " ".join(_GRAPH_SCHEMA["notes"])
+    assert "module" in notes_text
+    assert "function" in notes_text

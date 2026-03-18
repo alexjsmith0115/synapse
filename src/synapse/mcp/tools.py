@@ -12,29 +12,33 @@ AuditRuleLiteral = Literal["layering_violations", "untested_services"]
 
 _GRAPH_SCHEMA = {
     "node_labels": {
-        "Repository": ["path", "name", "last_indexed"],
+        "Repository": ["path", "name", "language", "last_indexed"],
         "Directory": ["path", "name"],
-        "File": ["path", "name"],
+        "File": ["path", "name", "language", "last_indexed"],
         "Package": ["name"],
-        "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "signature", "attributes"],
-        "Interface": ["full_name", "name", "kind", "file_path", "line", "end_line", "attributes"],
-        "Method": ["full_name", "name", "file_path", "line", "end_line", "signature", "attributes"],
-        "Property": ["full_name", "name", "file_path", "line", "end_line", "attributes"],
-        "Field": ["full_name", "name", "file_path", "line", "end_line", "attributes"],
+        "Class": ["full_name", "name", "kind", "file_path", "line", "end_line", "language", "signature", "attributes"],
+        "Interface": ["full_name", "name", "kind", "file_path", "line", "end_line", "language", "attributes"],
+        "Method": ["full_name", "name", "file_path", "line", "end_line", "language", "signature", "is_abstract", "is_static", "is_classmethod", "is_async", "attributes"],
+        "Property": ["full_name", "name", "file_path", "line", "end_line", "language", "type_name", "attributes"],
+        "Field": ["full_name", "name", "file_path", "line", "end_line", "language", "type_name", "attributes"],
     },
     "relationship_types": {
         "CONTAINS": "Repository/Directory/File/Class/Interface → any",
         "INHERITS": "Class → Class",
         "IMPLEMENTS": "Class → Interface  |  Method → Method (concrete implements interface method)",
         "DISPATCHES_TO": "Method → Method (interface method → concrete implementation; inverse of method-level IMPLEMENTS, written at index time to enable interface-crossing path traversal)",
-        "CALLS": "Method → Method",
+        "CALLS": "Method/Class → Method (method or module-scope call)",
         "REFERENCES": "any → Class/Interface (field type, param type, return type)",
+        "OVERRIDES": "Method → Method (child class method overrides parent class method by name)",
+        "IMPORTS": "File → Package/any (import dependency)",
     },
     "notes": [
         "execute_query(cypher=...) accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
         "Nodes with summaries also carry the :Summarized label and a 'summary' property.",
-        "Class.kind values: 'class', 'abstract_class', 'enum', 'record'.",
-        "Nodes may have an 'attributes' property (JSON list of C# attribute names, e.g. '[\"ApiController\",\"HttpGet\"]').",
+        "Class.kind values: 'class', 'abstract_class', 'enum', 'record', 'module', 'function', 'constructor'.",
+        "Nodes may have an 'attributes' property (JSON list of decorator/attribute names, e.g. '[\"staticmethod\",\"ApiController\"]').",
+        "All symbol nodes (Class, Interface, Method, Property, Field) carry a 'language' property ('csharp' or 'python').",
+        "Method nodes may carry boolean flags: is_abstract, is_static, is_classmethod, is_async.",
     ],
 }
 
