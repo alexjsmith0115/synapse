@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
     upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
-    upsert_imports, upsert_symbol_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
+    upsert_imports, upsert_module_calls, upsert_symbol_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
     upsert_repo_contains_dir,
 )
 from synapse.graph.nodes import (
@@ -21,6 +21,7 @@ from synapse.graph.nodes import (
 from synapse.indexer.base_type_extractor import CSharpBaseTypeExtractor
 from synapse.indexer.call_indexer import CallIndexer
 from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
+from synapse.indexer.overrides_indexer import OverridesIndexer
 from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 
@@ -135,14 +136,60 @@ class Indexer:
 
         call_ext = self._call_extractor_factory() if self._call_extractor_factory else None
         type_ref_ext = self._type_ref_extractor_factory() if self._type_ref_extractor_factory else None
-        SymbolResolver(
+
+        # Build module_full_names set and wire module_name_resolver for Python
+        module_full_names: set[str] = set()
+        if self._language == "python":
+            module_map: dict[str, str] = {}
+            for fp, syms in symbols_by_file.items():
+                for sym in syms:
+                    if sym.signature == "module" and sym.kind == SymbolKind.CLASS:
+                        module_full_names.add(sym.full_name)
+                        module_map[fp] = sym.full_name
+                        break
+            if call_ext is not None and hasattr(call_ext, "_module_name_resolver"):
+                call_ext._module_name_resolver = lambda fp, _m=module_map: _m.get(fp)
+
+        resolver = SymbolResolver(
             self._conn,
             self._lsp.language_server,
             call_extractor=call_ext,
             type_ref_extractor=type_ref_ext,
             name_to_full_names=name_to_full_names,
             file_extensions=self._file_extensions,
-        ).resolve(root_path, symbol_map, class_symbol_map=class_symbol_map)
+            module_full_names=module_full_names,
+        )
+        resolver.resolve(root_path, symbol_map, class_symbol_map=class_symbol_map)
+
+        # Per-site DEBUG logging for unresolved call sites (per user decision)
+        if self._language == "python" and hasattr(resolver, "_unresolved_sites"):
+            for site_msg in resolver._unresolved_sites:
+                log.debug(site_msg)
+
+        # Resolution summary for Python
+        if self._language == "python" and call_ext is not None:
+            calls_count_rows = self._conn.query(
+                "MATCH ()-[r:CALLS]->() WHERE r.call_sites IS NOT NULL RETURN count(r)"
+            )
+            resolved = calls_count_rows[0][0] if calls_count_rows else 0
+            total = getattr(call_ext, "_sites_seen", 0)
+            if total > 0:
+                pct = resolved / total * 100
+                unresolved = total - resolved
+                log.info(
+                    "Call resolution: %d/%d resolved (%.1f%%), %d unresolved",
+                    resolved, total, pct, unresolved,
+                )
+                if resolved == 0:
+                    log.warning(
+                        "Call resolution produced zero CALLS edges (%d sites attempted) — "
+                        "check that LSP is running and fixture uses typed code",
+                        total,
+                    )
+
+        # OVERRIDES detection for Python (pure Cypher, no LSP needed)
+        if self._language == "python":
+            OverridesIndexer(self._conn).index()
 
         if not keep_lsp_running:
             self._lsp.shutdown()

@@ -40,8 +40,10 @@ def test_create_import_extractor_with_source_root():
     assert extractor._source_root == "/some/path"
 
 
-def test_create_call_extractor_returns_none():
-    assert PythonPlugin().create_call_extractor() is None
+def test_create_call_extractor_returns_python_call_extractor():
+    from synapse.indexer.python_call_extractor import PythonCallExtractor
+    extractor = PythonPlugin().create_call_extractor()
+    assert isinstance(extractor, PythonCallExtractor)
 
 
 def test_create_attribute_extractor_returns_none():

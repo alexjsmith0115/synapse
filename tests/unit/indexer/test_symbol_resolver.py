@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock, patch, call
+from pathlib import Path
+
 from synapse.indexer.symbol_resolver import SymbolResolver
 
 
@@ -255,3 +257,92 @@ def test_resolve_call_resolves_overloaded_callee_name() -> None:
     assert callee_used == "Ns.C.M(int)", (
         f"Expected overloaded name 'Ns.C.M(int)' to be used, but got: {callee_used!r}"
     )
+
+
+def test_resolver_walks_py_files_with_python_extractor(tmp_path) -> None:
+    """SymbolResolver walks .py files when file_extensions includes .py."""
+    (tmp_path / "module.py").write_text("def foo(): pass")
+
+    conn = MagicMock()
+    ls = _make_ls(str(tmp_path))
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = []
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        file_extensions=frozenset({".py"}),
+    )
+    resolver.resolve(str(tmp_path), {})
+
+    assert call_extractor.extract.call_count == 1
+    called_path = call_extractor.extract.call_args[0][0]
+    assert called_path.endswith("module.py")
+
+
+def test_resolver_uses_upsert_module_calls_for_module_callers(tmp_path) -> None:
+    """When caller_full_name is in module_full_names, upsert_module_calls is used."""
+    py_file = tmp_path / "config.py"
+    py_file.write_text("foo()")
+
+    conn = MagicMock()
+    conn.query.return_value = [["myproject.config.helper"]]  # _resolve_callee_name
+    ls = _make_ls(str(tmp_path))
+    ls.request_definition.return_value = [
+        {"absolutePath": str(py_file), "range": {"start": {"line": 0, "character": 0}}}
+    ]
+
+    symbol_map = {(str(py_file), 0): "myproject.config.helper"}
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("myproject.config", "helper", 1, 0)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        file_extensions=frozenset({".py"}),
+        module_full_names={"myproject.config"},
+    )
+
+    with patch("synapse.indexer.symbol_resolver.upsert_module_calls") as mock_module_calls, \
+         patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_calls:
+        resolver.resolve(str(tmp_path), symbol_map)
+
+    mock_module_calls.assert_called_once()
+    mock_calls.assert_not_called()
+
+
+def test_resolver_tracks_unresolved_sites(tmp_path) -> None:
+    """When LSP returns no definitions, the call site is appended to _unresolved_sites."""
+    py_file = tmp_path / "mymod.py"
+    py_file.write_text("def run(): foo()")
+
+    conn = MagicMock()
+    ls = _make_ls(str(tmp_path))
+    ls.request_definition.return_value = []  # no definitions — resolution fails
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("mymod.run", "foo", 1, 11)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        file_extensions=frozenset({".py"}),
+    )
+    resolver.resolve(str(tmp_path), {})
+
+    assert len(resolver._unresolved_sites) == 1
+    entry = resolver._unresolved_sites[0]
+    assert "Unresolved:" in entry
+    assert "mymod.run" in entry
+    assert "foo" in entry
+    assert "mymod.py" in entry

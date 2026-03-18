@@ -18,7 +18,8 @@ class PythonPlugin:
         return PythonLSPAdapter.create(root_path)
 
     def create_call_extractor(self):
-        return None  # Phase 3
+        from synapse.indexer.python_call_extractor import PythonCallExtractor
+        return PythonCallExtractor()
 
     def create_import_extractor(self, source_root: str = "") -> PythonImportExtractor:
         return PythonImportExtractor(source_root=source_root)

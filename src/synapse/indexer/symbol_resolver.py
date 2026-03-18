@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from synapse.graph.connection import GraphConnection
-from synapse.graph.edges import upsert_calls, upsert_references
+from synapse.graph.edges import upsert_calls, upsert_module_calls, upsert_references
 from synapse.indexer.call_extractor import TreeSitterCallExtractor
 from synapse.indexer.type_ref_extractor import TreeSitterTypeRefExtractor, TypeRef
 from synapse.lsp.util import build_full_name
@@ -42,6 +42,7 @@ class SymbolResolver:
         type_ref_extractor: TreeSitterTypeRefExtractor | None = None,
         name_to_full_names: dict[str, list[str]] | None = None,
         file_extensions: frozenset[str] | None = None,
+        module_full_names: set[str] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -49,6 +50,8 @@ class SymbolResolver:
         self._type_ref_extractor = type_ref_extractor or TreeSitterTypeRefExtractor()
         self._name_to_full_names = name_to_full_names or {}
         self._file_extensions = file_extensions or frozenset({".cs"})
+        self._module_full_names = module_full_names or set()
+        self._unresolved_sites: list[str] = []
 
     def resolve(
         self,
@@ -120,6 +123,9 @@ class SymbolResolver:
         except Exception:
             return
         if not definitions:
+            self._unresolved_sites.append(
+                f"Unresolved: {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
+            )
             return
 
         # Direct symbol_map lookup by definition location.
@@ -134,7 +140,7 @@ class SymbolResolver:
                     if callee_full_name:
                         callee_full_name = self._resolve_callee_name(callee_full_name)
                         if callee_full_name and callee_full_name != caller_full_name:
-                            upsert_calls(self._conn, caller_full_name, callee_full_name, line=call_line_1, col=call_col_0)
+                            self._upsert_call(caller_full_name, callee_full_name, call_line_1, call_col_0)
                             return
 
         # Fallback: resolve via containing symbol (may fail for single-line declarations)
@@ -147,6 +153,9 @@ class SymbolResolver:
         except Exception:
             return
         if symbol is None:
+            self._unresolved_sites.append(
+                f"Unresolved: {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
+            )
             return
         # Roslyn sometimes returns the containing class rather than the method itself.
         # When that happens, find the matching method among the class's children.
@@ -158,12 +167,25 @@ class SymbolResolver:
                 if c.get("kind") in _METHOD_KINDS and c.get("name") == callee_simple_name
             ]
             if len(method_children) != 1:
+                self._unresolved_sites.append(
+                    f"Unresolved: {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
+                )
                 return
             symbol = method_children[0]
         callee_full_name = build_full_name(symbol)
         callee_full_name = self._resolve_callee_name(callee_full_name)
         if callee_full_name and callee_full_name != caller_full_name:
-            upsert_calls(self._conn, caller_full_name, callee_full_name, line=call_line_1, col=call_col_0)
+            self._upsert_call(caller_full_name, callee_full_name, call_line_1, call_col_0)
+
+    def _upsert_call(
+        self, caller_full_name: str, callee_full_name: str,
+        line: int | None, col: int | None,
+    ) -> None:
+        """Dispatch to upsert_module_calls for module-scope callers, upsert_calls for methods."""
+        if caller_full_name in self._module_full_names:
+            upsert_module_calls(self._conn, caller_full_name, callee_full_name, line=line, col=col)
+        else:
+            upsert_calls(self._conn, caller_full_name, callee_full_name, line=line, col=col)
 
     def _resolve_callee_name(self, full_name: str) -> str:
         """
