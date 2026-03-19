@@ -318,3 +318,23 @@ def test_analyze_change_impact_callees_not_in_total_affected() -> None:
     ]
     result = analyze_change_impact(conn, "Svc.Method")
     assert result["total_affected"] == 1  # only the caller, not the callee
+
+
+def test_audit_untested_services_uses_regex_pattern() -> None:
+    """untested_services rule must use regex test_pattern, not CONTAINS 'Tests'."""
+    conn = _conn([])
+    audit_architecture(conn, "untested_services")
+    cypher = conn.query.call_args[0][0]
+    params = conn.query.call_args[0][1] if len(conn.query.call_args[0]) > 1 else {}
+    assert "CONTAINS 'Tests'" not in cypher, "Should use regex, not CONTAINS"
+    assert "test_pattern" in cypher
+
+
+def test_analyze_change_impact_tests_uses_regex_not_contains() -> None:
+    """test_coverage query must use regex pattern, not CONTAINS 'Tests'."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], [], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    tests_cypher = conn.query.call_args_list[2][0][0]
+    assert "CONTAINS" not in tests_cypher, "Should use regex, not CONTAINS"
+    assert "test_pattern" in tests_cypher

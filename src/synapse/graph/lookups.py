@@ -11,7 +11,14 @@ _VALID_KINDS = frozenset({
     "File", "Directory", "Repository",
 })
 
-_TEST_PATH_PATTERN = r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\].*"
+_TEST_PATH_PATTERN = (
+    r"(?:"
+    r".*[/\\][A-Za-z0-9.]*[Tt]ests?[/\\].*"
+    r"|.*[/\\]__tests__[/\\].*"
+    r"|.*\.(?:test|spec)\.[jt]sx?$"
+    r"|.*_test\.[a-z]+$"
+    r")"
+)
 
 
 def get_symbol(conn: GraphConnection, full_name: str) -> dict | None:

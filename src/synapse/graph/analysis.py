@@ -29,10 +29,10 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     )
     tests = conn.query(
         "MATCH (t:Method)-[:CALLS*1..4]->(m) "
-        "WHERE t.file_path CONTAINS 'Tests' "
+        "WHERE t.file_path =~ $test_pattern "
         "AND (m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m)) "
         "RETURN DISTINCT t.full_name, t.file_path",
-        {"method": method},
+        {"method": method, "test_pattern": _TEST_PATH_PATTERN},
     )
 
     direct_callers = [{"full_name": r[0], "file_path": r[1]} for r in direct]
@@ -140,23 +140,25 @@ def find_type_impact(conn: GraphConnection, type_name: str) -> dict:
 # languages, these rules need language-aware variants or should be skipped
 # for non-C# projects.
 
-_AUDIT_RULES: dict[str, tuple[str, str]] = {
+_AUDIT_RULES: dict[str, tuple[str, str, dict]] = {
     "layering_violations": (
         "Controllers that bypass the service layer and call DbContext directly",
         "MATCH (ctrl:Class)-[:CONTAINS]->(m:Method)-[:CALLS]->(db:Method) "
         "WHERE ctrl.file_path CONTAINS 'Controllers' "
         "AND db.full_name CONTAINS 'DbContext' "
         "RETURN ctrl.name, m.name, db.full_name",
+        {},
     ),
     "untested_services": (
         "Service classes with no test methods calling into them",
         "MATCH (svc:Class)-[:IMPLEMENTS]->(i) "
         "WHERE svc.file_path CONTAINS '/Services/' "
         "OPTIONAL MATCH (t:Method)-[:CALLS*1..3]->(:Method)<-[:CONTAINS]-(svc) "
-        "WHERE t.file_path CONTAINS 'Tests' "
+        "WHERE t.file_path =~ $test_pattern "
         "WITH svc, t "
         "WHERE t IS NULL "
         "RETURN DISTINCT svc.name, svc.file_path",
+        {"test_pattern": _TEST_PATH_PATTERN},
     ),
 }
 
@@ -170,8 +172,8 @@ def audit_architecture(conn: GraphConnection, rule: str) -> dict:
         valid = ", ".join(sorted(_AUDIT_RULES.keys()))
         raise ValueError(f"Unknown rule '{rule}'. Valid rules: {valid}")
 
-    description, cypher = _AUDIT_RULES[rule]
-    rows = conn.query(cypher)
+    description, cypher, params = _AUDIT_RULES[rule]
+    rows = conn.query(cypher, params if params else None)
 
     violations = [dict(r) for r in rows]
 

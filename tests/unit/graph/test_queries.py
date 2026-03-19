@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from unittest.mock import MagicMock
 from synapse.graph.lookups import (
@@ -288,3 +290,58 @@ def test_resolve_with_labels_suffix_match_ambiguous() -> None:
     result = resolve_full_name_with_labels(conn, "TaskService")
     assert isinstance(result, list)
     assert len(result) == 2
+
+
+class TestTestPathPattern:
+    """Verify _TEST_PATH_PATTERN matches all common test file conventions."""
+
+    @pytest.fixture
+    def pattern(self):
+        return re.compile(_TEST_PATH_PATTERN)
+
+    # --- Must match ---
+    def test_matches_csharp_tests_dir(self, pattern):
+        assert pattern.match("/app/MyApp.Tests/FooTest.cs")
+
+    def test_matches_python_tests_dir(self, pattern):
+        assert pattern.match("/app/tests/test_foo.py")
+
+    def test_matches_jest_dunder_tests_dir(self, pattern):
+        assert pattern.match("/app/src/__tests__/status.test.ts")
+
+    def test_matches_test_suffix_ts(self, pattern):
+        assert pattern.match("/app/src/hooks/useMeetings.test.ts")
+
+    def test_matches_spec_suffix_tsx(self, pattern):
+        assert pattern.match("/app/src/hooks/useMeetings.spec.tsx")
+
+    def test_matches_test_suffix_js(self, pattern):
+        assert pattern.match("/app/src/utils/helpers.test.js")
+
+    def test_matches_spec_suffix_jsx(self, pattern):
+        assert pattern.match("/app/src/components/Button.spec.jsx")
+
+    def test_matches_python_unit_tests_dir(self, pattern):
+        assert pattern.match("/app/tests/unit/test_cli.py")
+
+    def test_matches_underscore_test_py(self, pattern):
+        assert pattern.match("/app/src/foo_test.py")
+
+    def test_matches_underscore_test_go(self, pattern):
+        assert pattern.match("/app/src/foo_test.go")
+
+    # --- Must NOT match ---
+    def test_no_match_regular_ts_file(self, pattern):
+        assert not pattern.match("/app/src/hooks/useMeetings.ts")
+
+    def test_no_match_regular_cs_file(self, pattern):
+        assert not pattern.match("/app/src/services/MeetingService.cs")
+
+    def test_no_match_testimonial_card(self, pattern):
+        assert not pattern.match("/app/src/components/TestimonialCard.tsx")
+
+    def test_no_match_testing_utils(self, pattern):
+        assert not pattern.match("/app/src/testing-utils.ts")
+
+    def test_no_match_contest_py(self, pattern):
+        assert not pattern.match("/app/src/contest.py")
