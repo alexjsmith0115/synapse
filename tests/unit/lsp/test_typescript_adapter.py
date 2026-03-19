@@ -297,6 +297,55 @@ class TestExclusions:
         files = adapter.get_workspace_files(str(tmp_path))
         assert str(included) in files
 
+    def test_excludes_coveragereport(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        excluded = self._make_file_in_dir(tmp_path, "coveragereport")
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert str(excluded) not in files
+
+    def test_excludes_dot_next(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        excluded = self._make_file_in_dir(tmp_path, ".next")
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert str(excluded) not in files
+
+    def test_excludes_dot_nuxt(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        excluded = self._make_file_in_dir(tmp_path, ".nuxt")
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert str(excluded) not in files
+
+    def test_excludes_out(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        excluded = self._make_file_in_dir(tmp_path, "out")
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert str(excluded) not in files
+
+    def test_excludes_dot_cache(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        excluded = self._make_file_in_dir(tmp_path, ".cache")
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert str(excluded) not in files
+
+    def test_excludes_min_js_suffix(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        (tmp_path / "vendor.min.js").touch()
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert not any(f.endswith(".min.js") for f in files)
+
+    def test_excludes_bundle_js_suffix(self, tmp_path: Path) -> None:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        adapter = TypeScriptLSPAdapter(MagicMock(), str(tmp_path))
+        (tmp_path / "app.bundle.js").touch()
+        files = adapter.get_workspace_files(str(tmp_path))
+        assert not any(f.endswith(".bundle.js") for f in files)
+
 
 # ---------------------------------------------------------------------------
 # get_document_symbols

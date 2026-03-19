@@ -30,6 +30,21 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+_MINIFIED_LINE_THRESHOLD = 500
+
+
+def _is_minified(file_path: str) -> bool:
+    """Return True if the file's first non-empty line exceeds the minified threshold."""
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped:
+                    return len(stripped) > _MINIFIED_LINE_THRESHOLD
+        return False
+    except OSError:
+        return False
+
 
 class Indexer:
     def __init__(self, conn: GraphConnection, lsp: LSPAdapter, plugin: LanguagePlugin | None = None) -> None:
@@ -70,6 +85,9 @@ class Indexer:
             on_progress(f"Indexing {len(files)} files...")
 
         for file_path in files:
+            if _is_minified(file_path):
+                log.debug("Skipping minified file: %s", file_path)
+                continue
             symbols = self._lsp.get_document_symbols(file_path)
             symbols_by_file[file_path] = symbols
             self._index_file_structure(file_path, root_path, symbols)

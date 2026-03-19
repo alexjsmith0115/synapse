@@ -9,7 +9,12 @@ from synapse.lsp.interface import IndexSymbol, LSPAdapter, SymbolKind
 log = logging.getLogger(__name__)
 
 _TS_EXTENSIONS = frozenset({".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"})
-_EXCLUDE_DIRS = {"node_modules", "dist", "build", ".git", "coverage"}
+_EXCLUDE_DIRS = {
+    "node_modules", "dist", "build", ".git", "coverage",
+    "coveragereport", ".next", ".nuxt", "out", ".cache",
+    ".angular", ".svelte-kit",
+}
+_EXCLUDE_FILE_SUFFIXES = (".min.js", ".min.css", ".bundle.js", ".chunk.js")
 
 # Maps LSP SymbolKind integers to Synapse SymbolKind.
 # Kind 2 (Module/ES module) -> CLASS so ES modules become :Class nodes (mirrors Python adapter decision).
@@ -85,7 +90,8 @@ class TypeScriptLSPAdapter:
         for path in Path(root_path).rglob("*"):
             if path.suffix.lower() in _TS_EXTENSIONS:
                 if not any(part in _EXCLUDE_DIRS for part in path.parts):
-                    files.append(str(path))
+                    if not path.name.endswith(_EXCLUDE_FILE_SUFFIXES):
+                        files.append(str(path))
         return files
 
     def get_document_symbols(self, file_path: str) -> list[IndexSymbol]:

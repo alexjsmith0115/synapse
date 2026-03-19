@@ -36,6 +36,37 @@ def _make_ts_method_symbol(name: str, parent_full_name: str | None = "src/foo.My
     )
 
 
+from synapse.indexer.indexer import _is_minified
+
+
+def test_is_minified_returns_true_for_long_first_line(tmp_path):
+    f = tmp_path / "bundle.js"
+    f.write_text("x" * 501 + "\n")
+    assert _is_minified(str(f)) is True
+
+
+def test_is_minified_returns_false_for_normal_file(tmp_path):
+    f = tmp_path / "app.ts"
+    f.write_text("import { useState } from 'react';\n\nexport function App() {}\n")
+    assert _is_minified(str(f)) is False
+
+
+def test_is_minified_returns_false_for_empty_file(tmp_path):
+    f = tmp_path / "empty.ts"
+    f.write_text("")
+    assert _is_minified(str(f)) is False
+
+
+def test_is_minified_skips_empty_leading_lines(tmp_path):
+    f = tmp_path / "spaced.js"
+    f.write_text("\n\n" + "x" * 501 + "\n")
+    assert _is_minified(str(f)) is True
+
+
+def test_is_minified_returns_false_for_missing_file():
+    assert _is_minified("/nonexistent/file.js") is False
+
+
 def test_typescript_constructor_produces_kind_str_constructor(mock_conn):
     """TypeScript 'constructor' method must store kind_str='constructor', not 'method'."""
     indexer = _make_typescript_indexer(mock_conn)
