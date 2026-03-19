@@ -56,14 +56,18 @@ def test_create_base_type_extractor_returns_typescript_base_type_extractor() -> 
     assert isinstance(result, TypeScriptBaseTypeExtractor)
 
 
-def test_create_attribute_extractor_returns_none() -> None:
+def test_create_attribute_extractor_returns_typescript_attribute_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    assert TypeScriptPlugin().create_attribute_extractor() is None
+    from synapse.indexer.typescript_attribute_extractor import TypeScriptAttributeExtractor
+    result = TypeScriptPlugin().create_attribute_extractor()
+    assert isinstance(result, TypeScriptAttributeExtractor)
 
 
-def test_create_type_ref_extractor_returns_none() -> None:
+def test_create_type_ref_extractor_returns_typescript_type_ref_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    assert TypeScriptPlugin().create_type_ref_extractor() is None
+    from synapse.indexer.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
+    result = TypeScriptPlugin().create_type_ref_extractor()
+    assert isinstance(result, TypeScriptTypeRefExtractor)
 
 
 def test_default_registry_includes_typescript() -> None:

@@ -290,3 +290,43 @@ class PlainClass {
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "PlainClass" not in names_and_attrs
     assert "doThing" not in names_and_attrs
+
+
+# ---------------------------------------------------------------------------
+# _attrs_to_flags and TypeScriptPlugin factory method tests
+# ---------------------------------------------------------------------------
+
+from synapse.indexer.indexer import _attrs_to_flags, _ATTR_TO_FLAG  # noqa: E402
+from synapse.plugin.typescript import TypeScriptPlugin  # noqa: E402
+
+
+def test_attrs_to_flags_abstract() -> None:
+    """TypeScript 'abstract' marker maps to is_abstract flag."""
+    assert _attrs_to_flags(["abstract"]) == {"is_abstract": True}
+
+
+def test_attrs_to_flags_static() -> None:
+    """TypeScript 'static' marker maps to is_static flag."""
+    assert _attrs_to_flags(["static"]) == {"is_static": True}
+
+
+def test_attrs_to_flags_async() -> None:
+    """TypeScript 'async' marker maps to is_async flag."""
+    assert _attrs_to_flags(["async"]) == {"is_async": True}
+
+
+def test_attrs_to_flags_combined() -> None:
+    """Combined abstract+async markers produce both flags."""
+    assert _attrs_to_flags(["abstract", "async"]) == {"is_abstract": True, "is_async": True}
+
+
+def test_attrs_to_flags_decorator_ignored() -> None:
+    """Decorators not in _ATTR_TO_FLAG produce no flags."""
+    assert _attrs_to_flags(["Injectable"]) == {}
+
+
+def test_plugin_returns_extractors() -> None:
+    """TypeScriptPlugin factory methods return real extractor instances (not None)."""
+    plugin = TypeScriptPlugin()
+    assert plugin.create_attribute_extractor() is not None
+    assert plugin.create_type_ref_extractor() is not None
