@@ -576,3 +576,99 @@ def test_reindex_file_python_module_name_resolver(mock_conn):
     assert call_ext._module_name_resolver("/src/mymod.py") == "mymod", (
         "_module_name_resolver must map file_path to module full_name"
     )
+
+
+# ---------------------------------------------------------------------------
+# TypeScript-specific reindex tests
+# ---------------------------------------------------------------------------
+
+def _make_typescript_plugin_with_call_ext():
+    """Build a TypeScript plugin mock that exposes a call extractor with _module_name_resolver."""
+    plugin = MagicMock()
+    plugin.name = "typescript"
+    plugin.file_extensions = frozenset({".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"})
+    mock_extractor = MagicMock(_source_root="")
+    mock_extractor.extract.return_value = []
+    plugin.create_import_extractor.return_value = mock_extractor
+    mock_base = MagicMock()
+    mock_base.extract.return_value = []
+    plugin.create_base_type_extractor.return_value = mock_base
+    plugin.create_attribute_extractor = MagicMock(return_value=None)
+    call_ext = MagicMock()
+    call_ext._module_name_resolver = None
+    plugin.create_call_extractor = MagicMock(return_value=call_ext)
+    plugin.create_type_ref_extractor = MagicMock(return_value=None)
+    return plugin, call_ext
+
+
+def test_reindex_file_typescript(mock_conn):
+    """Indexer.reindex_file() must work for a .ts file path."""
+    mock_symbols = [
+        IndexSymbol(
+            name="MyClass",
+            full_name="src/mod.MyClass",
+            kind=SymbolKind.CLASS,
+            file_path="/src/mod.ts",
+            line=0,
+        )
+    ]
+    lsp = MagicMock()
+    lsp.get_document_symbols.return_value = mock_symbols
+
+    plugin = MagicMock()
+    plugin.name = "typescript"
+    plugin.file_extensions = frozenset({".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"})
+    mock_extractor = MagicMock(_source_root="")
+    mock_extractor.extract.return_value = []
+    plugin.create_import_extractor.return_value = mock_extractor
+    mock_base = MagicMock()
+    mock_base.extract.return_value = []
+    plugin.create_base_type_extractor.return_value = mock_base
+    plugin.create_attribute_extractor = MagicMock(return_value=None)
+    plugin.create_call_extractor = MagicMock(return_value=None)
+    plugin.create_type_ref_extractor = MagicMock(return_value=None)
+
+    with patch("synapse.indexer.indexer.collect_summaries", return_value=[]), \
+         patch("synapse.indexer.indexer.restore_summaries"), \
+         patch("synapse.indexer.indexer.SymbolResolver"), \
+         patch("synapse.indexer.indexer.delete_file_nodes"), \
+         patch("builtins.open", mock_open(read_data="class MyClass {}")):
+        indexer = Indexer(mock_conn, lsp, plugin)
+        indexer.reindex_file("/src/mod.ts", "/src")
+
+    lsp.get_document_symbols.assert_called_once_with("/src/mod.ts")
+
+
+def test_reindex_file_typescript_call_wiring(mock_conn):
+    """reindex_file() must wire _module_name_resolver on the TypeScript call extractor."""
+    plugin, call_ext = _make_typescript_plugin_with_call_ext()
+    lsp = MagicMock()
+    lsp.get_document_symbols.return_value = [
+        IndexSymbol(
+            name="src/mod",
+            full_name="src/mod",
+            kind=SymbolKind.CLASS,
+            file_path="/src/mod.ts",
+            line=0,
+            signature="module",
+        ),
+        IndexSymbol(
+            name="MyClass",
+            full_name="src/mod.MyClass",
+            kind=SymbolKind.CLASS,
+            file_path="/src/mod.ts",
+            line=1,
+        ),
+    ]
+
+    with patch("synapse.indexer.indexer.SymbolResolver") as mock_resolver_cls, \
+         patch("synapse.indexer.indexer.collect_summaries", return_value=[]), \
+         patch("synapse.indexer.indexer.restore_summaries"), \
+         patch("synapse.indexer.indexer.delete_file_nodes"), \
+         patch("builtins.open", mock_open(read_data="class MyClass {}")):
+        indexer = Indexer(mock_conn, lsp, plugin)
+        indexer.reindex_file("/src/mod.ts", "/src")
+
+    _, kwargs = mock_resolver_cls.call_args
+    assert "module_full_names" in kwargs, "SymbolResolver must receive module_full_names kwarg"
+    assert "src/mod" in kwargs["module_full_names"], "module_full_names must contain module full_name"

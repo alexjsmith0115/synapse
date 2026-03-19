@@ -92,3 +92,11 @@ def test_default_registry_has_csharp(tmp_path):
     result = registry.detect(str(tmp_path))
     assert len(result) == 1
     assert result[0].name == "csharp"
+
+
+def test_detect_typescript_project(tmp_path):
+    (tmp_path / "app.ts").write_text("export class App {}")
+    registry = default_registry()
+    result = registry.detect(str(tmp_path))
+    names = [p.name for p in result]
+    assert "typescript" in names
