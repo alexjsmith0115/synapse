@@ -98,3 +98,28 @@ def python_mcp(python_service):
     mcp = FastMCP("synapse-python-test")
     register_tools(mcp, python_service)
     return mcp
+
+
+TYPESCRIPT_FIXTURE_PATH = str(
+    (pathlib.Path(__file__).parent.parent / "fixtures" / "SynapseJSTest").resolve()
+)
+
+
+@pytest.fixture(scope="session")
+def typescript_service():
+    """Index the TypeScript fixture project and yield SynapseService."""
+    conn = GraphConnection.create(database="memgraph")
+    ensure_schema(conn)
+    conn.execute("MATCH (n) DETACH DELETE n")
+    svc = SynapseService(conn=conn)
+    svc.index_project(TYPESCRIPT_FIXTURE_PATH, "typescript")
+    yield svc
+    conn.execute("MATCH (n) DETACH DELETE n")
+
+
+@pytest.fixture(scope="session")
+def typescript_mcp(typescript_service):
+    """Return MCP server instance wired to the TypeScript-indexed graph."""
+    mcp = FastMCP("synapse-typescript-test")
+    register_tools(mcp, typescript_service)
+    return mcp
