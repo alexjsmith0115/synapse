@@ -152,7 +152,7 @@ class SynapseService:
             type_ref_ext = plugin.create_type_ref_extractor()
 
             module_full_names: set[str] = set()
-            if plugin.name == "python":
+            if plugin.name in ("python", "typescript"):
                 module_map: dict[str, str] = {}
                 rows = self._conn.query(
                     "MATCH (n:Class {kind: 'module'}) RETURN n.full_name, n.file_path"
@@ -173,11 +173,11 @@ class SynapseService:
             )
             resolver.resolve(path, symbol_map)
 
-            if plugin.name == "python" and hasattr(resolver, "_unresolved_sites"):
+            if plugin.name in ("python", "typescript") and hasattr(resolver, "_unresolved_sites"):
                 for site_msg in resolver._unresolved_sites:
                     log.debug(site_msg)
 
-            if plugin.name == "python" and call_ext is not None:
+            if plugin.name in ("python", "typescript") and call_ext is not None:
                 calls_count_rows = self._conn.query(
                     "MATCH ()-[r:CALLS]->() WHERE r.call_sites IS NOT NULL RETURN count(r)"
                 )
@@ -197,7 +197,7 @@ class SynapseService:
                             total,
                         )
 
-            if plugin.name == "python":
+            if plugin.name in ("python", "typescript"):
                 OverridesIndexer(self._conn).index()
 
             lsp.shutdown()

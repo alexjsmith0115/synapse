@@ -37,7 +37,7 @@ _GRAPH_SCHEMA = {
         "Nodes with summaries also carry the :Summarized label and a 'summary' property.",
         "Class.kind values: 'class', 'abstract_class', 'enum', 'record', 'module', 'function', 'constructor'.",
         "Nodes may have an 'attributes' property (JSON list of decorator/attribute names, e.g. '[\"staticmethod\",\"ApiController\"]').",
-        "All symbol nodes (Class, Interface, Method, Property, Field) carry a 'language' property ('csharp' or 'python').",
+        "All symbol nodes (Class, Interface, Method, Property, Field) carry a 'language' property ('csharp', 'python', or 'typescript').",
         "Method nodes may carry boolean flags: is_abstract, is_static, is_classmethod, is_async.",
     ],
 }
@@ -51,7 +51,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         """Index a project's codebase into the graph. Uses MERGE (upsert) so nodes are updated in place rather than deleted and recreated. Summaries and other non-structural properties are preserved.
 
         Uses LSP for structural analysis (symbols, inheritance, implementations) and tree-sitter for call site detection.
-        Supports C# (language='csharp') and Python (language='python') projects. Language is auto-detected from file extensions when not specified.
+        Supports C# (language='csharp'), Python (language='python'), and TypeScript/JavaScript (language='typescript') projects. Language is auto-detected from file extensions when not specified.
         """
         service.index_project(path, language)
         return f"Indexed {path}"
