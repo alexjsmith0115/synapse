@@ -49,6 +49,32 @@ def test_get_schema(typescript_mcp: FastMCP) -> None:
     assert "node_labels" in schema
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_index_project(typescript_mcp: FastMCP) -> None:
+    """index_project re-indexes the TypeScript fixture without error (upsert — safe to re-run)."""
+    result = run(typescript_mcp.call_tool("index_project", {
+        "path": TYPESCRIPT_FIXTURE_PATH,
+        "language": "typescript",
+    }))
+    msg = text(result)
+    assert "Indexed" in msg
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(60)
+def test_delete_project(typescript_mcp: FastMCP, typescript_service: SynapseService) -> None:
+    """delete_project removes the TypeScript project; re-index restores it for downstream tests."""
+    result = run(typescript_mcp.call_tool("delete_project", {
+        "path": TYPESCRIPT_FIXTURE_PATH,
+    }))
+    msg = text(result)
+    assert "Deleted" in msg
+
+    # Restore the graph so session fixtures remain valid for all other tests.
+    typescript_service.index_project(TYPESCRIPT_FIXTURE_PATH, "typescript")
+
+
 # ---------------------------------------------------------------------------
 # Symbol query tools
 # ---------------------------------------------------------------------------
