@@ -385,13 +385,13 @@ class Indexer:
             full_names = name_to_full.get(simple_name, [])
             if len(full_names) == 1:
                 set_attributes(self._conn, full_names[0], attrs)
-                if self._language == "python":
+                if self._language in ("python", "typescript"):
                     set_metadata_flags(self._conn, full_names[0], _attrs_to_flags(attrs))
             else:
                 # Multiple symbols with same simple name in this file — set on all matches
                 for fn in full_names:
                     set_attributes(self._conn, fn, attrs)
-                    if self._language == "python":
+                    if self._language in ("python", "typescript"):
                         set_metadata_flags(self._conn, fn, _attrs_to_flags(attrs))
 
     def _index_base_types(
@@ -431,6 +431,9 @@ _ATTR_TO_FLAG: dict[str, str] = {
     "classmethod": "is_classmethod",
     "async": "is_async",
     "ABC": "is_abstract",
+    # TypeScript markers (bare keyword names, no collision with Python decorated names)
+    "abstract": "is_abstract",
+    "static": "is_static",
 }
 
 

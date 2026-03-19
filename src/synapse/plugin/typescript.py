@@ -28,7 +28,9 @@ class TypeScriptPlugin:
         return TypeScriptBaseTypeExtractor()
 
     def create_attribute_extractor(self):
-        return None  # Stub for Phase 11
+        from synapse.indexer.typescript_attribute_extractor import TypeScriptAttributeExtractor
+        return TypeScriptAttributeExtractor()
 
     def create_type_ref_extractor(self):
-        return None  # Stub for Phase 11
+        from synapse.indexer.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
+        return TypeScriptTypeRefExtractor()
