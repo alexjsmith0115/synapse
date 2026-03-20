@@ -53,7 +53,16 @@ def _require_label(svc: SynapseService, full_name: str, required: str, hint: str
 def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
     abs_path = str(Path(path).resolve())
-    _get_service().index_project(abs_path, language, on_progress=typer.echo)
+    try:
+        _get_service().index_project(abs_path, language, on_progress=typer.echo)
+    except ModuleNotFoundError as e:
+        typer.echo(
+            f"Error: Missing dependency — {e}\n"
+            "Your synapse installation may be incomplete. "
+            "Reinstall with:  pip install -e '.[dev]'",
+            err=True,
+        )
+        raise typer.Exit(1)
     typer.echo(f"Done. Indexed {abs_path}")
 
 

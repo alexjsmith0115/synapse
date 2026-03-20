@@ -81,3 +81,12 @@ def test_detect_returns_typescript_for_ts_directory(tmp_path) -> None:
     result = registry.detect(str(tmp_path))
     names = [p.name for p in result]
     assert "typescript" in names
+
+
+def test_missing_tree_sitter_raises_module_not_found() -> None:
+    from synapse.plugin.typescript import TypeScriptPlugin
+
+    with patch.dict("sys.modules", {"tree_sitter_typescript": None}):
+        plugin = TypeScriptPlugin()
+        with pytest.raises(ModuleNotFoundError):
+            plugin.create_import_extractor()

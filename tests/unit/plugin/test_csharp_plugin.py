@@ -56,3 +56,10 @@ def test_create_lsp_adapter_delegates_to_csharp_adapter():
         result = CSharpPlugin().create_lsp_adapter("/path/to/project")
         mock_create.assert_called_once_with("/path/to/project")
         assert result is mock_adapter
+
+
+def test_missing_tree_sitter_raises_module_not_found():
+    with patch.dict("sys.modules", {"tree_sitter_c_sharp": None}):
+        plugin = CSharpPlugin()
+        with pytest.raises(ModuleNotFoundError):
+            plugin.create_import_extractor()

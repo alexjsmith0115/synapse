@@ -145,3 +145,13 @@ def test_implementations_accepts_abstract_class():
         result = runner.invoke(app, ["implementations", "A.IAnimal"])
     assert result.exit_code == 0
     assert "Dog" in result.output
+
+
+def test_index_missing_dependency_shows_reinstall_hint():
+    svc = MagicMock()
+    svc.index_project.side_effect = ModuleNotFoundError("No module named 'tree_sitter_typescript'")
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["index", "/some/path"])
+    assert result.exit_code != 0
+    assert "tree_sitter_typescript" in result.output
+    assert "pip install" in result.output
