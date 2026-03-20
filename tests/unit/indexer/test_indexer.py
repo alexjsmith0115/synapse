@@ -95,3 +95,21 @@ def test_typescript_top_level_function_kind_str_is_function(mock_conn):
     indexer._upsert_symbol(sym)
     _, params = mock_conn.execute.call_args[0]
     assert params.get("language") == "typescript"
+
+
+def test_typescript_const_object_produces_kind_str_const_object(mock_conn):
+    """Promoted const object (signature='const_object', kind=CLASS) stores kind='const_object' on :Class node."""
+    indexer = _make_typescript_indexer(mock_conn)
+    sym = IndexSymbol(
+        name="meetingService",
+        full_name="src/api/meetingService.meetingService",
+        kind=SymbolKind.CLASS,
+        file_path="/proj/src/api/meetingService.ts",
+        line=16,
+        signature="const_object",
+        parent_full_name=None,
+    )
+    indexer._upsert_symbol(sym)
+    cypher, params = mock_conn.execute.call_args[0]
+    assert params.get("kind") == "const_object"
+    assert "Class" in cypher

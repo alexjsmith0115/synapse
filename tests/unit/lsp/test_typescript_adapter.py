@@ -497,6 +497,126 @@ def test_find_overridden_method_returns_none() -> None:
     assert adapter.find_overridden_method(sym) is None
 
 
+# ---------------------------------------------------------------------------
+# _traverse: const object promotion (export const xService = { ... })
+# ---------------------------------------------------------------------------
+
+class TestTraverseConstObjectPromotion:
+    """Tests for promoting top-level Variable/Constant with children to CLASS."""
+
+    def _make_adapter(self) -> object:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        mock_ls = MagicMock()
+        return TypeScriptLSPAdapter(mock_ls, "/proj")
+
+    def _make_raw(self, name: str, kind: int, children: list | None = None,
+                  line: int = 0, end_line: int = 10) -> dict:
+        raw = {
+            "name": name,
+            "kind": kind,
+            "location": {"range": {"start": {"line": line}, "end": {"line": end_line}}},
+        }
+        if children is not None:
+            raw["children"] = children
+        return raw
+
+    def test_top_level_const_with_method_children_promoted_to_class(self) -> None:
+        """export const meetingService = { getMeetings: ... } -> :Class + :Method children."""
+        adapter = self._make_adapter()
+        method_child = self._make_raw("getMeetings", 6, children=[], line=2, end_line=5)
+        const_obj = self._make_raw("meetingService", 14, children=[method_child], line=0, end_line=10)
+
+        result: list = []
+        adapter._traverse(const_obj, "/proj/src/service.ts", parent_full_name=None, result=result)
+
+        assert len(result) == 2
+        # Parent: promoted to CLASS with const_object signature
+        assert result[0].kind == SymbolKind.CLASS
+        assert result[0].name == "meetingService"
+        assert result[0].signature == "const_object"
+        # Child: normal METHOD
+        assert result[1].kind == SymbolKind.METHOD
+        assert result[1].name == "getMeetings"
+        assert result[1].parent_full_name == result[0].full_name
+
+    def test_top_level_variable_with_children_promoted(self) -> None:
+        """Kind 13 (Variable) also promoted when it has children."""
+        adapter = self._make_adapter()
+        child = self._make_raw("doStuff", 6, children=[], line=3)
+        var_obj = self._make_raw("utils", 13, children=[child])
+
+        result: list = []
+        adapter._traverse(var_obj, "/proj/src/utils.ts", parent_full_name=None, result=result)
+
+        assert len(result) == 2
+        assert result[0].kind == SymbolKind.CLASS
+        assert result[0].signature == "const_object"
+
+    def test_simple_variable_without_children_still_skipped(self) -> None:
+        """const API_URL = '...' -> no children -> stays skipped."""
+        adapter = self._make_adapter()
+        simple_var = self._make_raw("API_URL", 14)  # no children key at all
+
+        result: list = []
+        adapter._traverse(simple_var, "/proj/src/config.ts", parent_full_name=None, result=result)
+        assert result == []
+
+    def test_variable_with_empty_children_still_skipped(self) -> None:
+        """Variable with children=[] stays skipped."""
+        adapter = self._make_adapter()
+        empty_children_var = self._make_raw("API_URL", 14, children=[])
+
+        result: list = []
+        adapter._traverse(empty_children_var, "/proj/src/config.ts", parent_full_name=None, result=result)
+        assert result == []
+
+    def test_nested_variable_inside_method_not_promoted(self) -> None:
+        """const response = await api.get() inside a method -> NOT promoted (parent_full_name guard)."""
+        adapter = self._make_adapter()
+        param_child = self._make_raw("params", 7, children=[], line=5)
+        response_var = self._make_raw("response", 14, children=[param_child], line=3)
+
+        result: list = []
+        # parent_full_name is set -> this is inside a method, not top-level
+        adapter._traverse(response_var, "/proj/src/service.ts",
+                          parent_full_name="src/service.meetingService.getMeetings", result=result)
+        assert result == []
+
+    def test_unknown_kind_with_children_not_promoted(self) -> None:
+        """An unknown LSP kind (e.g., 99) with children should NOT be promoted."""
+        adapter = self._make_adapter()
+        child = self._make_raw("inner", 6, children=[])
+        unknown = self._make_raw("mystery", 99, children=[child])
+
+        result: list = []
+        adapter._traverse(unknown, "/proj/src/mod.ts", parent_full_name=None, result=result)
+        assert result == []
+
+
+class TestConvertAsClass:
+    """Tests for _convert_as_class method."""
+
+    def _make_adapter(self) -> object:
+        from synapse.lsp.typescript import TypeScriptLSPAdapter
+        return TypeScriptLSPAdapter(MagicMock(), "/proj")
+
+    def test_produces_class_kind_with_const_object_signature(self) -> None:
+        adapter = self._make_adapter()
+        raw = {
+            "name": "myService",
+            "kind": 14,
+            "location": {"range": {"start": {"line": 5}, "end": {"line": 20}}},
+        }
+        sym = adapter._convert_as_class(raw, "/proj/src/svc.ts", "/proj", parent_full_name=None)
+        assert sym.kind == SymbolKind.CLASS
+        assert sym.signature == "const_object"
+        assert sym.name == "myService"
+        assert sym.full_name == "src/svc.myService"
+        assert sym.line == 5
+        assert sym.end_line == 20
+        assert sym.parent_full_name is None
+
+
 def test_shutdown_calls_stop() -> None:
     from synapse.lsp.typescript import TypeScriptLSPAdapter
 

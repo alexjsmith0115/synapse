@@ -368,6 +368,8 @@ class Indexer:
             elif symbol.kind == SymbolKind.METHOD and symbol.parent_full_name is None:
                 # Module-scope function — same treatment as Python top-level function
                 kind_str = "function"
+            elif symbol.signature == "const_object" and symbol.kind == SymbolKind.CLASS:
+                kind_str = "const_object"
 
         match symbol.kind:
             case SymbolKind.NAMESPACE:

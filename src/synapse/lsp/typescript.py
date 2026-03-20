@@ -120,6 +120,14 @@ class TypeScriptLSPAdapter:
             result.append(sym)
             for child in raw.get("children", []):
                 self._traverse(child, file_path, parent_full_name=sym.full_name, result=result)
+        elif raw.get("children") and raw.get("kind", 0) in (13, 14) and parent_full_name is None:
+            # Top-level Variable/Constant with children (e.g., export const xService = { ... }).
+            # Promote to CLASS so object literal methods get indexed.
+            sym = self._convert_as_class(raw, file_path, self._root_path, parent_full_name)
+            if sym is not None:
+                result.append(sym)
+                for child in raw.get("children", []):
+                    self._traverse(child, file_path, parent_full_name=sym.full_name, result=result)
 
     def _convert(
         self,
@@ -150,6 +158,29 @@ class TypeScriptLSPAdapter:
             line=line,
             end_line=end_line,
             signature=signature,
+            parent_full_name=parent_full_name,
+        )
+
+    def _convert_as_class(
+        self,
+        raw: dict,
+        file_path: str,
+        root_path: str,
+        parent_full_name: str | None,
+    ) -> IndexSymbol:
+        """Convert a Variable/Constant symbol to CLASS for object literals with methods."""
+        name = raw.get("name", "")
+        range_obj = raw.get("location", {}).get("range", {})
+        line = range_obj.get("start", {}).get("line", 0)
+        end_line = range_obj.get("end", {}).get("line", 0)
+        return IndexSymbol(
+            name=name,
+            full_name=_build_ts_full_name(raw, file_path, root_path),
+            kind=SymbolKind.CLASS,
+            file_path=file_path,
+            line=line,
+            end_line=end_line,
+            signature="const_object",
             parent_full_name=parent_full_name,
         )
 
