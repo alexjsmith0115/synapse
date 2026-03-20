@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
+import os
 
-from synapse.indexer.sync import SyncResult, compute_sync_diff
+import pytest
+
+from synapse.indexer.sync import SyncResult, compute_sync_diff, sync_project
 
 
 def _ts(year=2026, month=3, day=20, hour=12) -> str:
@@ -81,3 +85,105 @@ def test_sync_result_total():
     assert r.updated == 3
     assert r.deleted == 1
     assert r.unchanged == 10
+
+
+def test_sync_project_orchestration(tmp_path):
+    """sync_project deletes removed files, re-indexes stale/new, skips fresh."""
+    (tmp_path / "a.cs").write_text("class A {}")
+    (tmp_path / "new.cs").write_text("class New {}")
+
+    old_ts = _ts(hour=1)
+
+    future_mtime = _mtime(hour=23)
+    os.utime(str(tmp_path / "a.cs"), (future_mtime, future_mtime))
+    os.utime(str(tmp_path / "new.cs"), (future_mtime, future_mtime))
+
+    conn = MagicMock()
+    conn.query.return_value = [
+        [str(tmp_path / "a.cs"), old_ts],
+        [str(tmp_path / "gone.cs"), old_ts],
+    ]
+
+    mock_indexer = MagicMock()
+    disk_files = {
+        str(tmp_path / "a.cs"): os.path.getmtime(str(tmp_path / "a.cs")),
+        str(tmp_path / "new.cs"): os.path.getmtime(str(tmp_path / "new.cs")),
+    }
+
+    result = sync_project(
+        conn=conn,
+        indexer=mock_indexer,
+        root_path=str(tmp_path),
+        disk_files=disk_files,
+    )
+
+    mock_indexer.delete_file.assert_called_once_with(str(tmp_path / "gone.cs"))
+    reindex_calls = {call.args[0] for call in mock_indexer.reindex_file.call_args_list}
+    assert str(tmp_path / "a.cs") in reindex_calls
+    assert str(tmp_path / "new.cs") in reindex_calls
+    for c in mock_indexer.reindex_file.call_args_list:
+        assert c.args[1] == str(tmp_path)
+    assert result.deleted == 1
+    assert result.updated == 2
+    assert result.unchanged == 0
+
+
+def test_sync_project_no_changes(tmp_path):
+    """When nothing changed, sync returns all zeros."""
+    (tmp_path / "a.cs").write_text("class A {}")
+    fresh_ts = datetime(2099, 1, 1, tzinfo=timezone.utc).isoformat()
+
+    conn = MagicMock()
+    conn.query.return_value = [[str(tmp_path / "a.cs"), fresh_ts]]
+
+    mock_indexer = MagicMock()
+    disk_files = {str(tmp_path / "a.cs"): os.path.getmtime(str(tmp_path / "a.cs"))}
+
+    result = sync_project(conn=conn, indexer=mock_indexer, root_path=str(tmp_path), disk_files=disk_files)
+
+    mock_indexer.delete_file.assert_not_called()
+    mock_indexer.reindex_file.assert_not_called()
+    assert result.updated == 0
+    assert result.deleted == 0
+    assert result.unchanged == 1
+
+
+def test_sync_project_no_repo_raises(tmp_path):
+    """sync_project raises ValueError when Repository node doesn't exist."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    mock_indexer = MagicMock()
+
+    with pytest.raises(ValueError, match="not indexed"):
+        sync_project(conn=conn, indexer=mock_indexer, root_path=str(tmp_path), disk_files={})
+
+
+def test_sync_project_continues_on_reindex_failure(tmp_path):
+    """If reindex_file raises for one file, sync continues with remaining files."""
+    (tmp_path / "a.cs").write_text("class A {}")
+    (tmp_path / "b.cs").write_text("class B {}")
+
+    old_ts = _ts(hour=1)
+    future_mtime = _mtime(hour=23)
+    os.utime(str(tmp_path / "a.cs"), (future_mtime, future_mtime))
+    os.utime(str(tmp_path / "b.cs"), (future_mtime, future_mtime))
+
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [[str(tmp_path)]],  # repo check
+        [[str(tmp_path / "a.cs"), old_ts], [str(tmp_path / "b.cs"), old_ts]],  # file list
+    ]
+
+    mock_indexer = MagicMock()
+    mock_indexer.reindex_file.side_effect = [Exception("LSP timeout"), None]
+
+    disk_files = {
+        str(tmp_path / "a.cs"): os.path.getmtime(str(tmp_path / "a.cs")),
+        str(tmp_path / "b.cs"): os.path.getmtime(str(tmp_path / "b.cs")),
+    }
+
+    result = sync_project(conn=conn, indexer=mock_indexer, root_path=str(tmp_path), disk_files=disk_files)
+
+    assert mock_indexer.reindex_file.call_count == 2
+    assert result.updated == 1
+    assert result.deleted == 0
