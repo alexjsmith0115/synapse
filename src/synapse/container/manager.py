@@ -1,7 +1,6 @@
 """Per-project Docker container management for Memgraph isolation."""
 from __future__ import annotations
 
-import hashlib
 import json
 import socket
 import time
@@ -35,8 +34,7 @@ class ContainerManager:
             ) from exc
 
     def _container_name(self) -> str:
-        digest = hashlib.sha256(str(self._project_path).encode()).hexdigest()[:12]
-        return f"synapse-{digest}"
+        return f"synapse-{self._project_path.name}"
 
     def _config_path(self) -> Path:
         return self._project_path / _CONFIG_DIR / _CONFIG_FILE

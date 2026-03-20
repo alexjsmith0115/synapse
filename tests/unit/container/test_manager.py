@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import hashlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch, PropertyMock
 
@@ -24,12 +23,10 @@ def manager(tmp_path, mock_docker):
 
 # --- Container naming ---
 
-def test_container_name_deterministic(tmp_path, mock_docker):
+def test_container_name_uses_directory_name(tmp_path, mock_docker):
     from synapse.container.manager import ContainerManager
     m = ContainerManager(str(tmp_path), docker_client=mock_docker)
-    expected = "synapse-" + hashlib.sha256(str(tmp_path.resolve()).encode()).hexdigest()[:12]
-    assert m._container_name() == expected
-    # Same input always same output
+    expected = f"synapse-{tmp_path.name}"
     assert m._container_name() == expected
 
 
@@ -41,6 +38,8 @@ def test_container_name_different_paths(mock_docker, tmp_path):
     p2.mkdir()
     m1 = ContainerManager(str(p1), docker_client=mock_docker)
     m2 = ContainerManager(str(p2), docker_client=mock_docker)
+    assert m1._container_name() == "synapse-project_a"
+    assert m2._container_name() == "synapse-project_b"
     assert m1._container_name() != m2._container_name()
 
 
