@@ -23,9 +23,10 @@ def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
     )
     transitive = conn.query(
         "MATCH (c:Method)-[:CALLS*2..4]->(m) "
-        "WHERE m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m) "
+        "WHERE (m.full_name = $method OR (:Method {full_name: $method})-[:IMPLEMENTS]->(m)) "
+        "AND NOT c.file_path =~ $test_pattern "
         "RETURN DISTINCT c.full_name, c.file_path",
-        {"method": method},
+        {"method": method, "test_pattern": _TEST_PATH_PATTERN},
     )
     tests = conn.query(
         "MATCH (t:Method)-[:CALLS*1..4]->(m) "

@@ -338,3 +338,16 @@ def test_analyze_change_impact_tests_uses_regex_not_contains() -> None:
     tests_cypher = conn.query.call_args_list[2][0][0]
     assert "CONTAINS" not in tests_cypher, "Should use regex, not CONTAINS"
     assert "test_pattern" in tests_cypher
+
+
+def test_analyze_change_impact_transitive_excludes_tests() -> None:
+    """transitive_callers must exclude test files via _TEST_PATH_PATTERN."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], [], [], []]
+    analyze_change_impact(conn, "Ns.Svc.Method")
+    transitive_cypher = conn.query.call_args_list[1][0][0]
+    params = conn.query.call_args_list[1][0][1]
+    assert "NOT" in transitive_cypher and "test_pattern" in transitive_cypher, (
+        "transitive_callers query must filter out test files via regex"
+    )
+    assert params["test_pattern"] == _TEST_PATH_PATTERN
