@@ -97,6 +97,79 @@ def test_typescript_top_level_function_kind_str_is_function(mock_conn):
     assert params.get("language") == "typescript"
 
 
+def test_index_callback_edges_creates_calls_from_parent_to_callback(mock_conn):
+    """Callback methods (name ends with 'callback') get CALLS edges from parent."""
+    indexer = _make_typescript_indexer(mock_conn)
+    symbols_by_file = {
+        "/proj/src/hooks.ts": [
+            IndexSymbol(
+                name="useMyHook",
+                full_name="src/hooks.useMyHook",
+                kind=SymbolKind.METHOD,
+                file_path="/proj/src/hooks.ts",
+                line=1,
+                parent_full_name=None,
+            ),
+            IndexSymbol(
+                name="useEffect() callback",
+                full_name="src/hooks.useMyHook.useEffect() callback",
+                kind=SymbolKind.METHOD,
+                file_path="/proj/src/hooks.ts",
+                line=3,
+                parent_full_name="src/hooks.useMyHook",
+            ),
+        ],
+    }
+    mock_conn.reset_mock()
+    indexer._index_callback_edges(symbols_by_file)
+    # Should have called execute once for the CALLS edge
+    assert mock_conn.execute.call_count == 1
+    cypher, params = mock_conn.execute.call_args[0]
+    assert "CALLS" in cypher
+    assert params["caller"] == "src/hooks.useMyHook"
+    assert params["callee"] == "src/hooks.useMyHook.useEffect() callback"
+
+
+def test_index_callback_edges_skips_non_callback_methods(mock_conn):
+    """Methods not ending with 'callback' should not get callback CALLS edges."""
+    indexer = _make_typescript_indexer(mock_conn)
+    symbols_by_file = {
+        "/proj/src/svc.ts": [
+            IndexSymbol(
+                name="getMeetings",
+                full_name="src/svc.meetingService.getMeetings",
+                kind=SymbolKind.METHOD,
+                file_path="/proj/src/svc.ts",
+                line=5,
+                parent_full_name="src/svc.meetingService",
+            ),
+        ],
+    }
+    mock_conn.reset_mock()
+    indexer._index_callback_edges(symbols_by_file)
+    mock_conn.execute.assert_not_called()
+
+
+def test_index_callback_edges_skips_parentless_callbacks(mock_conn):
+    """Callbacks without parent_full_name should be skipped."""
+    indexer = _make_typescript_indexer(mock_conn)
+    symbols_by_file = {
+        "/proj/src/mod.ts": [
+            IndexSymbol(
+                name="defineConfig() callback",
+                full_name="src/mod.defineConfig() callback",
+                kind=SymbolKind.METHOD,
+                file_path="/proj/src/mod.ts",
+                line=1,
+                parent_full_name=None,
+            ),
+        ],
+    }
+    mock_conn.reset_mock()
+    indexer._index_callback_edges(symbols_by_file)
+    mock_conn.execute.assert_not_called()
+
+
 def test_typescript_const_object_produces_kind_str_const_object(mock_conn):
     """Promoted const object (signature='const_object', kind=CLASS) stores kind='const_object' on :Class node."""
     indexer = _make_typescript_indexer(mock_conn)

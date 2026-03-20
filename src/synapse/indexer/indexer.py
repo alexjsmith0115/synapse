@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
-    upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
+    upsert_calls, upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
     upsert_imports, upsert_module_calls, upsert_symbol_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
     upsert_repo_contains_dir,
 )
@@ -133,6 +133,11 @@ class Indexer:
 
         # Phase 1.5: method-level IMPLEMENTS edges (requires all class-level IMPLEMENTS to exist)
         MethodImplementsIndexer(self._conn).index()
+
+        # Phase 1.6: callback CALLS edges — connect parent methods to their callback children.
+        # TS LSP names callback symbols like "foo.useEffect() callback"; create a CALLS edge
+        # from the parent method to the callback so traversal tools can walk through them.
+        self._index_callback_edges(symbols_by_file)
 
         # CALLS and REFERENCES resolution requires all nodes to be present; must run after structural pass
         _CLASS_KINDS = {SymbolKind.CLASS, SymbolKind.ABSTRACT_CLASS, SymbolKind.INTERFACE}
@@ -386,6 +391,29 @@ class Indexer:
                 upsert_field(self._conn, symbol.full_name, symbol.name, "", file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
             case _:
                 log.debug("Skipping symbol of unhandled kind: %s", symbol.kind)
+
+    def _index_callback_edges(
+        self,
+        symbols_by_file: dict[str, list[IndexSymbol]],
+    ) -> None:
+        """Create CALLS edges from parent methods to callback children.
+
+        The TS LSP emits symbols like "foo.useEffect() callback" as children
+        of "foo". Creating a CALLS edge connects these disconnected islands
+        so trace_call_chain and find_entry_points can walk through them.
+        """
+        count = 0
+        for syms in symbols_by_file.values():
+            for sym in syms:
+                if (
+                    sym.kind == SymbolKind.METHOD
+                    and sym.name.endswith("callback")
+                    and sym.parent_full_name
+                ):
+                    upsert_calls(self._conn, sym.parent_full_name, sym.full_name)
+                    count += 1
+        if count:
+            log.info("Created %d callback CALLS edges", count)
 
     def _index_attributes(
         self,
