@@ -9,7 +9,7 @@ import typer
 # Suppress INFO/WARNING chatter from the language server process — only surface errors.
 logging.getLogger("solidlsp").setLevel(logging.ERROR)
 
-from synapse.graph.connection import GraphConnection
+from synapse.container import ContainerManager
 from synapse.graph.schema import ensure_schema
 from synapse.service import SynapseService
 
@@ -20,10 +20,11 @@ app.add_typer(summary_app, name="summary")
 _svc: SynapseService | None = None
 
 
-def _get_service() -> SynapseService:
+def _get_service(project_path: str | None = None) -> SynapseService:
     global _svc
     if _svc is None:
-        conn = GraphConnection.create()
+        path = project_path or str(Path.cwd())
+        conn = ContainerManager(path).get_connection()
         ensure_schema(conn)
         _svc = SynapseService(conn)
     return _svc
@@ -54,7 +55,7 @@ def index(path: str, language: str = "csharp") -> None:
     """Index a project into the graph."""
     abs_path = str(Path(path).resolve())
     try:
-        _get_service().index_project(abs_path, language, on_progress=typer.echo)
+        _get_service(abs_path).index_project(abs_path, language, on_progress=typer.echo)
     except ModuleNotFoundError as e:
         typer.echo(
             f"Error: Missing dependency — {e}\n"

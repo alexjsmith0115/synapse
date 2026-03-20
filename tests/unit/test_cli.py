@@ -1,6 +1,11 @@
+import sys
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
-from synapse.cli.app import app
+from synapse.cli.app import app, _get_service
+
+# Get the actual module (not the Typer `app` object)
+cli_module = sys.modules["synapse.cli.app"]
 
 runner = CliRunner()
 
@@ -155,3 +160,44 @@ def test_index_missing_dependency_shows_reinstall_hint():
     assert result.exit_code != 0
     assert "tree_sitter_typescript" in result.output
     assert "pip install" in result.output
+
+
+def test_get_service_uses_container_manager():
+    """Verify _get_service routes through ContainerManager with explicit path."""
+    mock_cm_cls = MagicMock()
+    mock_conn = MagicMock()
+    mock_cm_cls.return_value.get_connection.return_value = mock_conn
+
+    original_svc = cli_module._svc
+    try:
+        cli_module._svc = None
+        with patch.object(cli_module, "ContainerManager", mock_cm_cls), \
+             patch.object(cli_module, "ensure_schema"), \
+             patch.object(cli_module, "SynapseService") as mock_svc_cls:
+            result = _get_service("/some/project")
+            mock_cm_cls.assert_called_once_with("/some/project")
+            mock_cm_cls.return_value.get_connection.assert_called_once()
+            mock_svc_cls.assert_called_once_with(mock_conn)
+            assert result is mock_svc_cls.return_value
+    finally:
+        cli_module._svc = original_svc
+
+
+def test_get_service_defaults_to_cwd():
+    """Verify _get_service falls back to Path.cwd() when no path given."""
+    mock_cm_cls = MagicMock()
+    mock_conn = MagicMock()
+    mock_cm_cls.return_value.get_connection.return_value = mock_conn
+
+    original_svc = cli_module._svc
+    try:
+        cli_module._svc = None
+        with patch.object(cli_module, "ContainerManager", mock_cm_cls), \
+             patch.object(cli_module, "ensure_schema"), \
+             patch.object(cli_module, "SynapseService"), \
+             patch("synapse.cli.app.Path") as mock_path:
+            mock_path.cwd.return_value = Path("/mock/cwd")
+            _get_service()
+            mock_cm_cls.assert_called_once_with("/mock/cwd")
+    finally:
+        cli_module._svc = original_svc
