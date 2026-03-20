@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from synapse.indexer.python_base_type_extractor import PythonBaseTypeExtractor
-from synapse.indexer.python_import_extractor import PythonImportExtractor
+from synapse.indexer.python.python_base_type_extractor import PythonBaseTypeExtractor
+from synapse.indexer.python.python_import_extractor import PythonImportExtractor
 from synapse.lsp.python import PythonLSPAdapter
 
 
@@ -18,7 +18,7 @@ class PythonPlugin:
         return PythonLSPAdapter.create(root_path)
 
     def create_call_extractor(self):
-        from synapse.indexer.python_call_extractor import PythonCallExtractor
+        from synapse.indexer.python.python_call_extractor import PythonCallExtractor
         return PythonCallExtractor()
 
     def create_import_extractor(self, source_root: str = "") -> PythonImportExtractor:
@@ -28,7 +28,7 @@ class PythonPlugin:
         return PythonBaseTypeExtractor()
 
     def create_attribute_extractor(self):
-        from synapse.indexer.python_attribute_extractor import PythonAttributeExtractor
+        from synapse.indexer.python.python_attribute_extractor import PythonAttributeExtractor
         return PythonAttributeExtractor()
 
     def create_type_ref_extractor(self):

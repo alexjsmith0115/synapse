@@ -1,5 +1,5 @@
 import pytest
-from synapse.indexer.python_import_extractor import PythonImportExtractor
+from synapse.indexer.python.python_import_extractor import PythonImportExtractor
 
 
 @pytest.fixture()

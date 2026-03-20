@@ -1,5 +1,5 @@
 """Unit tests for PythonAttributeExtractor — PMET requirements."""
-from synapse.indexer.python_attribute_extractor import PythonAttributeExtractor
+from synapse.indexer.python.python_attribute_extractor import PythonAttributeExtractor
 
 
 def _make() -> PythonAttributeExtractor:

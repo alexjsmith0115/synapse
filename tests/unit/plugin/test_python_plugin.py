@@ -7,8 +7,8 @@ import pytest
 from synapse.graph.connection import GraphConnection
 from synapse.plugin import LanguagePlugin, LanguageRegistry, default_registry
 from synapse.plugin.python import PythonPlugin
-from synapse.indexer.python_base_type_extractor import PythonBaseTypeExtractor
-from synapse.indexer.python_import_extractor import PythonImportExtractor
+from synapse.indexer.python.python_base_type_extractor import PythonBaseTypeExtractor
+from synapse.indexer.python.python_import_extractor import PythonImportExtractor
 
 
 def test_name_returns_python():
@@ -41,13 +41,13 @@ def test_create_import_extractor_with_source_root():
 
 
 def test_create_call_extractor_returns_python_call_extractor():
-    from synapse.indexer.python_call_extractor import PythonCallExtractor
+    from synapse.indexer.python.python_call_extractor import PythonCallExtractor
     extractor = PythonPlugin().create_call_extractor()
     assert isinstance(extractor, PythonCallExtractor)
 
 
 def test_create_attribute_extractor_returns_python_attribute_extractor():
-    from synapse.indexer.python_attribute_extractor import PythonAttributeExtractor
+    from synapse.indexer.python.python_attribute_extractor import PythonAttributeExtractor
     extractor = PythonPlugin().create_attribute_extractor()
     assert isinstance(extractor, PythonAttributeExtractor)
 

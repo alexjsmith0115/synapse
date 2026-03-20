@@ -1,5 +1,5 @@
 import pytest
-from synapse.indexer.python_base_type_extractor import PythonBaseTypeExtractor
+from synapse.indexer.python.python_base_type_extractor import PythonBaseTypeExtractor
 
 
 @pytest.fixture()

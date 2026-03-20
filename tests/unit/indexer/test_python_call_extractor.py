@@ -1,5 +1,5 @@
 import pytest
-from synapse.indexer.python_call_extractor import PythonCallExtractor
+from synapse.indexer.python.python_call_extractor import PythonCallExtractor
 
 
 @pytest.fixture
