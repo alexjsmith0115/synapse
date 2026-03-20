@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from synapse.indexer.typescript_import_extractor import TypeScriptImportExtractor
+from synapse.indexer.typescript.typescript_import_extractor import TypeScriptImportExtractor
 
 
 @pytest.fixture()

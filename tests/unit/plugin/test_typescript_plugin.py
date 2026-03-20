@@ -37,35 +37,35 @@ def test_create_lsp_adapter_delegates_to_typescript_adapter(tmp_path) -> None:
 
 def test_create_call_extractor_returns_typescript_call_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    from synapse.indexer.typescript_call_extractor import TypeScriptCallExtractor
+    from synapse.indexer.typescript.typescript_call_extractor import TypeScriptCallExtractor
     result = TypeScriptPlugin().create_call_extractor()
     assert isinstance(result, TypeScriptCallExtractor)
 
 
 def test_create_import_extractor_returns_typescript_import_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    from synapse.indexer.typescript_import_extractor import TypeScriptImportExtractor
+    from synapse.indexer.typescript.typescript_import_extractor import TypeScriptImportExtractor
     result = TypeScriptPlugin().create_import_extractor(source_root="src")
     assert isinstance(result, TypeScriptImportExtractor)
 
 
 def test_create_base_type_extractor_returns_typescript_base_type_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    from synapse.indexer.typescript_base_type_extractor import TypeScriptBaseTypeExtractor
+    from synapse.indexer.typescript.typescript_base_type_extractor import TypeScriptBaseTypeExtractor
     result = TypeScriptPlugin().create_base_type_extractor()
     assert isinstance(result, TypeScriptBaseTypeExtractor)
 
 
 def test_create_attribute_extractor_returns_typescript_attribute_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    from synapse.indexer.typescript_attribute_extractor import TypeScriptAttributeExtractor
+    from synapse.indexer.typescript.typescript_attribute_extractor import TypeScriptAttributeExtractor
     result = TypeScriptPlugin().create_attribute_extractor()
     assert isinstance(result, TypeScriptAttributeExtractor)
 
 
 def test_create_type_ref_extractor_returns_typescript_type_ref_extractor() -> None:
     from synapse.plugin.typescript import TypeScriptPlugin
-    from synapse.indexer.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
+    from synapse.indexer.typescript.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
     result = TypeScriptPlugin().create_type_ref_extractor()
     assert isinstance(result, TypeScriptTypeRefExtractor)
 

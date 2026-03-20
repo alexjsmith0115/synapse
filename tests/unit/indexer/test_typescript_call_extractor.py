@@ -1,5 +1,5 @@
 import pytest
-from synapse.indexer.typescript_call_extractor import TypeScriptCallExtractor
+from synapse.indexer.typescript.typescript_call_extractor import TypeScriptCallExtractor
 
 
 @pytest.fixture

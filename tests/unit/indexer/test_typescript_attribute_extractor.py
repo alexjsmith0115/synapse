@@ -1,5 +1,5 @@
 """Unit tests for TypeScriptAttributeExtractor — META requirements."""
-from synapse.indexer.typescript_attribute_extractor import TypeScriptAttributeExtractor
+from synapse.indexer.typescript.typescript_attribute_extractor import TypeScriptAttributeExtractor
 
 
 def _make() -> TypeScriptAttributeExtractor:
