@@ -75,6 +75,20 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return f"Deleted {path}"
 
     @mcp.tool()
+    def sync_project(path: str) -> str:
+        """Sync the graph with the current filesystem state.
+
+        Detects files that changed, were added, or were deleted since last indexing
+        and re-indexes only what changed. Requires the project to have been fully
+        indexed at least once (run index_project first).
+        """
+        try:
+            result = service.sync_project(path)
+        except ValueError as e:
+            return f"Error: {e}"
+        return f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged"
+
+    @mcp.tool()
     def get_index_status(path: str) -> dict | None:
         """Return indexing status for a project including file count, symbol count, and per-label symbol breakdown. The path parameter is the project root path, as returned by list_projects."""
         return service.get_index_status(path)
