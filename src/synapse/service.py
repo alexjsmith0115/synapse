@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -27,6 +28,7 @@ from synapse.graph.traversal import trace_call_chain, find_entry_points, get_cal
 from synapse.graph.analysis import analyze_change_impact, find_interface_contract, find_type_impact, audit_architecture
 from synapse.indexer.indexer import Indexer
 from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
+from synapse.indexer.sync import sync_project as _sync_project, SyncResult
 from synapse.indexer.overrides_indexer import OverridesIndexer
 from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import LSPAdapter
@@ -202,6 +204,43 @@ class SynapseService:
                 OverridesIndexer(self._conn).index()
 
             lsp.shutdown()
+
+    def sync_project(self, path: str) -> SyncResult:
+        """Sync the graph with the current filesystem state.
+
+        Detects stale, new, and deleted files and re-indexes only what changed.
+        Requires the project to have been fully indexed at least once.
+        """
+        plugins = self._registry.detect(path)
+        if not plugins:
+            raise ValueError(f"No language plugin found for project at {path!r}")
+
+        total = SyncResult(updated=0, deleted=0, unchanged=0)
+        for plugin in plugins:
+            lsp = plugin.create_lsp_adapter(path)
+            try:
+                indexer = Indexer(self._conn, lsp, plugin=plugin)
+                workspace_files = lsp.get_workspace_files(path)
+                disk_files = {}
+                for fp in workspace_files:
+                    try:
+                        disk_files[fp] = os.path.getmtime(fp)
+                    except OSError:
+                        pass
+                result = _sync_project(
+                    conn=self._conn,
+                    indexer=indexer,
+                    root_path=path,
+                    disk_files=disk_files,
+                )
+                total.updated += result.updated
+                total.deleted += result.deleted
+                total.unchanged += result.unchanged
+            finally:
+                # reindex_file does not manage LSP lifecycle (unlike index_project), so shut down explicitly
+                lsp.shutdown()
+
+        return total
 
     def index_method_implements(self) -> None:
         """Write method-level IMPLEMENTS edges for all indexed class-level IMPLEMENTS relationships.
