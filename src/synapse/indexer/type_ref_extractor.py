@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+
+from synapse.indexer.type_ref import TypeRef
 
 log = logging.getLogger(__name__)
 
@@ -27,15 +28,6 @@ _PROPERTY_QUERY = """
 _FIELD_QUERY = """
 (field_declaration (variable_declaration type: (_) @field_type))
 """
-
-
-@dataclass
-class TypeRef:
-    owner_full_name: str
-    type_name: str
-    line: int
-    col: int
-    ref_kind: str  # "parameter", "return_type", "property_type", "field_type"
 
 
 class TreeSitterTypeRefExtractor:
