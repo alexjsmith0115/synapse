@@ -80,6 +80,18 @@ def test_no_changes():
     assert unchanged == {"/proj/a.cs"}
 
 
+def test_equal_timestamp_treated_as_unchanged():
+    """When mtime == last_indexed exactly, file is unchanged (not stale)."""
+    ts = _ts(hour=12)
+    mtime = datetime(2026, 3, 20, 12, tzinfo=timezone.utc).timestamp()
+    graph = {"/proj/a.cs": ts}
+    disk = {"/proj/a.cs": mtime}
+    to_delete, to_reindex, unchanged = compute_sync_diff(graph, disk)
+    assert to_delete == set()
+    assert to_reindex == set()
+    assert unchanged == {"/proj/a.cs"}
+
+
 def test_sync_result_total():
     r = SyncResult(updated=3, deleted=1, unchanged=10)
     assert r.updated == 3
@@ -99,9 +111,9 @@ def test_sync_project_orchestration(tmp_path):
     os.utime(str(tmp_path / "new.cs"), (future_mtime, future_mtime))
 
     conn = MagicMock()
-    conn.query.return_value = [
-        [str(tmp_path / "a.cs"), old_ts],
-        [str(tmp_path / "gone.cs"), old_ts],
+    conn.query.side_effect = [
+        [[str(tmp_path)]],  # repo check
+        [[str(tmp_path / "a.cs"), old_ts], [str(tmp_path / "gone.cs"), old_ts]],  # file list
     ]
 
     mock_indexer = MagicMock()
@@ -134,7 +146,10 @@ def test_sync_project_no_changes(tmp_path):
     fresh_ts = datetime(2099, 1, 1, tzinfo=timezone.utc).isoformat()
 
     conn = MagicMock()
-    conn.query.return_value = [[str(tmp_path / "a.cs"), fresh_ts]]
+    conn.query.side_effect = [
+        [[str(tmp_path)]],  # repo check
+        [[str(tmp_path / "a.cs"), fresh_ts]],  # file list
+    ]
 
     mock_indexer = MagicMock()
     disk_files = {str(tmp_path / "a.cs"): os.path.getmtime(str(tmp_path / "a.cs"))}
