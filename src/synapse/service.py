@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from pathlib import Path
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.nodes import set_summary, remove_summary
@@ -29,7 +30,7 @@ from synapse.indexer.method_implements_indexer import MethodImplementsIndexer
 from synapse.indexer.overrides_indexer import OverridesIndexer
 from synapse.indexer.symbol_resolver import SymbolResolver
 from synapse.lsp.interface import LSPAdapter
-from synapse.plugin import LanguageRegistry, default_registry
+from synapse.plugin import LanguagePlugin, LanguageRegistry, default_registry
 from synapse.watcher.watcher import FileWatcher
 
 log = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ class SynapseService:
     ) -> None:
         self._conn = conn
         self._registry = registry or default_registry()
-        self._watchers: dict[str, list[FileWatcher]] = {}
+        self._watchers: dict[str, FileWatcher] = {}
 
     def _resolve(self, name: str, preference: str | None = None) -> str:
         """Resolve a possibly-short name to a fully qualified name.
@@ -220,45 +221,55 @@ class SynapseService:
     def watch_project(self, path: str, lsp_adapter: LSPAdapter | None = None) -> None:
         if path in self._watchers:
             return
+
         if lsp_adapter is not None:
-            # Explicit adapter provided (e.g., for testing or hot-reload scenarios)
-            self._watch_single(path, lsp_adapter=lsp_adapter, plugin=None)
+            plugins_and_lsps: list[tuple[LanguagePlugin | None, LSPAdapter]] = [
+                (None, lsp_adapter),
+            ]
         else:
             plugins = self._registry.detect(path)
             if not plugins:
                 raise ValueError(f"No language plugin found for project at {path!r}")
-            for plugin in plugins:
-                self._watch_single(path, lsp_adapter=None, plugin=plugin)
+            plugins_and_lsps = [
+                (p, p.create_lsp_adapter(path)) for p in plugins
+            ]
 
-    def _watch_single(
-        self,
-        path: str,
-        lsp_adapter: LSPAdapter | None,
-        plugin,
-    ) -> None:
-        lsp = lsp_adapter if lsp_adapter is not None else plugin.create_lsp_adapter(path)
-        indexer = Indexer(self._conn, lsp, plugin=plugin)
-        indexer.index_project(path, plugin.name if plugin else "csharp", keep_lsp_running=True)
+        # Build extension→indexer map and index each language
+        ext_to_indexer: dict[str, Indexer] = {}
+        all_extensions: set[str] = set()
+        for plugin, lsp in plugins_and_lsps:
+            indexer = Indexer(self._conn, lsp, plugin=plugin)
+            lang_name = plugin.name if plugin else "csharp"
+            indexer.index_project(path, lang_name, keep_lsp_running=True)
+            exts = plugin.file_extensions if plugin else frozenset({".cs"})
+            for ext in exts:
+                ext_to_indexer[ext] = indexer
+            all_extensions |= exts
 
         def on_change(file_path: str) -> None:
-            log.info("Re-indexing changed file: %s", file_path)
-            indexer.reindex_file(file_path, path)
+            ext = Path(file_path).suffix.lower()
+            indexer = ext_to_indexer.get(ext)
+            if indexer:
+                log.info("Re-indexing changed file: %s", file_path)
+                indexer.reindex_file(file_path, path)
 
         def on_delete(file_path: str) -> None:
-            log.info("Removing deleted file: %s", file_path)
-            indexer.delete_file(file_path)
+            ext = Path(file_path).suffix.lower()
+            indexer = ext_to_indexer.get(ext)
+            if indexer:
+                log.info("Removing deleted file: %s", file_path)
+                indexer.delete_file(file_path)
 
-        watched_exts = plugin.file_extensions if plugin else None
         watcher = FileWatcher(
             root_path=path, on_change=on_change, on_delete=on_delete,
-            watched_extensions=watched_exts,
+            watched_extensions=frozenset(all_extensions),
         )
         watcher.start()
-        self._watchers.setdefault(path, []).append(watcher)
+        self._watchers[path] = watcher
 
     def unwatch_project(self, path: str) -> None:
-        watchers = self._watchers.pop(path, [])
-        for watcher in watchers:
+        watcher = self._watchers.pop(path, None)
+        if watcher:
             watcher.stop()
 
     # --- Queries ---
