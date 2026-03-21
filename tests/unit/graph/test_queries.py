@@ -53,6 +53,17 @@ def test_find_implementations_does_not_require_interface_label() -> None:
     )
 
 
+def test_find_implementations_no_abc_fallback() -> None:
+    """After ABC promotion, find_implementations should NOT traverse INHERITS
+    for abstract :Class nodes — only IMPLEMENTS edges to :Interface nodes work."""
+    conn = _conn([])
+    # No IMPLEMENTS matches, no suffix matches, return empty
+    result = find_implementations(conn, "pkg.AbstractBase")
+    assert result == []
+    # Verify only 2 queries were made (primary + suffix), not 3 (no ABC fallback)
+    assert conn.query.call_count == 2
+
+
 def test_find_callers_passes_full_name() -> None:
     conn = _conn([])
     find_callers(conn, "MyNs.A.Run()")

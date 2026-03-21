@@ -85,7 +85,6 @@ class Indexer:
 
         # Pre-scan: detect ABC/Protocol classes so they can be promoted to :Interface
         # during the structural pass. Cache results for reuse in the attribute phase.
-        _INTERFACE_MARKERS = frozenset({"ABC", "Protocol"})
         interface_classes: set[tuple[str, str]] = set()  # (file_path, class_name)
         cached_attr_results: dict[str, list[tuple[str, list[str]]]] = {}
         if self._language == "python" and self._attribute_extractor_factory is not None:
@@ -300,7 +299,6 @@ class Indexer:
         symbols = self._lsp.get_document_symbols(file_path)
 
         # Pre-scan: promote ABC/Protocol classes to :Interface before structural pass
-        _INTERFACE_MARKERS = frozenset({"ABC", "Protocol"})
         cached_attr_results: list[tuple[str, list[str]]] | None = None
         if self._language == "python" and self._attribute_extractor_factory is not None:
             pre_attr_ext = self._attribute_extractor_factory()
@@ -635,6 +633,8 @@ class Indexer:
                         # Non-first entries in a class base list are always interfaces
                         upsert_implements(self._conn, type_full, base_full)
 
+
+_INTERFACE_MARKERS: frozenset[str] = frozenset({"ABC", "Protocol"})
 
 _ATTR_TO_FLAG: dict[str, str] = {
     "abstractmethod": "is_abstract",
