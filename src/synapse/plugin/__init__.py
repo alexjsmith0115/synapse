@@ -26,6 +26,8 @@ class LanguagePlugin(Protocol):
 
     def create_type_ref_extractor(self): ...
 
+    def create_assignment_extractor(self): ...
+
 
 class LanguageRegistry:
     def __init__(self) -> None:

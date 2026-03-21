@@ -17,6 +17,7 @@ def _make_complete_mock() -> MagicMock:
     mock.create_base_type_extractor = MagicMock()
     mock.create_attribute_extractor = MagicMock()
     mock.create_type_ref_extractor = MagicMock()
+    mock.create_assignment_extractor = MagicMock()
     return mock
 
 
@@ -62,3 +63,7 @@ def test_protocol_has_create_attribute_extractor():
 
 def test_protocol_has_create_type_ref_extractor():
     assert hasattr(LanguagePlugin, "create_type_ref_extractor")
+
+
+def test_protocol_has_create_assignment_extractor():
+    assert hasattr(LanguagePlugin, "create_assignment_extractor")

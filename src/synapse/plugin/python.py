@@ -33,3 +33,7 @@ class PythonPlugin:
 
     def create_type_ref_extractor(self):
         return None  # Not needed for Python
+
+    def create_assignment_extractor(self):
+        from synapse.indexer.python.python_assignment_extractor import PythonAssignmentExtractor
+        return PythonAssignmentExtractor()

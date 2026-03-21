@@ -34,3 +34,6 @@ class CSharpPlugin:
 
     def create_type_ref_extractor(self) -> CSharpTypeRefExtractor:
         return CSharpTypeRefExtractor()
+
+    def create_assignment_extractor(self):
+        return None

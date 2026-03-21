@@ -34,3 +34,6 @@ class TypeScriptPlugin:
     def create_type_ref_extractor(self):
         from synapse.indexer.typescript.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
         return TypeScriptTypeRefExtractor()
+
+    def create_assignment_extractor(self):
+        return None
