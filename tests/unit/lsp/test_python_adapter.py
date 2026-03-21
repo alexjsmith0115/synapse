@@ -346,6 +346,76 @@ def test_find_overridden_method_returns_none() -> None:
     assert adapter.find_overridden_method(sym) is None
 
 
+# ---------------------------------------------------------------------------
+# Signature propagation from detail field
+# ---------------------------------------------------------------------------
+
+class TestConvertSignature:
+    def _make_adapter(self) -> object:
+        from synapse.lsp.python import PythonLSPAdapter
+        mock_ls = MagicMock()
+        return PythonLSPAdapter(mock_ls, "/proj")
+
+    def _make_raw(self, name: str, kind: int, detail: str | None = None,
+                  line: int = 1, end_line: int = 5) -> dict:
+        raw: dict = {
+            "name": name,
+            "kind": kind,
+            "location": {"range": {"start": {"line": line}, "end": {"line": end_line}}},
+        }
+        if detail is not None:
+            raw["detail"] = detail
+        return raw
+
+    def test_convert_function_uses_detail_as_signature(self) -> None:
+        """SIG-PY-01: Function with detail field gets signature from detail."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("greet", 12, detail="(name: str) -> None")
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == "(name: str) -> None"
+
+    def test_convert_method_uses_detail_as_signature(self) -> None:
+        """SIG-PY-01: Method with detail field gets signature from detail."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("speak", 6, detail="(self, name: str) -> None")
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == "(self, name: str) -> None"
+
+    def test_convert_class_empty_signature_when_no_detail(self) -> None:
+        """SIG-PY-01: Class without detail produces empty signature."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("MyClass", 5)
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == ""
+
+    def test_convert_module_preserves_module_marker(self) -> None:
+        """MOD-PY-01: Module with detail still returns signature='module'."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("__init__", 2, detail="some detail")
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == "module"
+
+    def test_convert_module_without_detail_keeps_module_marker(self) -> None:
+        """MOD-PY-01: Module without detail still returns signature='module'."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("__init__", 2)
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == "module"
+
+    def test_convert_function_without_detail_has_empty_signature(self) -> None:
+        """SIG-PY-01: Function without detail has empty signature."""
+        adapter = self._make_adapter()
+        raw = self._make_raw("greet", 12)
+        sym = adapter._convert(raw, "/proj/pkg/mod.py", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.signature == ""
+
+
 def test_shutdown_calls_stop() -> None:
     from synapse.lsp.python import PythonLSPAdapter
 
