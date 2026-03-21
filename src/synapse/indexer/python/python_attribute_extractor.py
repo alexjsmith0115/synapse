@@ -5,6 +5,7 @@ import logging
 log = logging.getLogger(__name__)
 
 _ABC_NAMES = frozenset({"ABC", "ABCMeta"})
+_PROTOCOL_NAMES = frozenset({"Protocol"})
 
 
 class PythonAttributeExtractor:
@@ -79,7 +80,7 @@ class PythonAttributeExtractor:
 
         markers = list(decorators)
 
-        # Check superclasses for ABC or ABCMeta (both direct base and metaclass=ABCMeta syntax)
+        # Check superclasses for ABC/ABCMeta/Protocol (both direct base and metaclass=ABCMeta syntax)
         for child in node.children:
             if child.type == "argument_list":
                 for arg in child.children:
@@ -89,9 +90,12 @@ class PythonAttributeExtractor:
                             if kw_child.type == "identifier" and _text(kw_child) in _ABC_NAMES:
                                 markers.append("ABC")
                                 break
-                    elif _text(arg) in _ABC_NAMES:
-                        markers.append("ABC")
-                        break
+                    else:
+                        text = _text(arg)
+                        if text in _ABC_NAMES:
+                            markers.append("ABC")
+                        elif text in _PROTOCOL_NAMES:
+                            markers.append("Protocol")
 
         if markers:
             results.append((name, markers))

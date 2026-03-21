@@ -166,3 +166,35 @@ class IFoo(metaclass=ABCMeta):
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "IFoo" in names_and_attrs
     assert "ABC" in names_and_attrs["IFoo"]
+
+
+def test_extract_protocol_class() -> None:
+    """Classes inheriting from Protocol should get 'Protocol' marker."""
+    source = """\
+from typing import Protocol
+
+class Drawable(Protocol):
+    def draw(self) -> None: ...
+"""
+    extractor = _make()
+    results = extractor.extract("test.py", source)
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "Drawable" in names_and_attrs
+    assert "Protocol" in names_and_attrs["Drawable"]
+
+
+def test_extract_runtime_checkable_protocol() -> None:
+    """Protocol with @runtime_checkable decorator should get both markers."""
+    source = """\
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable
+class Comparable(Protocol):
+    def __lt__(self, other) -> bool: ...
+"""
+    extractor = _make()
+    results = extractor.extract("test.py", source)
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "Comparable" in names_and_attrs
+    assert "Protocol" in names_and_attrs["Comparable"]
+    assert "runtime_checkable" in names_and_attrs["Comparable"]
