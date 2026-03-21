@@ -171,7 +171,7 @@ class PythonLSPAdapter:
         end_line = range_obj.get("end", {}).get("line", 0)
 
         # Signature carries 'module' marker for LSP kind 2 so Plan 04 can call upsert_class(kind='module').
-        signature = "module" if kind_int == 2 else ""
+        signature = "module" if kind_int == 2 else raw.get("detail", "") or ""
 
         return IndexSymbol(
             name=name,
