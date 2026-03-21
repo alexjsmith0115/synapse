@@ -36,32 +36,11 @@ def test_find_implementations_falls_back_to_short_name():
 
 def test_find_implementations_returns_empty_when_not_found():
     conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
+    conn.query.side_effect = [[], []]
     result = find_implementations(conn, "INotFound")
     assert result == []
 
 
-def test_find_implementations_abc_fallback_via_inherits():
-    """When IMPLEMENTS queries return empty, falls back to INHERITS* for abstract classes."""
-    dog = _node(["Class"], {"full_name": "pkg.Dog"})
-    cat = _node(["Class"], {"full_name": "pkg.Cat"})
-    conn = MagicMock()
-    # Branch 1 (exact IMPLEMENTS): empty, Branch 2 (suffix IMPLEMENTS): empty,
-    # Branch 3 (INHERITS* ABC fallback): returns results
-    conn.query.side_effect = [[], [], [[dog], [cat]]]
-    result = find_implementations(conn, "pkg.IAnimal")
-    assert len(result) == 2
-    assert conn.query.call_count == 3
-
-
-def test_find_implementations_abc_fallback_constrains_is_abstract():
-    """The INHERITS* fallback query must filter on is_abstract = true."""
-    conn = MagicMock()
-    conn.query.side_effect = [[], [], []]
-    find_implementations(conn, "pkg.IAnimal")
-    # Third call is the ABC fallback
-    cypher = conn.query.call_args_list[2][0][0]
-    assert "is_abstract" in cypher
 
 
 def test_search_symbols_invalid_kind_lists_valid_values():

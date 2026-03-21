@@ -51,13 +51,7 @@ def find_implementations(conn: GraphConnection, interface_full_name: str) -> lis
     )
     if rows:
         return [r[0] for r in rows]
-    # Branch 3: Python ABC fallback — traverse INHERITS for abstract :Class targets
-    rows = conn.query(
-        "MATCH (c:Class)-[:INHERITS*]->(abc:Class {full_name: $full_name}) "
-        "WHERE abc.is_abstract = true RETURN c",
-        {"full_name": interface_full_name},
-    )
-    return [r[0] for r in rows]
+    return []
 
 
 def find_callers(
