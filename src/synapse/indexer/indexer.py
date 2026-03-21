@@ -83,6 +83,27 @@ class Indexer:
         files = self._lsp.get_workspace_files(root_path)
         symbols_by_file: dict[str, list[IndexSymbol]] = {}
 
+        # Pre-scan: detect ABC/Protocol classes so they can be promoted to :Interface
+        # during the structural pass. Cache results for reuse in the attribute phase.
+        _INTERFACE_MARKERS = frozenset({"ABC", "Protocol"})
+        interface_classes: set[tuple[str, str]] = set()  # (file_path, class_name)
+        cached_attr_results: dict[str, list[tuple[str, list[str]]]] = {}
+        if self._language == "python" and self._attribute_extractor_factory is not None:
+            pre_attr_ext = self._attribute_extractor_factory()
+            if pre_attr_ext is not None:
+                for file_path in files:
+                    try:
+                        with open(file_path, encoding="utf-8") as f:
+                            source = f.read()
+                        results = pre_attr_ext.extract(file_path, source)
+                        if results:
+                            cached_attr_results[file_path] = results
+                            for name, markers in results:
+                                if _INTERFACE_MARKERS & set(markers):
+                                    interface_classes.add((file_path, name))
+                    except OSError:
+                        pass
+
         if on_progress:
             on_progress(f"Indexing {len(files)} files...")
 
@@ -91,6 +112,10 @@ class Indexer:
                 log.debug("Skipping minified file: %s", file_path)
                 continue
             symbols = self._lsp.get_document_symbols(file_path)
+            # Promote ABC/Protocol classes to INTERFACE kind
+            for sym in symbols:
+                if sym.kind == SymbolKind.CLASS and (file_path, sym.name) in interface_classes:
+                    sym.kind = SymbolKind.INTERFACE
             symbols_by_file[file_path] = symbols
             self._index_file_structure(file_path, root_path, symbols)
 
@@ -126,10 +151,16 @@ class Indexer:
             attr_extractor = CSharpAttributeExtractor()
         for file_path in files:
             try:
-                with open(file_path, encoding="utf-8") as f:
-                    source = f.read()
                 file_symbols = symbols_by_file.get(file_path, [])
-                self._index_attributes(file_path, source, file_symbols, attr_extractor)
+                if file_path in cached_attr_results:
+                    # Reuse pre-scan results
+                    self._index_attributes_from_results(
+                        file_path, cached_attr_results[file_path], file_symbols,
+                    )
+                else:
+                    with open(file_path, encoding="utf-8") as f:
+                        source = f.read()
+                    self._index_attributes(file_path, source, file_symbols, attr_extractor)
             except OSError:
                 log.warning("Could not read %s for attribute extraction", file_path)
 
@@ -520,6 +551,24 @@ class Indexer:
                     set_attributes(self._conn, fn, attrs)
                     if self._language in ("python", "typescript"):
                         set_metadata_flags(self._conn, fn, _attrs_to_flags(attrs))
+
+    def _index_attributes_from_results(
+        self,
+        file_path: str,
+        results: list[tuple[str, list[str]]],
+        symbols: list[IndexSymbol],
+    ) -> None:
+        """Apply pre-computed attribute results to graph nodes."""
+        name_to_full: dict[str, list[str]] = {}
+        for sym in symbols:
+            name_to_full.setdefault(sym.name, []).append(sym.full_name)
+
+        for simple_name, attrs in results:
+            full_names = name_to_full.get(simple_name, [])
+            for fn in full_names:
+                set_attributes(self._conn, fn, attrs)
+                if self._language in ("python", "typescript"):
+                    set_metadata_flags(self._conn, fn, _attrs_to_flags(attrs))
 
     def _index_base_types(
         self,

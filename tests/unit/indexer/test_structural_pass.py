@@ -672,3 +672,77 @@ def test_reindex_file_typescript_call_wiring(mock_conn):
     _, kwargs = mock_resolver_cls.call_args
     assert "module_full_names" in kwargs, "SymbolResolver must receive module_full_names kwarg"
     assert "src/mod" in kwargs["module_full_names"], "module_full_names must contain module full_name"
+
+
+# ---------------------------------------------------------------------------
+# ABC / Protocol -> :Interface promotion tests
+# ---------------------------------------------------------------------------
+
+def test_python_abc_class_creates_interface_node(mock_conn):
+    """Python class with ABC marker should be upserted as :Interface, not :Class."""
+    lsp = MagicMock()
+    plugin = MagicMock()
+    plugin.name = "python"
+    plugin.file_extensions = frozenset({".py"})
+    plugin.create_import_extractor.return_value = MagicMock(_source_root="")
+    plugin.create_base_type_extractor.return_value = MagicMock(extract=MagicMock(return_value=[]))
+    # Attribute extractor detects ABC
+    attr_ext = MagicMock()
+    attr_ext.extract.return_value = [("IAnimal", ["ABC"])]
+    plugin.create_attribute_extractor = MagicMock(return_value=attr_ext)
+    plugin.create_call_extractor = MagicMock(return_value=None)
+    plugin.create_type_ref_extractor = MagicMock(return_value=None)
+
+    indexer = Indexer(mock_conn, lsp, plugin)
+
+    sym = IndexSymbol(
+        name="IAnimal", full_name="animals.IAnimal", kind=SymbolKind.CLASS,
+        file_path="/proj/animals.py", line=3,
+    )
+    lsp.get_workspace_files.return_value = ["/proj/animals.py"]
+    lsp.get_document_symbols.return_value = [sym]
+
+    with patch("builtins.open", mock_open(read_data="from abc import ABC\nclass IAnimal(ABC): ...")), \
+         patch("synapse.indexer.indexer.SymbolResolver"):
+        indexer.index_project("/proj", "python")
+
+    calls = [str(c) for c in mock_conn.execute.call_args_list]
+    assert any(":Interface" in c and "IAnimal" in c for c in calls), (
+        "ABC class should produce :Interface node"
+    )
+    assert not any(":Class" in c and "IAnimal" in c and "MERGE" in c for c in calls), (
+        "ABC class should NOT produce :Class node"
+    )
+
+
+def test_python_protocol_class_creates_interface_node(mock_conn):
+    """Python class with Protocol marker should be upserted as :Interface, not :Class."""
+    lsp = MagicMock()
+    plugin = MagicMock()
+    plugin.name = "python"
+    plugin.file_extensions = frozenset({".py"})
+    plugin.create_import_extractor.return_value = MagicMock(_source_root="")
+    plugin.create_base_type_extractor.return_value = MagicMock(extract=MagicMock(return_value=[]))
+    attr_ext = MagicMock()
+    attr_ext.extract.return_value = [("Drawable", ["Protocol"])]
+    plugin.create_attribute_extractor = MagicMock(return_value=attr_ext)
+    plugin.create_call_extractor = MagicMock(return_value=None)
+    plugin.create_type_ref_extractor = MagicMock(return_value=None)
+
+    indexer = Indexer(mock_conn, lsp, plugin)
+
+    sym = IndexSymbol(
+        name="Drawable", full_name="shapes.Drawable", kind=SymbolKind.CLASS,
+        file_path="/proj/shapes.py", line=3,
+    )
+    lsp.get_workspace_files.return_value = ["/proj/shapes.py"]
+    lsp.get_document_symbols.return_value = [sym]
+
+    with patch("builtins.open", mock_open(read_data="from typing import Protocol\nclass Drawable(Protocol): ...")), \
+         patch("synapse.indexer.indexer.SymbolResolver"):
+        indexer.index_project("/proj", "python")
+
+    calls = [str(c) for c in mock_conn.execute.call_args_list]
+    assert any(":Interface" in c and "Drawable" in c for c in calls), (
+        "Protocol class should produce :Interface node"
+    )
