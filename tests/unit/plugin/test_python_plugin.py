@@ -52,8 +52,10 @@ def test_create_attribute_extractor_returns_python_attribute_extractor():
     assert isinstance(extractor, PythonAttributeExtractor)
 
 
-def test_create_type_ref_extractor_returns_none():
-    assert PythonPlugin().create_type_ref_extractor() is None
+def test_create_type_ref_extractor_returns_python_type():
+    from synapse.indexer.python.python_type_ref_extractor import PythonTypeRefExtractor
+    extractor = PythonPlugin().create_type_ref_extractor()
+    assert isinstance(extractor, PythonTypeRefExtractor)
 
 
 def test_default_registry_includes_python():

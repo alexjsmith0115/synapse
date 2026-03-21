@@ -5,6 +5,7 @@ from synapse.indexer.python.python_attribute_extractor import PythonAttributeExt
 from synapse.indexer.python.python_base_type_extractor import PythonBaseTypeExtractor
 from synapse.indexer.python.python_call_extractor import PythonCallExtractor
 from synapse.indexer.python.python_import_extractor import PythonImportExtractor
+from synapse.indexer.python.python_type_ref_extractor import PythonTypeRefExtractor
 from synapse.lsp.python import PythonLSPAdapter
 
 
@@ -32,8 +33,8 @@ class PythonPlugin:
     def create_attribute_extractor(self) -> PythonAttributeExtractor:
         return PythonAttributeExtractor()
 
-    def create_type_ref_extractor(self) -> None:
-        return None
+    def create_type_ref_extractor(self) -> PythonTypeRefExtractor:
+        return PythonTypeRefExtractor()
 
     def create_assignment_extractor(self) -> PythonAssignmentExtractor:
         return PythonAssignmentExtractor()
