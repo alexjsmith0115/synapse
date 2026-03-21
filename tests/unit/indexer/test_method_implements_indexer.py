@@ -59,3 +59,65 @@ def test_index_writes_multiple_edges_for_multiple_pairs() -> None:
     MethodImplementsIndexer(conn).index()
     # Two method pairs × two edges each (IMPLEMENTS + DISPATCHES_TO)
     assert conn.execute.call_count == 4
+
+
+def test_index_writes_dispatches_to_for_abstract_base() -> None:
+    """ABC abstract parent connected via INHERITS with is_abstract=true produces DISPATCHES_TO only."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # _get_impl_pairs — no interface pairs
+        [],
+        # _get_abstract_inherits_pairs — one abstract pair
+        [["pkg.Dog", "pkg.Animal"]],
+        # _get_methods(Dog)
+        [["speak", "pkg.Dog.speak"]],
+        # _get_methods(Animal)
+        [["speak", "pkg.Animal.speak"]],
+    ]
+    MethodImplementsIndexer(conn).index()
+    # Exactly 1 execute call: DISPATCHES_TO only (no IMPLEMENTS for abstract base)
+    assert conn.execute.call_count == 1
+    cypher, params = conn.execute.call_args_list[0][0]
+    assert "DISPATCHES_TO" in cypher
+    assert "IMPLEMENTS" not in cypher
+    assert params["parent"] == "pkg.Animal.speak"
+    assert params["child"] == "pkg.Dog.speak"
+
+
+def test_index_no_edges_for_abstract_base_no_matching_methods() -> None:
+    """No edges when abstract parent has no matching method names with child."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # _get_impl_pairs — empty
+        [],
+        # _get_abstract_inherits_pairs — one pair
+        [["pkg.Dog", "pkg.Animal"]],
+        # _get_methods(Dog) — disjoint names
+        [["bark", "pkg.Dog.bark"]],
+        # _get_methods(Animal) — disjoint names
+        [["speak", "pkg.Animal.speak"]],
+    ]
+    MethodImplementsIndexer(conn).index()
+    conn.execute.assert_not_called()
+
+
+def test_index_handles_both_interface_and_abstract_pairs() -> None:
+    """Both interface IMPLEMENTS pairs and abstract INHERITS pairs are processed in one run."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # _get_impl_pairs — one interface pair
+        [["Ns.Svc", "Ns.ISvc"]],
+        # _get_methods(Ns.Svc)
+        [["Run", "Ns.Svc.Run"]],
+        # _get_methods(Ns.ISvc)
+        [["Run", "Ns.ISvc.Run"]],
+        # _get_abstract_inherits_pairs — one abstract pair
+        [["pkg.Dog", "pkg.Animal"]],
+        # _get_methods(pkg.Dog)
+        [["speak", "pkg.Dog.speak"]],
+        # _get_methods(pkg.Animal)
+        [["speak", "pkg.Animal.speak"]],
+    ]
+    MethodImplementsIndexer(conn).index()
+    # Interface pair: 2 (IMPLEMENTS + DISPATCHES_TO), abstract pair: 1 (DISPATCHES_TO only) = 3 total
+    assert conn.execute.call_count == 3
