@@ -1,7 +1,8 @@
 from unittest.mock import MagicMock, patch, call
 from pathlib import Path
 
-from synapse.indexer.symbol_resolver import SymbolResolver
+from synapse.indexer.symbol_resolver import SymbolResolver, _ResolveStats
+from synapse.indexer.assignment_ref import AssignmentRef
 
 
 def _make_ls(root: str = "/proj") -> MagicMock:
@@ -346,3 +347,177 @@ def test_resolver_tracks_unresolved_sites(tmp_path) -> None:
     assert "mymod.run" in entry
     assert "foo" in entry
     assert "mymod.py" in entry
+
+
+def test_resolve_call_fallback_via_assignment_map():
+    """When definition lands on a non-method position that IS in assignment_position_map,
+    a second LSP call at the source position resolves the callee and writes a CALLS edge."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    # First LSP call: definition points to line 10 in handler.py (a field assignment, not in symbol_map)
+    ls.request_definition.side_effect = [
+        # First call: resolves to the field assignment position
+        [{"absolutePath": "/proj/handler.py", "range": {"start": {"line": 10, "character": 0}}}],
+        # Second call (assignment fallback): resolves to the actual callee
+        [{"absolutePath": "/proj/factory.py", "range": {"start": {"line": 5, "character": 0}}}],
+    ]
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("Mod.MyClass.run", "process", 20, 8)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    # symbol_map: line 10 in handler.py is NOT a method (no entry), but line 5 in factory.py IS
+    symbol_map = {("/proj/factory.py", 5): "Mod.Factory.create_handler"}
+
+    # assignment_position_map: the field assignment at handler.py:10 came from factory.py:7:4
+    ref = AssignmentRef("Mod.MyClass", "_handler", "/proj/factory.py", 7, 4)
+    assignment_position_map = {("/proj/handler.py", 10): ref}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        assignment_position_map=assignment_position_map,
+    )
+
+    with patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_upsert:
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+
+    mock_upsert.assert_called_once()
+    args = mock_upsert.call_args
+    # caller is "Mod.MyClass.run", callee resolved through assignment fallback
+    assert args[0][1] == "Mod.MyClass.run"
+
+    # Stats should track the assignment fallback
+    assert resolver._stats.calls_resolved == 1
+    assert resolver._stats.calls_resolved_via_assignment == 1
+
+
+def test_resolve_call_assignment_fallback_second_lsp_fails():
+    """When assignment fallback's second LSP call returns empty, call is unresolved."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    ls.request_definition.side_effect = [
+        # First call: resolves to field assignment position
+        [{"absolutePath": "/proj/handler.py", "range": {"start": {"line": 10, "character": 0}}}],
+        # Second call (assignment fallback): returns empty
+        [],
+    ]
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("Mod.MyClass.run", "process", 20, 8)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    symbol_map = {}  # Nothing in symbol_map
+
+    ref = AssignmentRef("Mod.MyClass", "_handler", "/proj/factory.py", 7, 4)
+    assignment_position_map = {("/proj/handler.py", 10): ref}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        assignment_position_map=assignment_position_map,
+    )
+
+    with patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_upsert:
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+
+    mock_upsert.assert_not_called()
+    assert resolver._stats.calls_unresolved == 1
+    assert any("assignment fallback failed" in s for s in resolver._unresolved_sites)
+
+
+def test_resolve_call_no_assignment_map_entry_falls_through():
+    """When definition is not in symbol_map AND not in assignment_position_map,
+    falls through to the containing_symbol path."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    ls.request_definition.return_value = [
+        {"absolutePath": "/proj/handler.py", "relativePath": "handler.py",
+         "range": {"start": {"line": 10, "character": 0}}}
+    ]
+    # containing_symbol fallback returns a class with matching method child
+    method_child = {
+        "name": "process", "kind": 6,
+        "parent": {"name": "Handler", "kind": 5, "parent": {"name": "Mod", "kind": 3, "parent": None}},
+    }
+    ls.request_containing_symbol.return_value = {
+        "name": "Handler", "kind": 5, "children": [method_child], "parent": None,
+    }
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("Mod.MyClass.run", "process", 20, 8)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    symbol_map = {}  # Not in symbol_map
+    # Empty assignment_position_map -- no entry for (handler.py, 10)
+    assignment_position_map = {}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        assignment_position_map=assignment_position_map,
+    )
+
+    with patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_upsert:
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+
+    # Should have fallen through to containing_symbol path and resolved
+    mock_upsert.assert_called_once()
+
+
+def test_resolve_call_direct_hit_skips_assignment_fallback():
+    """When definition IS in symbol_map (direct method hit), assignment fallback is NOT consulted."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    ls.request_definition.return_value = [
+        {"absolutePath": "/proj/MyClass.py", "range": {"start": {"line": 3, "character": 4}}}
+    ]
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("Mod.Caller.run", "helper", 10, 5)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    # Direct hit: definition at line 3 IS in symbol_map
+    symbol_map = {("/proj/MyClass.py", 3): "Mod.MyClass.helper"}
+
+    # Assignment map also has an entry (should NOT be consulted)
+    ref = AssignmentRef("Mod.Caller", "_svc", "/proj/other.py", 1, 0)
+    assignment_position_map = {("/proj/MyClass.py", 3): ref}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        assignment_position_map=assignment_position_map,
+    )
+
+    with patch("synapse.indexer.symbol_resolver.upsert_calls") as mock_upsert:
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+
+    mock_upsert.assert_called_once()
+    # Only one LSP call was made (no second call for assignment fallback)
+    assert ls.request_definition.call_count == 1
+    # Stats: resolved via direct path, not via assignment
+    assert resolver._stats.calls_resolved == 1
+    assert resolver._stats.calls_resolved_via_assignment == 0
+
+
+def test_resolve_stats_tracks_assignment_fallback_count():
+    """_ResolveStats.calls_resolved_via_assignment starts at 0 and increments correctly."""
+    stats = _ResolveStats()
+    assert stats.calls_resolved_via_assignment == 0
+    stats.calls_resolved_via_assignment += 1
+    assert stats.calls_resolved_via_assignment == 1
+    stats.calls_resolved_via_assignment += 3
+    assert stats.calls_resolved_via_assignment == 4
