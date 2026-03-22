@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from synapse.graph.connection import GraphConnection
+from synapse.graph.nodes import rename_file_node, set_last_indexed_commit
+from synapse.indexer.git import compute_git_diff, rev_parse_head
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +50,47 @@ def compute_sync_diff(
             unchanged.add(path)
 
     return to_delete, to_reindex, unchanged
+
+
+def git_sync_project(
+    conn: GraphConnection,
+    indexer,
+    root_path: str,
+    stored_sha: str,
+) -> SyncResult:
+    """Sync graph state using git diff between stored SHA and current HEAD + working tree."""
+    diff = compute_git_diff(root_path, stored_sha)
+
+    if not diff.to_delete and not diff.to_reindex and not diff.renames:
+        return SyncResult(updated=0, deleted=0, unchanged=0)
+
+    # D-03: Handle renames first (in-place path update)
+    for old_path, new_path in diff.renames:
+        log.info("Git sync: renaming %s -> %s", old_path, new_path)
+        rename_file_node(conn, old_path, new_path)
+
+    for path in diff.to_delete:
+        log.info("Git sync: deleting %s", path)
+        indexer.delete_file(path)
+
+    reindexed = 0
+    for path in diff.to_reindex:
+        log.info("Git sync: re-indexing %s", path)
+        try:
+            indexer.reindex_file(path, root_path)
+            reindexed += 1
+        except Exception:
+            log.warning("Git sync: failed to re-index %s, skipping", path, exc_info=True)
+
+    current_sha = rev_parse_head(root_path)
+    if current_sha:
+        set_last_indexed_commit(conn, root_path, current_sha)
+
+    return SyncResult(
+        updated=reindexed + len(diff.renames),
+        deleted=len(diff.to_delete),
+        unchanged=0,
+    )
 
 
 def sync_project(
