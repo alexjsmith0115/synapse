@@ -14,8 +14,8 @@ def _sm(line: int, name: str) -> dict:
     return {(FILE, line): name}
 
 
-def _csm(line: int, name: str) -> dict:
-    return {(FILE, line): name}
+def _csm(line: int, name: str) -> list[tuple[int, str]]:
+    return [(line, name)]
 
 
 # ---------------------------------------------------------------------------

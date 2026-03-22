@@ -4,6 +4,7 @@ Contains configurations and settings specific to Java language support.
 """
 
 import glob
+import hashlib
 import logging
 import os
 import pathlib
@@ -25,8 +26,8 @@ from .common import RuntimeDependency, RuntimeDependencyCollection
 log = logging.getLogger(__name__)
 
 # Default JDT LS version
-_DEFAULT_JDTLS_VERSION = "1.40.0"
-_DEFAULT_JDTLS_TIMESTAMP = "202409261450"
+_DEFAULT_JDTLS_VERSION = "1.57.0"
+_DEFAULT_JDTLS_TIMESTAMP = "202602261110"
 
 
 class EclipseJDTLS(SolidLanguageServer):
@@ -50,6 +51,17 @@ class EclipseJDTLS(SolidLanguageServer):
 
     def _create_dependency_provider(self) -> LanguageServerDependencyProvider:
         return self.DependencyProvider(self._custom_settings, self._ls_resources_dir)
+
+    @override
+    def _create_process_launch_info(self) -> "ProcessLaunchInfo":
+        info = super()._create_process_launch_info()
+        # JDT LS requires a writable Eclipse workspace (-data) to initialize.
+        # Without it, the OSGi workspace plugin fails to start.
+        path_hash = hashlib.sha256(self.repository_root_path.encode()).hexdigest()[:12]
+        data_dir = os.path.join(self._ls_resources_dir, "workspaces", path_hash)
+        os.makedirs(data_dir, exist_ok=True)
+        info.cmd.extend(["-data", data_dir])
+        return info
 
     @override
     def is_ignored_dirname(self, dirname: str) -> bool:

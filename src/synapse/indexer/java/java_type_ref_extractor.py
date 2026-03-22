@@ -32,7 +32,7 @@ class JavaTypeRefExtractor:
         file_path: str,
         source: str,
         symbol_map: dict[tuple[str, int], str],
-        class_symbol_map: dict[tuple[str, int], str] | None = None,
+        class_lines: list[tuple[int, str]] = (),
         *,
         module_name_resolver=None,
     ) -> list[TypeRef]:
@@ -53,14 +53,8 @@ class JavaTypeRefExtractor:
             if fp == file_path
         )
 
-        class_lines = sorted(
-            (line, full_name)
-            for (fp, line), full_name in (class_symbol_map or {}).items()
-            if fp == file_path
-        )
-
         results: list[TypeRef] = []
-        self._walk(tree.root_node, file_path, method_lines, class_lines, results)
+        self._walk(tree.root_node, file_path, method_lines, list(class_lines), results)
         return results
 
     # ------------------------------------------------------------------
