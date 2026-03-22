@@ -66,6 +66,21 @@ def _apply_limit(items: list, limit: int) -> list | dict:
     return {"results": items[:limit], "_total": len(items), "_truncated": True}
 
 
+def _short_ref(full_name: str) -> str:
+    """Shorten a fully qualified reference to Class.method form.
+
+    'com.example.Foo.bar(int, String)' → 'Foo.bar'
+    'com.example.Foo' → 'Foo'
+    """
+    # Strip parameter signature
+    paren = full_name.find("(")
+    name = full_name[:paren] if paren > 0 else full_name
+    parts = name.rsplit(".", 2)
+    if len(parts) >= 2:
+        return f"{parts[-2]}.{parts[-1]}"
+    return parts[-1]
+
+
 def _member_line(m) -> str:
     mp = _p(m)
     sig = mp.get("signature") or mp.get("type_name") or ""
@@ -81,6 +96,21 @@ class SynapseService:
         self._conn = conn
         self._registry = registry or default_registry()
         self._watchers: dict[str, FileWatcher] = {}
+        self._project_roots: list[str] | None = None
+
+    def _get_project_roots(self) -> list[str]:
+        """Return cached list of indexed project root paths."""
+        if self._project_roots is None:
+            rows = self._conn.query("MATCH (r:Repository) RETURN r.path")
+            self._project_roots = [r[0] for r in rows if r[0]]
+        return self._project_roots
+
+    def _rel_path(self, file_path: str) -> str:
+        """Strip project root prefix from an absolute file path."""
+        for root in self._get_project_roots():
+            if file_path.startswith(root):
+                return file_path[len(root):].lstrip("/")
+        return file_path
 
     def _resolve(self, name: str, preference: str | None = None) -> str:
         """Resolve a possibly-short name to a fully qualified name.
@@ -433,8 +463,11 @@ class SynapseService:
         language: str | None = None,
         limit: int = 50,
     ) -> list[dict]:
-        result = [_slim(item, "full_name", "name", "kind", "file_path", "line") for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
-        return _apply_limit(result, limit)
+        raw = [_slim(item, "full_name", "name", "kind", "file_path", "line") for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
+        for item in raw:
+            if "file_path" in item:
+                item["file_path"] = self._rel_path(item["file_path"])
+        return _apply_limit(raw, limit)
 
     def list_projects(self) -> list[dict]:
         return [_p(item) for item in list_projects(self._conn)]
@@ -486,7 +519,7 @@ class SynapseService:
                 total = len(callers)
             lines = [f"## Usages of {full_name} ({kind})", f"\n{total} callers:\n"]
             for c in caller_list:
-                fp = c.get("file_path", "")
+                fp = self._rel_path(c.get("file_path", ""))
                 ln = c.get("line", "")
                 lines.append(f"- `{c['full_name']}` — {fp}:{ln}")
             if total > len(caller_list):
@@ -509,14 +542,14 @@ class SynapseService:
 
         ref_total = len(raw_refs)
 
-        # Collect affected files
+        # Collect affected files (use relative paths)
         affected_files: set[str] = set()
         for r in raw_refs:
             fp = r.get("file_path")
             if fp:
-                affected_files.add(fp)
+                affected_files.add(self._rel_path(fp))
 
-        # Method callers — counts + top callers per method
+        # Method callers — counts + short top callers per method
         members = get_members_overview(self._conn, full_name)
         all_members = [_p(m) for m in members]
         methods = [m for m in all_members if "Method" in set(m.get("_labels", []))]
@@ -533,19 +566,19 @@ class SynapseService:
                 caller_list = callers
                 count = len(callers)
             if count > 0:
-                top = ", ".join(c["full_name"] for c in caller_list[:5])
-                method_lines.append(f"- {method_short}: {count} callers — {top}")
+                top = ", ".join(_short_ref(c["full_name"]) for c in caller_list[:5])
+                method_lines.append(f"- {method_short}(): {count} callers — {top}")
                 total_method_callers += count
                 for c in caller_list:
                     fp = c.get("file_path")
                     if fp:
-                        affected_files.add(fp)
+                        affected_files.add(self._rel_path(fp))
 
-        # Group type references by file for compact display
+        # Group type references by file for compact display (short names, relative paths)
         refs_by_file: dict[str, list[str]] = {}
         for r in raw_refs[:limit]:
-            fp = r.get("file_path", "?")
-            refs_by_file.setdefault(fp, []).append(r["full_name"])
+            fp = self._rel_path(r.get("file_path", "?"))
+            refs_by_file.setdefault(fp, []).append(_short_ref(r["full_name"]))
 
         lines = [
             f"## Usages of {full_name} ({kind})",
@@ -560,7 +593,7 @@ class SynapseService:
         if method_lines:
             lines.append(f"\n### Method Callers ({total_method_callers} total)\n")
             # Sort by count descending
-            method_lines.sort(key=lambda l: int(l.split(": ")[1].split(" ")[0]), reverse=True)
+            method_lines.sort(key=lambda l: int(l.split("(): ")[1].split(" ")[0]), reverse=True)
             lines.extend(method_lines)
 
         return "\n".join(lines)

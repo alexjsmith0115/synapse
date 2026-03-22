@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from synapse.service import SynapseService, _p, _slim, _apply_limit
+from synapse.service import SynapseService, _p, _slim, _apply_limit, _short_ref
 from conftest import _MockNode
 
 
@@ -1059,7 +1059,7 @@ def test_find_usages_class_returns_text_summary() -> None:
     assert "1 type references" in result
     assert "1 method callers" in result
     assert "DoWork" in result
-    assert "Ns.Controller._svc" in result
+    assert "Controller._svc" in result
 
 
 def test_find_usages_class_affected_files_deduplicates() -> None:
@@ -1123,7 +1123,7 @@ def test_find_usages_class_filters_test_type_references() -> None:
 
     assert isinstance(result, str)
     assert "1 type references" in result
-    assert "Ns.Controller._svc" in result
+    assert "Controller._svc" in result
     assert "Ns.Tests.Setup._svc" not in result
 
 
@@ -1661,3 +1661,49 @@ def test_find_type_impact_applies_limit() -> None:
         result = svc.find_type_impact("Ns.Foo", limit=3)
     assert result["_total_references"] == 10
     assert len(result["references"]) == 3
+
+
+# --- _short_ref tests ---
+
+
+def test_short_ref_strips_package_and_params() -> None:
+    assert _short_ref("com.example.Foo.bar(int, String)") == "Foo.bar"
+
+
+def test_short_ref_class_only() -> None:
+    assert _short_ref("com.example.Foo") == "example.Foo"
+
+
+def test_short_ref_simple_name() -> None:
+    assert _short_ref("Foo") == "Foo"
+
+
+def test_short_ref_two_parts() -> None:
+    assert _short_ref("Foo.bar") == "Foo.bar"
+
+
+# --- _rel_path / search_symbols path stripping ---
+
+
+def test_rel_path_strips_project_root() -> None:
+    svc = _service()
+    svc._project_roots = ["/proj/root"]
+    assert svc._rel_path("/proj/root/src/Foo.cs") == "src/Foo.cs"
+
+
+def test_rel_path_preserves_unknown_path() -> None:
+    svc = _service()
+    svc._project_roots = ["/proj/root"]
+    assert svc._rel_path("/other/path/Foo.cs") == "/other/path/Foo.cs"
+
+
+def test_search_symbols_returns_relative_paths() -> None:
+    svc = _service()
+    svc._project_roots = ["/proj"]
+    node = _node(["Class"], {
+        "full_name": "Ns.Foo", "name": "Foo", "kind": "class",
+        "file_path": "/proj/src/Foo.cs", "line": 1,
+    })
+    with patch("synapse.service.search_symbols", return_value=[node]):
+        result = svc.search_symbols("Foo")
+    assert result[0]["file_path"] == "src/Foo.cs"

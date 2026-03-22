@@ -172,7 +172,11 @@ def search_symbols(
         conditions.append("n.language = $language")
         params["language"] = language
     where = " AND ".join(conditions)
-    rows = conn.query(f"MATCH (n{label}) WHERE {where} RETURN n", params)
+    rows = conn.query(
+        f"MATCH (n{label}) WHERE {where} RETURN n "
+        "ORDER BY CASE WHEN n.name = $query THEN 0 ELSE 1 END, n.name",
+        params,
+    )
     return [r[0] for r in rows]
 
 
