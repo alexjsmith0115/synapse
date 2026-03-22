@@ -30,21 +30,50 @@ _EXCLUDE_DIRS = frozenset({
     ".git", "target", "build", ".gradle", ".idea", "bin", ".settings", ".mvn",
 })
 
+_JAVA_PACKAGE_PREFIXES = ("com.", "org.", "io.", "net.", "java.", "javax.", "dev.", "me.", "app.")
+
+
+def _clean_java_full_name(full_name: str) -> str:
+    """Strip directory-path prefix from a Java full_name if present.
+
+    Detects patterns like '....core.src.main.java.com.graphhopper.Foo'
+    and returns 'com.graphhopper.Foo'.
+
+    When multiple known prefixes match (e.g. 'java.' appears as a directory
+    segment before 'dev.'), we pick the rightmost match so the actual package
+    root wins over directory-segment false positives.
+    """
+    best_idx = -1
+    for prefix in _JAVA_PACKAGE_PREFIXES:
+        idx = full_name.find(prefix)
+        if idx > 0 and idx > best_idx:
+            best_idx = idx
+    if best_idx > 0:
+        return full_name[best_idx:]
+    return full_name
+
 
 def _detect_java_source_root(file_path: str, root_path: str) -> str:
     """Detect the Java source root by looking for a 'java' directory in the file's path.
 
     Covers conventional layouts: src/main/java, src/test/java, src/java.
-    Falls back to root_path if no conventional source root is found.
+    Falls back to src/main or src/test if no 'java' dir found,
+    then to root_path as last resort.
     """
     parts = Path(file_path).parts
     # Walk backwards looking for a directory named "java" that is under the root
     for i in range(len(parts) - 1, -1, -1):
         if parts[i] == "java":
             candidate = str(Path(*parts[: i + 1]))
-            # Verify the candidate is under (or equal to) root_path
             if candidate.startswith(root_path):
                 return candidate
+    # Fallback: look for src/main or src/test
+    for marker in ("main", "test"):
+        for i in range(len(parts) - 1, -1, -1):
+            if parts[i] == marker and i > 0 and parts[i - 1] == "src":
+                candidate = str(Path(*parts[: i + 1]))
+                if candidate.startswith(root_path):
+                    return candidate
     return root_path
 
 
@@ -107,8 +136,8 @@ def _build_java_full_name(raw: dict, file_path: str, source_root: str) -> str:
     if "overload_idx" in raw:
         detail = raw.get("detail", "") or ""
         if "(" in detail:
-            return f"{base}{detail[detail.index('('):]}"
-    return base
+            return _clean_java_full_name(f"{base}{detail[detail.index('('):]}")
+    return _clean_java_full_name(base)
 
 
 class JavaLSPAdapter:

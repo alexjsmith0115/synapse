@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from synapse.lsp.interface import IndexSymbol, SymbolKind
-from synapse.lsp.java import JavaLSPAdapter, _LSP_KIND_MAP, _detect_java_source_root, _build_java_full_name
+from synapse.lsp.java import JavaLSPAdapter, _LSP_KIND_MAP, _detect_java_source_root, _build_java_full_name, _clean_java_full_name
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +49,42 @@ class TestLSPKindMap:
 
 
 # ---------------------------------------------------------------------------
+# _clean_java_full_name tests
+# ---------------------------------------------------------------------------
+
+class TestCleanJavaFullName:
+    def test_strips_directory_prefix_com(self) -> None:
+        assert _clean_java_full_name("....core.src.main.java.com.graphhopper.routing.Path") == "com.graphhopper.routing.Path"
+
+    def test_strips_directory_prefix_org(self) -> None:
+        assert _clean_java_full_name("....lib.src.main.java.org.example.Foo") == "org.example.Foo"
+
+    def test_strips_dotdot_segments(self) -> None:
+        assert _clean_java_full_name("............core.src.main.java.com.graphhopper.routing.Path") == "com.graphhopper.routing.Path"
+
+    def test_preserves_clean_name(self) -> None:
+        assert _clean_java_full_name("com.graphhopper.routing.Path") == "com.graphhopper.routing.Path"
+
+    def test_preserves_name_without_known_prefix(self) -> None:
+        assert _clean_java_full_name("mycompany.internal.Foo") == "mycompany.internal.Foo"
+
+    def test_handles_nested_class(self) -> None:
+        assert _clean_java_full_name("....core.src.main.java.com.example.Outer.Inner") == "com.example.Outer.Inner"
+
+    def test_handles_method(self) -> None:
+        assert _clean_java_full_name("....core.src.main.java.com.example.Foo.bar") == "com.example.Foo.bar"
+
+    def test_preserves_io_prefix(self) -> None:
+        assert _clean_java_full_name("....src.main.java.io.grpc.Server") == "io.grpc.Server"
+
+    def test_preserves_net_prefix(self) -> None:
+        assert _clean_java_full_name("....src.main.java.net.example.Foo") == "net.example.Foo"
+
+    def test_preserves_dev_prefix(self) -> None:
+        assert _clean_java_full_name("src.main.java.dev.example.Foo") == "dev.example.Foo"
+
+
+# ---------------------------------------------------------------------------
 # _detect_java_source_root tests
 # ---------------------------------------------------------------------------
 
@@ -86,6 +122,19 @@ class TestDetectJavaSourceRoot:
             "/proj/src/com/test/Foo.java", "/proj"
         )
         assert root == "/proj"
+
+    def test_src_main_fallback_when_no_java_dir(self) -> None:
+        """When there's no 'java' directory, fall back to src/main."""
+        result = _detect_java_source_root(
+            "/proj/core/src/main/com/example/Foo.java", "/proj"
+        )
+        assert result == "/proj/core/src/main"
+
+    def test_src_test_fallback_when_no_java_dir(self) -> None:
+        result = _detect_java_source_root(
+            "/proj/module/src/test/com/example/FooTest.java", "/proj"
+        )
+        assert result == "/proj/module/src/test"
 
 
 # ---------------------------------------------------------------------------
