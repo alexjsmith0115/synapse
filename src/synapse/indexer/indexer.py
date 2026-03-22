@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
+    delete_outgoing_edges_for_file,
     upsert_calls, upsert_contains_symbol, upsert_dir_contains, upsert_file_contains_symbol,
     upsert_imports, upsert_module_calls, upsert_symbol_imports, upsert_inherits, upsert_interface_inherits, upsert_implements,
     upsert_repo_contains_dir,
@@ -17,6 +18,7 @@ from synapse.graph.nodes import (
     upsert_interface, upsert_method, upsert_package, upsert_property,
     upsert_repository, delete_file_nodes,
     collect_summaries, restore_summaries,
+    get_file_symbol_names, delete_orphaned_symbols,
     set_attributes, set_metadata_flags,
 )
 from synapse.indexer.csharp.csharp_base_type_extractor import CSharpBaseTypeExtractor
@@ -196,8 +198,10 @@ class Indexer:
 
     def reindex_file(self, file_path: str, root_path: str) -> None:
         self._root_path = root_path
-        saved_summaries = collect_summaries(self._conn, file_path)
-        delete_file_nodes(self._conn, file_path)
+
+        # D-12: capture existing symbols BEFORE upsert for orphan detection
+        old_symbol_names = get_file_symbol_names(self._conn, file_path)
+
         symbols = self._lsp.get_document_symbols(file_path)
 
         # Pre-scan: promote ABC/Protocol classes to :Interface before structural pass
@@ -221,8 +225,12 @@ class Indexer:
                 except OSError:
                     pass
 
+        # D-12: upsert structure (MERGE updates in place, preserves summaries)
         self._index_file_structure(file_path, root_path, symbols)
-        restore_summaries(self._conn, saved_summaries)
+
+        # D-12: delete orphaned symbols (removed from source but still in graph)
+        new_symbol_names = {sym.full_name for sym in symbols}
+        delete_orphaned_symbols(self._conn, file_path, new_symbol_names)
 
         name_to_full_names: dict[str, list[str]] = {}
         kind_map: dict[str, SymbolKind] = {}
@@ -245,6 +253,9 @@ class Indexer:
                 self._index_attributes(file_path, source, symbols, attr_extractor)
         except OSError:
             log.warning("Could not read %s for base type extraction", file_path)
+
+        # D-11: delete outgoing resolution edges before re-resolving
+        delete_outgoing_edges_for_file(self._conn, file_path)
 
         self._resolve_calls_and_refs(
             root_path, symbols, [file_path], name_to_full_names,
