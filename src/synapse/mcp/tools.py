@@ -222,7 +222,10 @@ def register_tools(mcp: object, service: SynapseService) -> None:
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
         """Get the inheritance hierarchy for a class or interface (supports short names)."""
-        result = service.get_hierarchy(class_name)
+        try:
+            result = service.get_hierarchy(class_name)
+        except ValueError as e:
+            return {"error": str(e)}
         warning = service._staleness_warning(class_name)
         if warning:
             result["_staleness_warning"] = warning
@@ -301,15 +304,15 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_type_references(full_name, kind=kind, limit=limit)
 
     @mcp.tool()
-    def find_usages(full_name: str, exclude_test_callers: bool = True) -> dict:
+    def find_usages(full_name: str, exclude_test_callers: bool = True, limit: int = 20) -> dict:
         """Unified entry point — auto-selects the right lookup strategy based on symbol kind. Prefer over manually choosing between find_callers and find_type_references.
 
         For methods/properties/fields: returns callers (CALLS edges).
-        For classes/interfaces: returns type references (REFERENCES edges)
-        plus callers of each method on the type.
+        For classes/interfaces: returns a tiered summary — type_references (total count + up to `limit` items),
+        method_callers (total count + top 5 callers per method), and affected_files count.
         Test usages are excluded by default. Set exclude_test_callers=False to include them.
         """
-        return service.find_usages(full_name, exclude_test_callers)
+        return service.find_usages(full_name, exclude_test_callers, limit=limit)
 
     @mcp.tool()
     def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict]:

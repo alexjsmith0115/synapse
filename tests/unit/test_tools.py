@@ -71,10 +71,10 @@ def test_list_projects_has_description():
 
 def test_find_usages_tool_delegates_to_service() -> None:
     service = MagicMock()
-    service.find_usages.return_value = {"symbol": "Ns.Svc", "kind": "Class", "type_references": [], "method_callers": {}}
+    service.find_usages.return_value = {"symbol": "Ns.Svc", "kind": "Class", "type_references": {"total": 0, "items": []}, "method_callers": {"total": 0, "by_method": {}}, "affected_files": 0}
     fns = _register(service)
     result = fns["find_usages"]("Ns.Svc")
-    service.find_usages.assert_called_once_with("Ns.Svc", True)
+    service.find_usages.assert_called_once_with("Ns.Svc", True, limit=20)
     assert result["kind"] == "Class"
 
 
@@ -83,7 +83,7 @@ def test_find_usages_tool_passes_exclude_flag() -> None:
     service.find_usages.return_value = {"symbol": "Ns.M", "kind": "Method", "callers": []}
     fns = _register(service)
     fns["find_usages"]("Ns.M", exclude_test_callers=False)
-    service.find_usages.assert_called_once_with("Ns.M", False)
+    service.find_usages.assert_called_once_with("Ns.M", False, limit=20)
 
 
 def test_graph_schema_has_overrides_relationship() -> None:
@@ -141,3 +141,25 @@ def test_graph_schema_notes_include_python_kinds() -> None:
     notes_text = " ".join(_GRAPH_SCHEMA["notes"])
     assert "module" in notes_text
     assert "function" in notes_text
+
+
+def test_get_hierarchy_ambiguous_returns_error_dict() -> None:
+    """When name is ambiguous, get_hierarchy should return an error dict, not raise."""
+    from synapse.mcp.tools import register_tools
+
+    mock_mcp = MagicMock()
+    mock_service = MagicMock()
+    mock_service.get_hierarchy.side_effect = ValueError("Ambiguous name 'Path' — matches: A, B, C")
+
+    tools = {}
+    def capture_tool(*args, **kwargs):
+        def decorator(fn):
+            tools[fn.__name__] = fn
+            return fn
+        return decorator
+    mock_mcp.tool = capture_tool
+
+    register_tools(mock_mcp, mock_service)
+    result = tools["get_hierarchy"](class_name="Path")
+    assert "error" in result
+    assert "Ambiguous" in result["error"]

@@ -313,6 +313,20 @@ def test_get_index_status_includes_symbol_breakdown() -> None:
     assert result["symbol_breakdown"] == {"Class": 40, "Method": 50, "Property": 10}
 
 
+def test_get_hierarchy_interface_returns_implementors_as_children() -> None:
+    """get_hierarchy should find implementors via IMPLEMENTS for Interface nodes."""
+    impl = _MockNode(["Class"], {"full_name": "Ns.Impl"})
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [],              # parents query
+        [[impl]],        # children query (UNION result)
+        [],              # implements query
+    ]
+    result = get_hierarchy(conn, "Ns.IFoo")
+    assert len(result["children"]) == 1
+    assert result["children"][0]["full_name"] == "Ns.Impl"
+
+
 def test_resolve_with_labels_exact_match() -> None:
     conn = _conn([["Ns.TaskService"]])
     result = resolve_full_name_with_labels(conn, "Ns.TaskService")

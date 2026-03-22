@@ -126,15 +126,18 @@ def find_callees(
 
 def get_hierarchy(conn: GraphConnection, class_full_name: str) -> dict:
     parents = conn.query(
-        "MATCH (c:Class {full_name: $full_name})-[:INHERITS*]->(p:Class) RETURN p",
+        "MATCH (c {full_name: $full_name})-[:INHERITS*]->(p) "
+        "WHERE p:Class OR p:Interface RETURN p",
         {"full_name": class_full_name},
     )
     children = conn.query(
-        "MATCH (c:Class)-[:INHERITS*]->(p:Class {full_name: $full_name}) RETURN c",
+        "MATCH (c)-[:INHERITS*]->(p {full_name: $full_name}) RETURN c "
+        "UNION "
+        "MATCH (c:Class)-[:IMPLEMENTS]->(p {full_name: $full_name}) RETURN c",
         {"full_name": class_full_name},
     )
     implements = conn.query(
-        "MATCH (c:Class {full_name: $full_name})-[:IMPLEMENTS]->(i:Interface) RETURN i",
+        "MATCH (c {full_name: $full_name})-[:IMPLEMENTS]->(i:Interface) RETURN i",
         {"full_name": class_full_name},
     )
     return {
