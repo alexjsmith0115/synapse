@@ -56,6 +56,7 @@ class LanguageRegistry:
 
 def default_registry() -> LanguageRegistry:
     from synapse.plugin.csharp import CSharpPlugin
+    from synapse.plugin.java import JavaPlugin
     from synapse.plugin.python import PythonPlugin
     from synapse.plugin.typescript import TypeScriptPlugin
 
@@ -63,4 +64,5 @@ def default_registry() -> LanguageRegistry:
     registry.register(CSharpPlugin())
     registry.register(PythonPlugin())
     registry.register(TypeScriptPlugin())
+    registry.register(JavaPlugin())
     return registry
