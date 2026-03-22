@@ -336,23 +336,23 @@ class SynapseService:
 
     def find_implementations(self, interface_name: str) -> list[dict]:
         interface_name = self._resolve(interface_name, preference="interface")
-        return [_p(item) for item in find_implementations(self._conn, interface_name)]
+        return [_slim(item, "full_name", "file_path", "line") for item in find_implementations(self._conn, interface_name)]
 
     def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = True) -> list[dict]:
         method_full_name = self._resolve(method_full_name, preference="concrete")
-        return [_p(item) for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
+        return [_slim(item, "full_name", "file_path", "line") for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
 
     def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True) -> list[dict]:
         method_full_name = self._resolve(method_full_name, preference="concrete")
-        return [_p(item) for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
+        return [_slim(item, "full_name", "file_path", "line") for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
 
     def get_hierarchy(self, class_name: str) -> dict:
         class_name = self._resolve(class_name)
         raw = get_hierarchy(self._conn, class_name)
         return {
-            "parents": [_p(n) for n in raw["parents"]],
-            "children": [_p(n) for n in raw["children"]],
-            "implements": [_p(n) for n in raw["implements"]],
+            "parents": [_slim(n, "full_name", "file_path") for n in raw["parents"]],
+            "children": [_slim(n, "full_name", "file_path") for n in raw["children"]],
+            "implements": [_slim(n, "full_name", "file_path") for n in raw["implements"]],
         }
 
     def search_symbols(
@@ -363,7 +363,7 @@ class SynapseService:
         file_path: str | None = None,
         language: str | None = None,
     ) -> list[dict]:
-        return [_p(item) for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
+        return [_slim(item, "full_name", "name", "kind", "file_path", "line") for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
 
     def list_projects(self) -> list[dict]:
         return [_p(item) for item in list_projects(self._conn)]
@@ -384,7 +384,7 @@ class SynapseService:
                 f"Valid values: {sorted(self._VALID_REF_KINDS)}"
             )
         full_name = self._resolve(full_name)
-        return [{"symbol": _p(r["symbol"]), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name, kind=kind)]
+        return [{"symbol": _slim(r["symbol"], "full_name", "file_path"), "kind": r["kind"]} for r in query_find_type_references(self._conn, full_name, kind=kind)]
 
     _USAGES_SUPPORTED_LABELS = {"Method", "Property", "Field", "Class", "Interface"}
 
@@ -451,7 +451,7 @@ class SynapseService:
     def find_dependencies(self, full_name: str, depth: int = 1) -> list[dict]:
         full_name = self._resolve(full_name)
         return [
-            {"type": _p(r["type"]), "depth": r["depth"]}
+            {"type": _slim(r["type"], "full_name", "file_path"), "depth": r["depth"]}
             for r in query_find_dependencies(self._conn, full_name, depth)
         ]
 

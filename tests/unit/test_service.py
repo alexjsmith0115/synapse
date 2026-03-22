@@ -233,18 +233,18 @@ def test_p_passes_through_plain_dict():
 
 def test_find_callers_returns_plain_dicts():
     svc = _service()
-    node = _node(["Method"], {"full_name": "A.Caller", "signature": "Caller() : void"})
+    node = _node(["Method"], {"full_name": "A.Caller", "file_path": "/src/A.cs", "line": 5, "signature": "Caller() : void"})
     with patch("synapse.service.find_callers", return_value=[node]):
         result = svc.find_callers("A.B")
-    assert result == [{"full_name": "A.Caller", "signature": "Caller() : void", "_labels": ["Method"]}]
+    assert result == [{"full_name": "A.Caller", "file_path": "/src/A.cs", "line": 5}]
 
 
 def test_find_implementations_returns_plain_dicts():
     svc = _service()
-    node = _node(["Class"], {"full_name": "A.Impl"})
+    node = _node(["Class"], {"full_name": "A.Impl", "file_path": "/src/Impl.cs", "line": 1})
     with patch("synapse.service.find_implementations", return_value=[node]):
         result = svc.find_implementations("A.IService")
-    assert result == [{"full_name": "A.Impl", "_labels": ["Class"]}]
+    assert result == [{"full_name": "A.Impl", "file_path": "/src/Impl.cs", "line": 1}]
 
 
 def test_get_symbol_returns_plain_dict_with_labels():
@@ -264,10 +264,10 @@ def test_get_symbol_returns_none_when_not_found():
 
 def test_find_type_references_unwraps_nested_nodes():
     svc = _service()
-    node = _node(["Method"], {"full_name": "A.Caller"})
+    node = _node(["Method"], {"full_name": "A.Caller", "file_path": "/src/A.cs"})
     with patch("synapse.service.query_find_type_references", return_value=[{"symbol": node, "kind": "parameter"}]):
         result = svc.find_type_references("A.IService")
-    assert result == [{"symbol": {"full_name": "A.Caller", "_labels": ["Method"]}, "kind": "parameter"}]
+    assert result == [{"symbol": {"full_name": "A.Caller", "file_path": "/src/A.cs"}, "kind": "parameter"}]
 
 
 def test_find_type_references_rejects_invalid_kind() -> None:
@@ -289,10 +289,10 @@ def test_find_type_references_passes_valid_kind() -> None:
 
 def test_find_dependencies_unwraps_nested_nodes():
     svc = _service()
-    node = _node(["Class"], {"full_name": "A.Dep"})
+    node = _node(["Class"], {"full_name": "A.Dep", "file_path": "/src/Dep.cs"})
     with patch("synapse.service.query_find_dependencies", return_value=[{"type": node, "depth": 1}]):
         result = svc.find_dependencies("A.Method")
-    assert result == [{"type": {"full_name": "A.Dep", "_labels": ["Class"]}, "depth": 1}]
+    assert result == [{"type": {"full_name": "A.Dep", "file_path": "/src/Dep.cs"}, "depth": 1}]
 
 
 def test_get_context_for_includes_summaries_when_available(tmp_path):
@@ -340,14 +340,14 @@ def test_get_context_for_no_summaries_section_when_none_exist(tmp_path):
 
 def test_get_hierarchy_unwraps_nodes():
     svc = _service()
-    parent = _node(["Class"], {"full_name": "A.Base"})
-    child = _node(["Class"], {"full_name": "A.Child"})
-    iface = _node(["Interface"], {"full_name": "A.IFoo"})
+    parent = _node(["Class"], {"full_name": "A.Base", "file_path": "/src/Base.cs"})
+    child = _node(["Class"], {"full_name": "A.Child", "file_path": "/src/Child.cs"})
+    iface = _node(["Interface"], {"full_name": "A.IFoo", "file_path": "/src/IFoo.cs"})
     with patch("synapse.service.get_hierarchy", return_value={"parents": [parent], "children": [child], "implements": [iface]}):
         result = svc.get_hierarchy("A.Middle")
-    assert result["parents"] == [{"full_name": "A.Base", "_labels": ["Class"]}]
-    assert result["children"] == [{"full_name": "A.Child", "_labels": ["Class"]}]
-    assert result["implements"] == [{"full_name": "A.IFoo", "_labels": ["Interface"]}]
+    assert result["parents"] == [{"full_name": "A.Base", "file_path": "/src/Base.cs"}]
+    assert result["children"] == [{"full_name": "A.Child", "file_path": "/src/Child.cs"}]
+    assert result["implements"] == [{"full_name": "A.IFoo", "file_path": "/src/IFoo.cs"}]
 
 
 def test_get_context_for_scope_structure_returns_signatures_only(tmp_path):
@@ -692,6 +692,45 @@ def test_test_coverage_section_returns_none_when_empty():
     with patch("synapse.service.find_test_coverage", return_value=[]):
         result = svc._test_coverage_section("Ns.Foo.Bar")
     assert result is None
+
+
+def test_find_callers_returns_slim_dicts() -> None:
+    """find_callers should return only full_name, file_path, line — not all node properties."""
+    svc = _service()
+    caller = _node(["Method"], {
+        "full_name": "Ns.Ctrl.Action", "file_path": "/src/Ctrl.cs",
+        "line": 10, "end_line": 20, "language": "csharp", "signature": "void Action()",
+    })
+    with patch("synapse.service.find_callers", return_value=[caller]):
+        result = svc.find_callers("Ns.Svc.Do")
+    assert result == [{"full_name": "Ns.Ctrl.Action", "file_path": "/src/Ctrl.cs", "line": 10}]
+    assert "end_line" not in result[0]
+    assert "language" not in result[0]
+
+
+def test_search_symbols_returns_slim_dicts() -> None:
+    """search_symbols should return only full_name, name, kind, file_path, line."""
+    svc = _service()
+    node = _node(["Class"], {
+        "full_name": "Ns.MyClass", "name": "MyClass", "kind": "class",
+        "file_path": "/src/My.cs", "line": 5, "end_line": 100, "language": "csharp",
+    })
+    with patch("synapse.service.search_symbols", return_value=[node]):
+        result = svc.search_symbols("MyClass")
+    assert result == [{"full_name": "Ns.MyClass", "name": "MyClass", "kind": "class", "file_path": "/src/My.cs", "line": 5}]
+    assert "end_line" not in result[0]
+
+
+def test_get_hierarchy_returns_slim_dicts() -> None:
+    """get_hierarchy should return only full_name, file_path per node."""
+    svc = _service()
+    parent = _node(["Class"], {"full_name": "Ns.Base", "file_path": "/src/Base.cs", "line": 1, "end_line": 50})
+    child = _node(["Class"], {"full_name": "Ns.Derived", "file_path": "/src/Derived.cs", "line": 1, "end_line": 30})
+    iface = _node(["Interface"], {"full_name": "Ns.IFoo", "file_path": "/src/IFoo.cs", "line": 1, "end_line": 10})
+    with patch("synapse.service.get_hierarchy", return_value={"parents": [parent], "children": [child], "implements": [iface]}):
+        result = svc.get_hierarchy("Ns.Derived")
+    assert result["parents"] == [{"full_name": "Ns.Base", "file_path": "/src/Base.cs"}]
+    assert "end_line" not in result["parents"][0]
 
 
 def test_relevant_deps_section_shows_member_signatures():
