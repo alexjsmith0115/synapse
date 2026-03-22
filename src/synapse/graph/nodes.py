@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timezone
 
 from synapse.graph.connection import GraphConnection
@@ -172,3 +173,59 @@ def set_metadata_flags(conn: GraphConnection, full_name: str, flags: dict) -> No
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def set_last_indexed_commit(conn: GraphConnection, root_path: str, sha: str) -> None:
+    conn.execute(
+        "MATCH (r:Repository {path: $path}) SET r.last_indexed_commit = $sha",
+        {"path": root_path, "sha": sha},
+    )
+
+
+def get_last_indexed_commit(conn: GraphConnection, root_path: str) -> str | None:
+    rows = conn.query(
+        "MATCH (r:Repository {path: $path}) RETURN r.last_indexed_commit",
+        {"path": root_path},
+    )
+    return rows[0][0] if rows and rows[0][0] else None
+
+
+def rename_file_node(conn: GraphConnection, old_path: str, new_path: str) -> None:
+    new_name = os.path.basename(new_path)
+    conn.execute(
+        "MATCH (f:File {path: $old}) SET f.path = $new, f.name = $name",
+        {"old": old_path, "new": new_path, "name": new_name},
+    )
+    conn.execute(
+        "MATCH (f:File {path: $new})-[:CONTAINS*]->(n) "
+        "WHERE n.file_path = $old SET n.file_path = $new",
+        {"old": old_path, "new": new_path},
+    )
+
+
+def get_file_symbol_names(conn: GraphConnection, file_path: str) -> set[str]:
+    rows = conn.query(
+        "MATCH (f:File {path: $path})-[:CONTAINS*]->(n) "
+        "WHERE n.full_name IS NOT NULL "
+        "RETURN n.full_name",
+        {"path": file_path},
+    )
+    return {row[0] for row in rows}
+
+
+def delete_orphaned_symbols(
+    conn: GraphConnection, file_path: str, current_full_names: set[str]
+) -> int:
+    rows = conn.query(
+        "MATCH (f:File {path: $path})-[:CONTAINS*]->(n) "
+        "WHERE n.full_name IS NOT NULL AND NOT n.full_name IN $keep "
+        "RETURN n.full_name",
+        {"path": file_path, "keep": list(current_full_names)},
+    )
+    orphans = [r[0] for r in rows]
+    for fn in orphans:
+        conn.execute(
+            "MATCH (n {full_name: $fn}) DETACH DELETE n",
+            {"fn": fn},
+        )
+    return len(orphans)
