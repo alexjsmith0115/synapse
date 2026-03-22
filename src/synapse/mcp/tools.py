@@ -1,8 +1,53 @@
 from __future__ import annotations
 
+import functools
+import json
+import logging
+import os
+import time
+from pathlib import Path
 from typing import Literal
 
 from synapse.service import SynapseService
+
+log = logging.getLogger(__name__)
+
+_BENCH_LOG = os.environ.get("SYNAPSE_BENCH_LOG", "")
+
+
+def _bench_wrap(fn: callable, tool_name: str) -> callable:
+    """Wrap a tool function to log response size when SYNAPSE_BENCH_LOG is set."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        t0 = time.monotonic()
+        result = fn(*args, **kwargs)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+        if isinstance(result, str):
+            size = len(result.encode("utf-8"))
+        elif result is None:
+            size = 4  # "null"
+        else:
+            size = len(json.dumps(result).encode("utf-8"))
+
+        log_path = Path(_BENCH_LOG)
+        with log_path.open("a") as f:
+            json.dump(
+                {
+                    "tool": tool_name,
+                    "bytes": size,
+                    "ms": round(elapsed_ms, 1),
+                    "ts": time.time(),
+                    "args": {k: v for k, v in kwargs.items() if isinstance(v, (str, int, float, bool))},
+                },
+                f,
+            )
+            f.write("\n")
+
+        return result
+
+    return wrapper
 
 SymbolKindLiteral = Literal[
     "Class", "Interface", "Method", "Property", "Field",
@@ -45,6 +90,21 @@ _GRAPH_SCHEMA = {
 
 def register_tools(mcp: object, service: SynapseService) -> None:
     """Register all MCP tools on the given MCP server instance."""
+
+    if _BENCH_LOG:
+        _orig_tool = mcp.tool
+
+        def _instrumented_tool(*deco_args, **deco_kwargs):
+            decorator = _orig_tool(*deco_args, **deco_kwargs)
+
+            def wrapping_decorator(fn):
+                wrapped = _bench_wrap(fn, fn.__name__)
+                return decorator(wrapped)
+
+            return wrapping_decorator
+
+        mcp.tool = _instrumented_tool
+        log.info("Bench logging enabled → %s", _BENCH_LOG)
 
     @mcp.tool()
     def index_project(path: str, language: str = "csharp") -> str:
@@ -114,20 +174,21 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return f"Symbol not found: {full_name}"
 
     @mcp.tool()
-    def find_implementations(interface_name: str) -> list[dict]:
+    def find_implementations(interface_name: str, limit: int = 50) -> list[dict]:
         """Find all classes that implement the given interface.
 
         Accepts both full names (e.g. "MyNs.IFoo") and short names (e.g. "IFoo").
         Short names use a suffix match when an exact match is not found.
         When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
-        return service.find_implementations(interface_name)
+        return service.find_implementations(interface_name, limit=limit)
 
     @mcp.tool()
     def find_callers(
         method_full_name: str,
         include_interface_dispatch: bool = True,
         exclude_test_callers: bool = True,
+        limit: int = 50,
     ) -> list[dict]:
         """Find methods that call the given method. Includes interface dispatch by default — no need to manually resolve interface implementations first.
 
@@ -142,12 +203,13 @@ def register_tools(mcp: object, service: SynapseService) -> None:
 
         When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
-        return service.find_callers(method_full_name, include_interface_dispatch, exclude_test_callers)
+        return service.find_callers(method_full_name, include_interface_dispatch, exclude_test_callers, limit=limit)
 
     @mcp.tool()
     def find_callees(
         method_full_name: str,
         include_interface_dispatch: bool = True,
+        limit: int = 50,
     ) -> list[dict]:
         """Find methods called by the given method.
 
@@ -155,7 +217,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         interface method (common in C# DI codebases). Set include_interface_dispatch=False
         for direct CALLS edges only.
         """
-        return service.find_callees(method_full_name, include_interface_dispatch)
+        return service.find_callees(method_full_name, include_interface_dispatch, limit=limit)
 
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
@@ -173,6 +235,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         namespace: str | None = None,
         file_path: str | None = None,
         language: str | None = None,
+        limit: int = 50,
     ) -> list[dict]:
         """Search for symbols by name substring. Use this to discover symbol names before passing them to other tools.
 
@@ -182,7 +245,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         file_path: filter to symbols defined in this file path.
         language: filter to symbols from a specific language (e.g. "python", "csharp").
         """
-        return service.search_symbols(query, kind, namespace, file_path, language)
+        return service.search_symbols(query, kind, namespace, file_path, language, limit=limit)
 
     @mcp.tool()
     def set_summary(full_name: str, content: str) -> str:
@@ -229,13 +292,13 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.execute_query(cypher)
 
     @mcp.tool()
-    def find_type_references(full_name: str, kind: str | None = None) -> list[dict]:
+    def find_type_references(full_name: str, kind: str | None = None, limit: int = 50) -> list[dict]:
         """Return all symbols that reference the given type as a parameter, return type, or property type.
 
         kind: optional filter — one of 'parameter', 'return_type', 'property_type'.
         Each result includes a kind field indicating the relationship.
         """
-        return service.find_type_references(full_name, kind=kind)
+        return service.find_type_references(full_name, kind=kind, limit=limit)
 
     @mcp.tool()
     def find_usages(full_name: str, exclude_test_callers: bool = True) -> dict:
@@ -249,14 +312,14 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_usages(full_name, exclude_test_callers)
 
     @mcp.tool()
-    def find_dependencies(full_name: str, depth: int = 1) -> list[dict]:
+    def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict]:
         """Find field-type dependencies for the given symbol.
 
         depth: how many hops to traverse (default 1 = direct deps only, max 5).
         Each result includes a 'depth' field indicating how many hops from the root.
         Useful for impact analysis — depth=2 shows transitive dependencies.
         """
-        return service.find_dependencies(full_name, depth)
+        return service.find_dependencies(full_name, depth, limit=limit)
 
     @mcp.tool()
     def get_context_for(full_name: str, scope: str | None = None, max_lines: int = 200) -> str:

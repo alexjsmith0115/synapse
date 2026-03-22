@@ -1266,6 +1266,38 @@ def test_get_context_for_negative_max_lines_disables_fallback(tmp_path) -> None:
     assert "// line 0" in result
 
 
+# --- limit parameter tests ---
+
+
+def test_find_callers_respects_limit() -> None:
+    svc = _service()
+    callers = [_node(["Method"], {"full_name": f"Ns.C{i}", "file_path": f"/f{i}.cs", "line": i}) for i in range(10)]
+    with patch("synapse.service.find_callers", return_value=callers):
+        result = svc.find_callers("Ns.Svc.Do", limit=3)
+    assert result["_truncated"] is True
+    assert result["_total"] == 10
+    assert len(result["results"]) == 3
+
+
+def test_find_callers_no_truncation_when_under_limit() -> None:
+    svc = _service()
+    callers = [_node(["Method"], {"full_name": "Ns.C1", "file_path": "/f.cs", "line": 1})]
+    with patch("synapse.service.find_callers", return_value=callers):
+        result = svc.find_callers("Ns.Svc.Do", limit=50)
+    assert isinstance(result, list)
+    assert len(result) == 1
+
+
+def test_search_symbols_respects_limit() -> None:
+    svc = _service()
+    nodes = [_node(["Class"], {"full_name": f"Ns.C{i}", "name": f"C{i}", "kind": "class", "file_path": f"/f{i}.cs", "line": i}) for i in range(10)]
+    with patch("synapse.service.search_symbols", return_value=nodes):
+        result = svc.search_symbols("C", limit=2)
+    assert result["_truncated"] is True
+    assert result["_total"] == 10
+    assert len(result["results"]) == 2
+
+
 def test_resolve_preference_concrete_selects_class() -> None:
     conn = MagicMock()
     svc = SynapseService(conn)
