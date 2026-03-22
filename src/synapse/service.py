@@ -334,17 +334,17 @@ class SynapseService:
         result = get_symbol(self._conn, full_name)
         return _p(result) if result is not None else None
 
-    def find_implementations(self, interface_name: str, limit: int = 50) -> list[dict]:
+    def find_implementations(self, interface_name: str, limit: int = 50) -> list[dict] | dict:
         interface_name = self._resolve(interface_name, preference="interface")
         result = [_slim(item, "full_name", "file_path", "line") for item in find_implementations(self._conn, interface_name)]
         return _apply_limit(result, limit)
 
-    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = True, limit: int = 50) -> list[dict]:
+    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = True, limit: int = 50) -> list[dict] | dict:
         method_full_name = self._resolve(method_full_name, preference="concrete")
         result = [_slim(item, "full_name", "file_path", "line") for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
         return _apply_limit(result, limit)
 
-    def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict]:
+    def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict] | dict:
         method_full_name = self._resolve(method_full_name, preference="concrete")
         result = [_slim(item, "full_name", "file_path", "line") for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
         return _apply_limit(result, limit)
@@ -382,7 +382,7 @@ class SynapseService:
 
     _VALID_REF_KINDS = frozenset({"parameter", "return_type", "property_type"})
 
-    def find_type_references(self, full_name: str, kind: str | None = None, limit: int = 50) -> list[dict]:
+    def find_type_references(self, full_name: str, kind: str | None = None, limit: int = 50) -> list[dict] | dict:
         if kind is not None and kind not in self._VALID_REF_KINDS:
             raise ValueError(
                 f"Unknown reference kind: {kind!r}. "
@@ -410,7 +410,7 @@ class SynapseService:
 
         # Method/Property/Field — return callers
         if labels & {"Method", "Property", "Field"}:
-            callers = self.find_callers(full_name, exclude_test_callers=exclude_test_callers)
+            callers = self.find_callers(full_name, exclude_test_callers=exclude_test_callers, limit=limit)
             kind = "Method" if "Method" in labels else ("Property" if "Property" in labels else "Field")
             return {"symbol": full_name, "kind": kind, "callers": callers}
 
@@ -472,7 +472,7 @@ class SynapseService:
             "affected_files": len(affected_files),
         }
 
-    def find_dependencies(self, full_name: str, depth: int = 1, limit: int = 50) -> list[dict]:
+    def find_dependencies(self, full_name: str, depth: int = 1, limit: int = 50) -> list[dict] | dict:
         full_name = self._resolve(full_name)
         result = [
             {"type": _slim(r["type"], "full_name", "file_path"), "depth": r["depth"]}

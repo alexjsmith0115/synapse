@@ -174,7 +174,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return f"Symbol not found: {full_name}"
 
     @mcp.tool()
-    def find_implementations(interface_name: str, limit: int = 50) -> list[dict]:
+    def find_implementations(interface_name: str, limit: int = 50) -> list[dict] | dict:
         """Find all classes that implement the given interface.
 
         Accepts both full names (e.g. "MyNs.IFoo") and short names (e.g. "IFoo").
@@ -189,7 +189,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         include_interface_dispatch: bool = True,
         exclude_test_callers: bool = True,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict] | dict:
         """Find methods that call the given method. Includes interface dispatch by default — no need to manually resolve interface implementations first.
 
         Callers that invoke this method through an interface are included
@@ -210,7 +210,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         method_full_name: str,
         include_interface_dispatch: bool = True,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict] | dict:
         """Find methods called by the given method.
 
         By default, includes concrete implementations when the call site targets an
@@ -239,7 +239,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         file_path: str | None = None,
         language: str | None = None,
         limit: int = 50,
-    ) -> list[dict]:
+    ) -> list[dict] | dict:
         """Search for symbols by name substring. Use this to discover symbol names before passing them to other tools.
 
         kind: filter by node type.
@@ -295,7 +295,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.execute_query(cypher)
 
     @mcp.tool()
-    def find_type_references(full_name: str, kind: str | None = None, limit: int = 50) -> list[dict]:
+    def find_type_references(full_name: str, kind: str | None = None, limit: int = 50) -> list[dict] | dict:
         """Return all symbols that reference the given type as a parameter, return type, or property type.
 
         kind: optional filter — one of 'parameter', 'return_type', 'property_type'.
@@ -315,7 +315,7 @@ def register_tools(mcp: object, service: SynapseService) -> None:
         return service.find_usages(full_name, exclude_test_callers, limit=limit)
 
     @mcp.tool()
-    def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict]:
+    def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict] | dict:
         """Find field-type dependencies for the given symbol.
 
         depth: how many hops to traverse (default 1 = direct deps only, max 5).
