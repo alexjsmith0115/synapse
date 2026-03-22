@@ -191,6 +191,26 @@ def batch_upsert_module_calls(conn: GraphConnection, batch: list[dict]) -> None:
     )
 
 
+def delete_outgoing_edges_for_file(conn: GraphConnection, file_path: str) -> None:
+    """Delete all outgoing resolution edges from symbols in a file.
+
+    Per D-09: only outgoing edges from changed files; incoming edges intact.
+    Per D-10: single consistent behavior, no flags.
+    """
+    # CALLS + REFERENCES + INHERITS + IMPLEMENTS + DISPATCHES_TO + OVERRIDES from file's symbols
+    conn.execute(
+        "MATCH (f:File {path: $path})-[:CONTAINS*]->(n)-[r]->() "
+        "WHERE type(r) IN ['CALLS', 'REFERENCES', 'INHERITS', 'IMPLEMENTS', 'DISPATCHES_TO', 'OVERRIDES'] "
+        "DELETE r",
+        {"path": file_path},
+    )
+    # IMPORTS from the file node itself
+    conn.execute(
+        "MATCH (f:File {path: $path})-[r:IMPORTS]->() DELETE r",
+        {"path": file_path},
+    )
+
+
 def batch_upsert_references(conn: GraphConnection, batch: list[dict]) -> None:
     """Batch-write REFERENCES edges."""
     if not batch:
