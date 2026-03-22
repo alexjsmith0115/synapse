@@ -43,7 +43,8 @@ def test_main_uses_container_manager(_patched_main):
     _patched_main["ensure"].assert_called_once_with(conn)
     _patched_main["svc_cls"].assert_called_once_with(conn)
     _patched_main["register"].assert_called_once_with(
-        _patched_main["fastmcp"], _patched_main["svc_cls"].return_value
+        _patched_main["fastmcp"], _patched_main["svc_cls"].return_value,
+        project_path="/mock/project",
     )
     _patched_main["fastmcp"].run.assert_called_once()
 

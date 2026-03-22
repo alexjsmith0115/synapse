@@ -22,5 +22,5 @@ def main() -> None:
     service = SynapseService(conn)
 
     mcp = FastMCP("synapse", instructions=SERVER_INSTRUCTIONS)
-    register_tools(mcp, service)
+    register_tools(mcp, service, project_path=path)
     mcp.run()
