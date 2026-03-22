@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 
 from synapse.lsp.interface import IndexSymbol, LSPAdapter, LSPResolverBackend, SymbolKind
-from synapse.lsp.util import build_full_name
+from synapse.lsp.util import symbol_suffix
 
 log = logging.getLogger(__name__)
 
@@ -30,11 +31,93 @@ _EXCLUDE_DIRS = frozenset({
 })
 
 
+def _detect_java_source_root(file_path: str, root_path: str) -> str:
+    """Detect the Java source root by looking for a 'java' directory in the file's path.
+
+    Covers conventional layouts: src/main/java, src/test/java, src/java.
+    Falls back to root_path if no conventional source root is found.
+    """
+    parts = Path(file_path).parts
+    # Walk backwards looking for a directory named "java" that is under the root
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == "java":
+            candidate = str(Path(*parts[: i + 1]))
+            # Verify the candidate is under (or equal to) root_path
+            if candidate.startswith(root_path):
+                return candidate
+    return root_path
+
+
+def _symbol_suffix_no_namespace(raw: dict) -> str:
+    """Like symbol_suffix but skips NAMESPACE parents (kind=3).
+
+    For Java, the package namespace is derived from the file path,
+    so we exclude it from the symbol chain to avoid duplication.
+    """
+    name = raw.get("name", "")
+    parent = raw.get("parent")
+    if parent:
+        if parent.get("kind") == 3:
+            # Skip namespace parent, continue to its parent
+            grandparent = parent.get("parent")
+            if grandparent:
+                return f"{_symbol_suffix_no_namespace(grandparent)}.{name}"
+            return name
+        return f"{_symbol_suffix_no_namespace(parent)}.{name}"
+    return name
+
+
+def _build_java_full_name(raw: dict, file_path: str, source_root: str) -> str:
+    """Build a package-qualified full name from file path + symbol parent chain.
+
+    Derives the package prefix from the file path relative to the source root,
+    then appends the symbol chain (excluding namespace parents) for nested symbols.
+    """
+    rel = os.path.relpath(file_path, source_root)
+    # Convert path to dotted package + class: com/synapsetest/Animal.java -> com.synapsetest.Animal
+    path_prefix = rel.replace(os.sep, ".").removesuffix(".java")
+
+    # Get the symbol chain excluding namespace parents
+    suffix = _symbol_suffix_no_namespace(raw)
+
+    # The path_prefix already contains the top-level class name (from the filename).
+    # The suffix contains the full symbol chain from raw (class.method or just class).
+    # We need to figure out the "inner" part (below the top-level class).
+    #
+    # Strategy: the top-level class name is the last component of path_prefix.
+    # If suffix == top-level class name, return just path_prefix.
+    # If suffix starts with "TopClass.", return path_prefix + rest.
+    top_class = path_prefix.rsplit(".", 1)[-1] if "." in path_prefix else path_prefix
+
+    if suffix == top_class:
+        base = path_prefix
+    elif suffix.startswith(f"{top_class}."):
+        inner = suffix[len(top_class) + 1:]
+        base = f"{path_prefix}.{inner}"
+    else:
+        # Symbol name doesn't match filename class (e.g. inner class or standalone)
+        # Use the full suffix appended to the package (path_prefix minus the filename class)
+        if "." in path_prefix:
+            package = path_prefix.rsplit(".", 1)[0]
+            base = f"{package}.{suffix}"
+        else:
+            base = suffix
+
+    # Handle overload_idx (parameter signature for overloaded methods)
+    if "overload_idx" in raw:
+        detail = raw.get("detail", "") or ""
+        if "(" in detail:
+            return f"{base}{detail[detail.index('('):]}"
+    return base
+
+
 class JavaLSPAdapter:
     """Wraps an EclipseJDTLS instance to provide the LSPAdapter interface for Java."""
 
-    def __init__(self, language_server: LSPResolverBackend) -> None:
+    def __init__(self, language_server: LSPResolverBackend, root_path: str) -> None:
         self._ls = language_server
+        self._root_path = root_path
+        self._source_root: str | None = None
 
     @property
     def language_server(self) -> LSPResolverBackend:
@@ -58,7 +141,7 @@ class JavaLSPAdapter:
         t0 = time.monotonic()
         ls.start()
         log.info("Eclipse JDT LS ready in %.1fs", time.monotonic() - t0)
-        return cls(ls)
+        return cls(ls, root_path)
 
     def get_workspace_files(self, root_path: str) -> list[str]:
         t0 = time.monotonic()
@@ -71,6 +154,10 @@ class JavaLSPAdapter:
 
     def get_document_symbols(self, file_path: str) -> list[IndexSymbol]:
         try:
+            # Lazily detect source root on first call
+            if self._source_root is None:
+                self._source_root = _detect_java_source_root(file_path, self._root_path)
+
             t0 = time.monotonic()
             raw = self._ls.request_document_symbols(file_path)
             elapsed = time.monotonic() - t0
@@ -112,13 +199,8 @@ class JavaLSPAdapter:
             kind = SymbolKind.CLASS
 
         name = raw.get("name", "")
-        full_name = build_full_name(raw)
-
-        # D-05: If build_full_name returns just the symbol name (no container),
-        # the symbol likely has no package declaration. Fall back to parent_full_name
-        # chain if available.
-        if full_name == name and parent_full_name:
-            full_name = f"{parent_full_name}.{name}"
+        source_root = self._source_root or self._root_path
+        full_name = _build_java_full_name(raw, file_path, source_root)
 
         range_obj = raw.get("location", {}).get("range", {})
         line = range_obj.get("start", {}).get("line", 0)

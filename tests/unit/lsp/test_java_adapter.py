@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from synapse.lsp.interface import IndexSymbol, SymbolKind
-from synapse.lsp.java import JavaLSPAdapter, _LSP_KIND_MAP
+from synapse.lsp.java import JavaLSPAdapter, _LSP_KIND_MAP, _detect_java_source_root, _build_java_full_name
 
 
 # ---------------------------------------------------------------------------
@@ -49,12 +49,134 @@ class TestLSPKindMap:
 
 
 # ---------------------------------------------------------------------------
+# _detect_java_source_root tests
+# ---------------------------------------------------------------------------
+
+class TestDetectJavaSourceRoot:
+    def test_maven_src_main_java(self) -> None:
+        root = _detect_java_source_root(
+            "/proj/src/main/java/com/synapsetest/Animal.java", "/proj"
+        )
+        assert root == "/proj/src/main/java"
+
+    def test_maven_src_test_java(self) -> None:
+        root = _detect_java_source_root(
+            "/proj/src/test/java/com/synapsetest/AnimalTest.java", "/proj"
+        )
+        assert root == "/proj/src/test/java"
+
+    def test_simple_src_java(self) -> None:
+        """src/java layout (no main/test)."""
+        root = _detect_java_source_root(
+            "/proj/src/java/com/test/Foo.java", "/proj"
+        )
+        assert root == "/proj/src/java"
+
+    def test_flat_layout_fallback(self) -> None:
+        """No conventional java source dir -> fallback to root_path."""
+        root = _detect_java_source_root(
+            "/proj/Foo.java", "/proj"
+        )
+        assert root == "/proj"
+
+    def test_src_only_no_java_dir(self) -> None:
+        """src/com/test/Foo.java - 'src' contains package dirs directly."""
+        # No 'java' dir in path, so fallback to root_path
+        root = _detect_java_source_root(
+            "/proj/src/com/test/Foo.java", "/proj"
+        )
+        assert root == "/proj"
+
+
+# ---------------------------------------------------------------------------
+# _build_java_full_name tests
+# ---------------------------------------------------------------------------
+
+class TestBuildJavaFullName:
+    def test_class_with_package(self) -> None:
+        """Top-level class derives package from file path."""
+        ns_parent = {"name": "com.synapsetest", "kind": 3}
+        raw = {"name": "Animal", "kind": 5, "parent": ns_parent}
+        result = _build_java_full_name(raw, "com/synapsetest/Animal.java", "/src")
+        # source_root is /src, file is at /src/com/synapsetest/Animal.java
+        result = _build_java_full_name(
+            raw,
+            "/src/com/synapsetest/Animal.java",
+            "/src",
+        )
+        assert result == "com.synapsetest.Animal"
+
+    def test_method_with_package(self) -> None:
+        """Nested method: package from path + class.method from symbol chain."""
+        ns = {"name": "com.synapsetest", "kind": 3}
+        cls_parent = {"name": "Animal", "kind": 5, "parent": ns}
+        raw = {"name": "speak", "kind": 6, "parent": cls_parent}
+        result = _build_java_full_name(
+            raw,
+            "/src/com/synapsetest/Animal.java",
+            "/src",
+        )
+        assert result == "com.synapsetest.Animal.speak"
+
+    def test_namespace_parent_is_skipped(self) -> None:
+        """NAMESPACE (kind=3) parents are excluded from symbol_suffix since package comes from path."""
+        ns = {"name": "com.synapsetest", "kind": 3}
+        raw = {"name": "Animal", "kind": 5, "parent": ns}
+        result = _build_java_full_name(
+            raw,
+            "/src/com/synapsetest/Animal.java",
+            "/src",
+        )
+        # Should NOT be com.synapsetest.com.synapsetest.Animal (no double package)
+        assert result == "com.synapsetest.Animal"
+
+    def test_nested_class_method(self) -> None:
+        """Inner method: com.synapsetest.Router.route."""
+        ns = {"name": "com.synapsetest", "kind": 3}
+        cls_parent = {"name": "Router", "kind": 5, "parent": ns}
+        raw = {"name": "route", "kind": 6, "parent": cls_parent}
+        result = _build_java_full_name(
+            raw,
+            "/src/com/synapsetest/Router.java",
+            "/src",
+        )
+        assert result == "com.synapsetest.Router.route"
+
+    def test_no_package_prefix(self) -> None:
+        """File at source root directly (no package subdirs)."""
+        raw = {"name": "Main", "kind": 5}
+        result = _build_java_full_name(raw, "/proj/Main.java", "/proj")
+        assert result == "Main"
+
+    def test_overload_idx_appended(self) -> None:
+        """Overloaded method includes parameter signature."""
+        ns = {"name": "com.test", "kind": 3}
+        cls_parent = {"name": "Foo", "kind": 5, "parent": ns}
+        raw = {
+            "name": "bar",
+            "kind": 6,
+            "parent": cls_parent,
+            "overload_idx": 1,
+            "detail": "void bar(int x)",
+        }
+        result = _build_java_full_name(
+            raw,
+            "/src/com/test/Foo.java",
+            "/src",
+        )
+        assert result == "com.test.Foo.bar(int x)"
+
+
+# ---------------------------------------------------------------------------
 # _convert tests
 # ---------------------------------------------------------------------------
 
-def _make_adapter() -> JavaLSPAdapter:
+def _make_adapter(root_path: str = "/proj", source_root: str | None = None) -> JavaLSPAdapter:
     """Create adapter with a mock language server (no real LSP needed for _convert)."""
-    return JavaLSPAdapter(MagicMock())
+    adapter = JavaLSPAdapter(MagicMock(), root_path)
+    if source_root is not None:
+        adapter._source_root = source_root
+    return adapter
 
 
 def _make_raw(
@@ -85,7 +207,15 @@ class TestConvert:
     def test_convert_class_symbol(self) -> None:
         parent = {"name": "com.graphhopper.routing", "kind": 3}
         raw = _make_raw("Router", 5, parent=parent, start_line=10, end_line=100)
-        sym = _make_adapter()._convert(raw, "/proj/Router.java", parent_full_name=None)
+        adapter = _make_adapter(
+            root_path="/proj",
+            source_root="/proj/src/main/java",
+        )
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/graphhopper/routing/Router.java",
+            parent_full_name=None,
+        )
 
         assert sym.full_name == "com.graphhopper.routing.Router"
         assert sym.kind == SymbolKind.CLASS
@@ -97,62 +227,94 @@ class TestConvert:
         grandparent = {"name": "com.graphhopper.routing", "kind": 3}
         parent = {"name": "Router", "kind": 5, "parent": grandparent}
         raw = _make_raw("route", 6, parent=parent, detail="public GHResponse route(GHRequest req)")
-        sym = _make_adapter()._convert(raw, "/proj/Router.java", parent_full_name="com.graphhopper.routing.Router")
+        adapter = _make_adapter(
+            root_path="/proj",
+            source_root="/proj/src/main/java",
+        )
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/graphhopper/routing/Router.java",
+            parent_full_name="com.graphhopper.routing.Router",
+        )
 
         assert sym.full_name == "com.graphhopper.routing.Router.route"
         assert sym.kind == SymbolKind.METHOD
         assert sym.signature == "public GHResponse route(GHRequest req)"
 
     def test_convert_constructor(self) -> None:
-        parent = {"name": "Router", "kind": 5}
+        ns = {"name": "com.test", "kind": 3}
+        parent = {"name": "Router", "kind": 5, "parent": ns}
         raw = _make_raw("Router", 9, parent=parent)
-        sym = _make_adapter()._convert(raw, "/proj/Router.java", parent_full_name="Router")
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/test/Router.java",
+            parent_full_name="com.test.Router",
+        )
 
         assert sym.kind == SymbolKind.METHOD
+        assert sym.parent_full_name == "com.test.Router"
 
     def test_convert_interface(self) -> None:
         parent = {"name": "com.graphhopper.routing", "kind": 3}
         raw = _make_raw("RoutingAlgorithm", 11, parent=parent)
-        sym = _make_adapter()._convert(raw, "/proj/RoutingAlgorithm.java", parent_full_name=None)
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/graphhopper/routing/RoutingAlgorithm.java",
+            parent_full_name=None,
+        )
 
         assert sym.kind == SymbolKind.INTERFACE
         assert sym.full_name == "com.graphhopper.routing.RoutingAlgorithm"
 
     def test_convert_constant(self) -> None:
         """D-23: kind 14 (constant) maps to FIELD."""
-        parent = {"name": "Router", "kind": 5}
+        ns = {"name": "com.test", "kind": 3}
+        parent = {"name": "Router", "kind": 5, "parent": ns}
         raw = _make_raw("MAX_RETRIES", 14, parent=parent, detail="public static final int")
-        sym = _make_adapter()._convert(raw, "/proj/Router.java", parent_full_name="Router")
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/test/Router.java",
+            parent_full_name="com.test.Router",
+        )
 
         assert sym.kind == SymbolKind.FIELD
         assert sym.is_static is True
 
     def test_convert_abstract_method(self) -> None:
-        parent = {"name": "Animal", "kind": 5}
+        ns = {"name": "com.test", "kind": 3}
+        parent = {"name": "Animal", "kind": 5, "parent": ns}
         raw = _make_raw("speak", 6, parent=parent, detail="public abstract void speak()")
-        sym = _make_adapter()._convert(raw, "/proj/Animal.java", parent_full_name="Animal")
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/test/Animal.java",
+            parent_full_name="com.test.Animal",
+        )
 
         assert sym.is_abstract is True
 
     def test_convert_static_method(self) -> None:
-        parent = {"name": "Util", "kind": 5}
+        ns = {"name": "com.test", "kind": 3}
+        parent = {"name": "Util", "kind": 5, "parent": ns}
         raw = _make_raw("helper", 6, parent=parent, detail="public static void helper()")
-        sym = _make_adapter()._convert(raw, "/proj/Util.java", parent_full_name="Util")
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(
+            raw,
+            "/proj/src/main/java/com/test/Util.java",
+            parent_full_name="com.test.Util",
+        )
 
         assert sym.is_static is True
 
     def test_convert_unmapped_kind_defaults_to_class(self) -> None:
         raw = _make_raw("Unknown", 999)
-        sym = _make_adapter()._convert(raw, "/proj/Foo.java", parent_full_name=None)
+        adapter = _make_adapter(root_path="/proj", source_root="/proj")
+        sym = adapter._convert(raw, "/proj/Foo.java", parent_full_name=None)
 
         assert sym.kind == SymbolKind.CLASS
-
-    def test_convert_fallback_when_no_container(self) -> None:
-        """D-05: If build_full_name returns just the name, use parent_full_name fallback."""
-        raw = _make_raw("speak", 6)  # No parent in raw dict
-        sym = _make_adapter()._convert(raw, "/proj/Animal.java", parent_full_name="com.test.Animal")
-
-        assert sym.full_name == "com.test.Animal.speak"
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +335,7 @@ class TestGetWorkspaceFiles:
             d.mkdir(parents=True)
             (d / "Excluded.java").touch()
 
-        adapter = _make_adapter()
+        adapter = _make_adapter(root_path=str(tmp_path))
         files = adapter.get_workspace_files(str(tmp_path))
 
         assert len(files) == 1
@@ -186,7 +348,7 @@ class TestGetWorkspaceFiles:
         (src / "readme.md").touch()
         (src / "pom.xml").touch()
 
-        adapter = _make_adapter()
+        adapter = _make_adapter(root_path=str(tmp_path))
         files = adapter.get_workspace_files(str(tmp_path))
 
         assert len(files) == 1
@@ -197,7 +359,7 @@ class TestGetWorkspaceFiles:
         src.mkdir()
         (src / "App.java").touch()
 
-        adapter = _make_adapter()
+        adapter = _make_adapter(root_path=str(tmp_path))
         files = adapter.get_workspace_files(str(tmp_path))
 
         assert len(files) == 1
@@ -218,7 +380,8 @@ class TestGetDocumentSymbols:
         mock_ls = MagicMock()
         mock_ls.request_document_symbols.return_value = mock_result
 
-        adapter = JavaLSPAdapter(mock_ls)
+        adapter = JavaLSPAdapter(mock_ls, "/proj")
+        adapter._source_root = "/proj"
         symbols = adapter.get_document_symbols("/proj/Router.java")
 
         assert len(symbols) == 1
@@ -228,7 +391,7 @@ class TestGetDocumentSymbols:
         mock_ls = MagicMock()
         mock_ls.request_document_symbols.return_value = None
 
-        adapter = JavaLSPAdapter(mock_ls)
+        adapter = JavaLSPAdapter(mock_ls, "/proj")
         symbols = adapter.get_document_symbols("/proj/Missing.java")
 
         assert symbols == []
@@ -245,8 +408,9 @@ class TestGetDocumentSymbols:
         mock_ls = MagicMock()
         mock_ls.request_document_symbols.return_value = mock_result
 
-        adapter = JavaLSPAdapter(mock_ls)
-        symbols = adapter.get_document_symbols("/proj/Router.java")
+        adapter = JavaLSPAdapter(mock_ls, "/proj")
+        adapter._source_root = "/proj/src/main/java"
+        symbols = adapter.get_document_symbols("/proj/src/main/java/com/test/Router.java")
 
         method = next(s for s in symbols if s.name == "route")
         assert method.parent_full_name == "com.test.Router"
@@ -255,7 +419,7 @@ class TestGetDocumentSymbols:
         mock_ls = MagicMock()
         mock_ls.request_document_symbols.side_effect = RuntimeError("LSP failed")
 
-        adapter = JavaLSPAdapter(mock_ls)
+        adapter = JavaLSPAdapter(mock_ls, "/proj")
         symbols = adapter.get_document_symbols("/proj/Broken.java")
 
         assert symbols == []
