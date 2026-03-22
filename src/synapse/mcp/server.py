@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from synapse.container import ContainerManager
 from synapse.graph.schema import ensure_schema
+from synapse.mcp.instructions import SERVER_INSTRUCTIONS
 from synapse.mcp.tools import register_tools
 from synapse.service import SynapseService
 
@@ -20,6 +21,6 @@ def main() -> None:
     ensure_schema(conn)
     service = SynapseService(conn)
 
-    mcp = FastMCP("synapse")
+    mcp = FastMCP("synapse", instructions=SERVER_INSTRUCTIONS)
     register_tools(mcp, service)
     mcp.run()
