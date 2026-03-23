@@ -10,6 +10,9 @@ import typer
 logging.getLogger("solidlsp").setLevel(logging.ERROR)
 
 from synapse.container import ContainerManager
+from synapse.doctor.checks.docker_daemon import DockerDaemonCheck
+from synapse.doctor.checks.memgraph_bolt import MemgraphBoltCheck
+from synapse.doctor.service import DoctorService
 from synapse.graph.schema import ensure_schema
 from synapse.service import SynapseService
 
@@ -60,6 +63,51 @@ def _require_label(svc: SynapseService, full_name: str, required: str, hint: str
         typer.echo(hint.format(name=full_name, actual=actual), err=True)
         return False
     return True
+
+
+_STATUS_STYLE: dict[str, str] = {"pass": "green", "warn": "yellow", "fail": "red"}
+
+
+def _render_report(console: object, report: object) -> None:
+    from rich.table import Table
+
+    groups: dict[str, list] = {}
+    for result in report.checks:  # type: ignore[attr-defined]
+        groups.setdefault(result.group, []).append(result)
+
+    for group_name, results in groups.items():
+        console.print(f"\n[bold]{group_name}[/bold]")  # type: ignore[attr-defined]
+        table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+        table.add_column("Check", min_width=24)
+        table.add_column("Status", min_width=6)
+        for r in results:
+            style = _STATUS_STYLE.get(r.status, "white")
+            table.add_row(r.name, f"[{style}]{r.status}[/{style}]")
+        console.print(table)  # type: ignore[attr-defined]
+        for r in results:
+            if r.status != "pass" and r.fix:
+                console.print(f"  [dim]Fix ({r.name}):[/dim] {r.fix}")  # type: ignore[attr-defined]
+
+    passed = sum(1 for r in report.checks if r.status == "pass")  # type: ignore[attr-defined]
+    warned = sum(1 for r in report.checks if r.status == "warn")  # type: ignore[attr-defined]
+    failed = sum(1 for r in report.checks if r.status == "fail")  # type: ignore[attr-defined]
+    summary_style = "red" if failed else ("yellow" if warned else "green")
+    console.print(f"\n[{summary_style}]{passed} passed, {warned} warnings, {failed} failed[/{summary_style}]")  # type: ignore[attr-defined]
+
+
+@app.command("doctor")
+def doctor() -> None:
+    """Check that Docker and Memgraph are reachable."""
+    from rich.console import Console
+
+    checks = [DockerDaemonCheck(), MemgraphBoltCheck()]
+    report = DoctorService(checks).run()
+
+    console = Console()
+    _render_report(console, report)
+
+    if report.has_failures:
+        raise typer.Exit(1)
 
 
 @app.command()
