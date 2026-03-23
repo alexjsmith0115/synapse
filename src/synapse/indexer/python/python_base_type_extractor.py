@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from tree_sitter import Tree
+
 from synapse.indexer.tree_sitter_util import node_text
 
 log = logging.getLogger(__name__)
@@ -9,22 +11,10 @@ log = logging.getLogger(__name__)
 
 class PythonBaseTypeExtractor:
     def __init__(self) -> None:
-        import tree_sitter_python
-        from tree_sitter import Language, Parser
+        pass
 
-        self._language = Language(tree_sitter_python.language())
-        self._parser = Parser(self._language)
-
-    def extract(self, file_path: str, source: str) -> list[tuple[str, str, bool]]:
+    def extract(self, file_path: str, tree: Tree) -> list[tuple[str, str, bool]]:
         """Return (class_name, base_name, is_first) triples for all class definitions found."""
-        if not source.strip():
-            return []
-        try:
-            tree = self._parser.parse(bytes(source, "utf-8"))
-        except Exception:
-            log.warning("tree-sitter failed to parse %s", file_path)
-            return []
-
         results: list[tuple[str, str, bool]] = []
         self._walk(tree.root_node, results)
         return results

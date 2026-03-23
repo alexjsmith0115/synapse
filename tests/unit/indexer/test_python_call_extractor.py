@@ -1,5 +1,14 @@
 import pytest
+import tree_sitter_python
+from tree_sitter import Language, Parser
 from synapse.indexer.python.python_call_extractor import PythonCallExtractor
+
+_lang = Language(tree_sitter_python.language())
+_parser = Parser(_lang)
+
+
+def _parse(source: str):
+    return _parser.parse(bytes(source, "utf-8"))
 
 
 @pytest.fixture
@@ -29,7 +38,7 @@ def caller():
         ("/proj/foo.py", 0): "mypackage.helper",
         ("/proj/foo.py", 3): "mypackage.caller",
     }
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "helper" in callees
 
@@ -40,7 +49,7 @@ def caller():
     helper()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.caller"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     assert any(caller == "mypackage.caller" for caller, *_ in results)
 
 
@@ -57,7 +66,7 @@ class MyClass:
         ("/proj/foo.py", 1): "mypackage.MyClass.caller",
         ("/proj/foo.py", 4): "mypackage.MyClass.other_method",
     }
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "other_method" in callees
 
@@ -68,7 +77,7 @@ def runner(obj):
     obj.do_something()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.runner"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "do_something" in callees
 
@@ -93,7 +102,7 @@ class MyClass:
         ("/proj/foo.py", 0): "mypackage.some_func",
         ("/proj/foo.py", 6): "mypackage.MyClass.run",
     }
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "some_func" not in callees
 
@@ -111,7 +120,7 @@ def get_value():
 RESULT = get_value()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.mymodule.get_value"}
-    results = module_extractor.extract("/proj/foo.py", source, symbol_map)
+    results = module_extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callers = [caller for caller, *_ in results]
     assert "mypackage.mymodule" in callers
 
@@ -124,7 +133,7 @@ def get_value():
 RESULT = get_value()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.get_value"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     # Without a resolver, module-scope calls are skipped entirely
     callers = [caller for caller, *_ in results]
     assert "mypackage.mymodule" not in callers
@@ -136,7 +145,7 @@ RESULT = get_value()
 
 
 def test_returns_empty_for_empty_source(extractor):
-    assert extractor.extract("/proj/foo.py", "", {}) == []
+    assert extractor.extract("/proj/foo.py", _parse(""), {}) == []
 
 
 def test_super_init(extractor):
@@ -146,7 +155,7 @@ class Child:
         super().__init__()
 """
     symbol_map = {("/proj/foo.py", 1): "mypackage.Child.__init__"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     # super().__init__() — tree-sitter sees `super` call and `__init__` attribute call
     assert "__init__" in callees or "super" in callees
@@ -158,7 +167,7 @@ def factory():
     return MyClass()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.factory"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "MyClass" in callees
 
@@ -170,7 +179,7 @@ def caller():
     foo()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.caller"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     # Both calls are at different lines/cols, so they are NOT duplicates
     # But same (caller, callee, line, col) must not appear twice
     seen = set()
@@ -185,7 +194,7 @@ def caller():
     helper()
 """
     symbol_map = {("/proj/foo.py", 0): "mypackage.caller"}
-    results = extractor.extract("/proj/foo.py", source, symbol_map)
+    results = extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     lines = [line for _, _, line, _ in results]
     # helper() is on line 2 (1-indexed)
     assert 2 in lines
@@ -216,7 +225,7 @@ class MyClass:
         ("/proj/foo.py", 6): "pkg.MyClass.method_b",
         ("/proj/foo.py", 9): "pkg.MyClass.method_c",
     }
-    extractor.extract("/proj/foo.py", source, symbol_map)
+    extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     assert extractor._sites_seen == 3
 
 
@@ -226,12 +235,12 @@ first_call()
 second_call()
 """
     symbol_map = {}
-    module_extractor.extract("/proj/foo.py", source, symbol_map)
+    module_extractor.extract("/proj/foo.py", _parse(source), symbol_map)
     assert module_extractor._sites_seen == 2
 
 
 def test_sites_seen_zero_for_empty_source(extractor):
-    extractor.extract("/proj/foo.py", "", {})
+    extractor.extract("/proj/foo.py", _parse(""), {})
     assert extractor._sites_seen == 0
 
 
@@ -249,9 +258,9 @@ def caller():
     symbol_map_three = {("/proj/foo.py", 0): "pkg.caller"}
     symbol_map_one = {("/proj/bar.py", 0): "pkg.caller"}
 
-    extractor.extract("/proj/foo.py", source_three, symbol_map_three)
+    extractor.extract("/proj/foo.py", _parse(source_three), symbol_map_three)
     assert extractor._sites_seen == 3
 
-    extractor.extract("/proj/bar.py", source_one, symbol_map_one)
+    extractor.extract("/proj/bar.py", _parse(source_one), symbol_map_one)
     # Must reflect only the second call, not cumulative
     assert extractor._sites_seen == 1

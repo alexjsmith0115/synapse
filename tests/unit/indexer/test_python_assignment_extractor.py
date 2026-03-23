@@ -1,6 +1,15 @@
 import pytest
+import tree_sitter_python
+from tree_sitter import Language, Parser
 from synapse.indexer.assignment_ref import AssignmentRef
 from synapse.indexer.python.python_assignment_extractor import PythonAssignmentExtractor
+
+_lang = Language(tree_sitter_python.language())
+_parser = Parser(_lang)
+
+
+def _parse(source: str):
+    return _parser.parse(bytes(source, "utf-8"))
 
 
 @pytest.fixture
@@ -21,7 +30,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert len(results) == 1
     ref = results[0]
@@ -40,7 +49,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert len(results) == 1
     ref = results[0]
@@ -59,7 +68,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert results == []
 
@@ -72,7 +81,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert results == []
 
@@ -85,7 +94,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert results == []
 
@@ -96,7 +105,7 @@ _handler = create_handler()
 """
     results = extractor.extract(
         "/proj/foo.py",
-        source,
+        _parse(source),
         {},
         module_name_resolver=lambda fp: "mypackage.mymodule",
     )
@@ -112,7 +121,7 @@ _handler = "not_a_call"
 """
     results = extractor.extract(
         "/proj/foo.py",
-        source,
+        _parse(source),
         {},
         module_name_resolver=lambda fp: "mypackage.mymodule",
     )
@@ -128,7 +137,7 @@ class Outer:
 """
     class_lines = [(0, "mod.Outer"), (1, "mod.Outer.Inner")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert len(results) == 1
     assert results[0].class_full_name == "mod.Outer.Inner"
@@ -145,7 +154,7 @@ class MyClass:
 """
     class_lines = [(0, "mod.MyClass")]
     results = extractor.extract(
-        "/proj/foo.py", source, {}, class_lines=class_lines
+        "/proj/foo.py", _parse(source), {}, class_lines=class_lines
     )
     assert len(results) == 3
     names = [r.field_name for r in results]
@@ -155,5 +164,5 @@ class MyClass:
 
 
 def test_empty_source_returns_empty(extractor):
-    results = extractor.extract("/proj/foo.py", "", {})
+    results = extractor.extract("/proj/foo.py", _parse(""), {})
     assert results == []

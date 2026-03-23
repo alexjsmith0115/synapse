@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 
+from tree_sitter import Tree
+
 from synapse.indexer.tree_sitter_util import node_text
 
 log = logging.getLogger(__name__)
@@ -10,28 +12,15 @@ log = logging.getLogger(__name__)
 
 class PythonImportExtractor:
     def __init__(self, source_root: str = "") -> None:
-        import tree_sitter_python
-        from tree_sitter import Language, Parser
-
-        self._language = Language(tree_sitter_python.language())
-        self._parser = Parser(self._language)
         self._source_root = source_root
 
-    def extract(self, file_path: str, source: str) -> list[tuple[str, str | None]]:
+    def extract(self, file_path: str, tree: Tree) -> list[tuple[str, str | None]]:
         """Return (module_dotted_path, imported_symbol_name_or_None) pairs.
 
         For `from X import Y`: returns (X, Y).
         For `import X`: returns (X, None).
         Star imports skipped. Relative imports resolved using source_root.
         """
-        if not source.strip():
-            return []
-        try:
-            tree = self._parser.parse(bytes(source, "utf-8"))
-        except Exception:
-            log.warning("tree-sitter failed to parse %s", file_path)
-            return []
-
         results: list[tuple[str, str | None]] = []
         seen: set[tuple[str, str | None]] = set()
         self._walk(tree.root_node, file_path, results, seen)

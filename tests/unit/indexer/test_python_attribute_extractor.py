@@ -1,5 +1,14 @@
 """Unit tests for PythonAttributeExtractor — PMET requirements."""
+import tree_sitter_python
+from tree_sitter import Language, Parser
 from synapse.indexer.python.python_attribute_extractor import PythonAttributeExtractor
+
+_lang = Language(tree_sitter_python.language())
+_parser = Parser(_lang)
+
+
+def _parse(source: str):
+    return _parser.parse(bytes(source, "utf-8"))
 
 
 def _make() -> PythonAttributeExtractor:
@@ -15,7 +24,7 @@ class IAnimal(ABC):
     def speak(self) -> str: ...
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "IAnimal.speak" in names_and_attrs
     assert "abstractmethod" in names_and_attrs["IAnimal.speak"]
@@ -29,7 +38,7 @@ class Service:
         return "1.0.0"
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Service.version" in names_and_attrs
     assert "staticmethod" in names_and_attrs["Service.version"]
@@ -43,7 +52,7 @@ class Service:
         return cls()
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Service.from_name" in names_and_attrs
     assert "classmethod" in names_and_attrs["Service.from_name"]
@@ -56,7 +65,7 @@ class Service:
         return "hello"
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Service.get_greeting_async" in names_and_attrs
     assert "async" in names_and_attrs["Service.get_greeting_async"]
@@ -70,7 +79,7 @@ class IAnimal(ABC):
     pass
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "IAnimal" in names_and_attrs
     assert "ABC" in names_and_attrs["IAnimal"]
@@ -78,7 +87,7 @@ class IAnimal(ABC):
 
 def test_extract_empty_source_returns_empty() -> None:
     extractor = _make()
-    results = extractor.extract("test.py", "")
+    results = extractor.extract("test.py", _parse(""))
     assert results == []
 
 
@@ -92,7 +101,7 @@ class Animal:
         return "Animal"
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     assert results == []
 
 
@@ -104,7 +113,7 @@ class Service:
         return "ok"
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Service.fetch" in names_and_attrs
     attrs = names_and_attrs["Service.fetch"]
@@ -122,7 +131,7 @@ class Outer:
             pass
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Inner.create" in names_and_attrs
     assert "classmethod" in names_and_attrs["Inner.create"]
@@ -147,7 +156,7 @@ class Service:
         return "cached"
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Service.cached_name" in names_and_attrs
     assert "classmethod" in names_and_attrs["Service.cached_name"]
@@ -162,7 +171,7 @@ class IFoo(metaclass=ABCMeta):
     pass
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "IFoo" in names_and_attrs
     assert "ABC" in names_and_attrs["IFoo"]
@@ -177,7 +186,7 @@ class Drawable(Protocol):
     def draw(self) -> None: ...
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Drawable" in names_and_attrs
     assert "Protocol" in names_and_attrs["Drawable"]
@@ -201,7 +210,7 @@ class Dog(Animal):
         return "Woof"
 """
     extractor = _make()
-    results = extractor.extract("animals.py", source)
+    results = extractor.extract("animals.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "IAnimal.speak" in names_and_attrs
     assert "abstractmethod" in names_and_attrs["IAnimal.speak"]
@@ -220,7 +229,7 @@ class Comparable(Protocol):
     def __lt__(self, other) -> bool: ...
 """
     extractor = _make()
-    results = extractor.extract("test.py", source)
+    results = extractor.extract("test.py", _parse(source))
     names_and_attrs = {name: attrs for name, attrs in results}
     assert "Comparable" in names_and_attrs
     assert "Protocol" in names_and_attrs["Comparable"]

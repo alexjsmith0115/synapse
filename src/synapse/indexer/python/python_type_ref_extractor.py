@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 
+from tree_sitter import Tree
+
 from synapse.indexer.tree_sitter_util import find_enclosing_scope, node_text
 from synapse.indexer.type_ref import TypeRef
 
@@ -22,27 +24,15 @@ class PythonTypeRefExtractor:
     """
 
     def __init__(self) -> None:
-        import tree_sitter_python
-        from tree_sitter import Language, Parser
-
-        self._parser = Parser(Language(tree_sitter_python.language()))
+        pass
 
     def extract(
         self,
         file_path: str,
-        source: str,
+        tree: Tree,
         symbol_map: dict[tuple[str, int], str],
         class_lines: list[tuple[int, str]] = (),
     ) -> list[TypeRef]:
-        if not source.strip():
-            return []
-
-        try:
-            tree = self._parser.parse(bytes(source, "utf-8"))
-        except Exception:
-            log.warning("tree-sitter failed to parse %s", file_path)
-            return []
-
         method_lines = sorted(
             (line, full_name)
             for (fp, line), full_name in symbol_map.items()
