@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from synapse.indexer.tree_sitter_util import ParsedFile
 from synapse.lsp.interface import LSPAdapter
+
+
+_ALWAYS_SKIP = frozenset({
+    ".git", "node_modules", "__pycache__", ".venv", "venv",
+    "bin", "obj", "dist", "build", ".gradle", ".idea", "target",
+    "coverage", ".settings", ".mvn", ".next", ".nuxt", "out",
+    ".cache", ".angular", ".svelte-kit",
+})
 
 
 @runtime_checkable
@@ -42,13 +51,27 @@ class LanguageRegistry:
     def get(self, name: str) -> LanguagePlugin | None:
         return next((p for p in self._plugins if p.name == name), None)
 
+    def detect_with_files(self, root_path: str) -> list[tuple[LanguagePlugin, list[str]]]:
+        ext_to_plugins: dict[str, list[LanguagePlugin]] = {}
+        for p in self._plugins:
+            for ext in p.file_extensions:
+                ext_to_plugins.setdefault(ext, []).append(p)
+
+        files_by_plugin: dict[str, list[str]] = {p.name: [] for p in self._plugins}
+        for dirpath, dirnames, filenames in os.walk(root_path):
+            dirnames[:] = [d for d in dirnames if d not in _ALWAYS_SKIP]
+            for fname in filenames:
+                ext = os.path.splitext(fname)[1].lower()
+                for plugin in ext_to_plugins.get(ext, []):
+                    full_path = os.path.join(dirpath, fname)
+                    excluded = getattr(plugin, "excluded_suffixes", frozenset())
+                    if not any(fname.endswith(s) for s in excluded):
+                        files_by_plugin[plugin.name].append(full_path)
+
+        return [(p, files_by_plugin[p.name]) for p in self._plugins if files_by_plugin[p.name]]
+
     def detect(self, root_path: str) -> list[LanguagePlugin]:
-        found_extensions = {
-            path.suffix.lower()
-            for path in Path(root_path).rglob("*")
-            if path.is_file()
-        }
-        return [p for p in self._plugins if p.file_extensions & found_extensions]
+        return [p for p, _files in self.detect_with_files(root_path)]
 
     def all_extensions(self) -> frozenset[str]:
         result: set[str] = set()

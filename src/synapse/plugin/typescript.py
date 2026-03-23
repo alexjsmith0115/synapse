@@ -28,6 +28,10 @@ class TypeScriptPlugin:
     def file_extensions(self) -> frozenset[str]:
         return frozenset({".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"})
 
+    @property
+    def excluded_suffixes(self) -> frozenset[str]:
+        return frozenset({".min.js", ".min.css", ".bundle.js", ".chunk.js"})
+
     def create_lsp_adapter(self, root_path: str) -> TypeScriptLSPAdapter:
         return TypeScriptLSPAdapter.create(root_path)
 
