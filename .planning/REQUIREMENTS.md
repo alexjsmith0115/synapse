@@ -21,8 +21,8 @@ Requirements for the verify-install / doctor feature. Each maps to roadmap phase
 
 ### Language Servers
 
-- [ ] **LANG-01**: .NET SDK check verifies `dotnet` is callable and runtime is present
-- [ ] **LANG-02**: C# language server check verifies OmniSharp or csharp-ls is available
+- [x] **LANG-01**: .NET SDK check verifies `dotnet` is callable and runtime is present
+- [x] **LANG-02**: C# language server check verifies OmniSharp or csharp-ls is available
 - [x] **LANG-03**: Node.js check verifies `node` is callable
 - [x] **LANG-04**: TypeScript language server check verifies `typescript-language-server` is available
 - [x] **LANG-05**: Python check verifies `python3` is callable
@@ -78,8 +78,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-01 | Phase 2 | Complete |
 | CLI-02 | Phase 2 | Complete |
 | CLI-03 | Phase 2 | Complete |
-| LANG-01 | Phase 3 | Pending |
-| LANG-02 | Phase 3 | Pending |
+| LANG-01 | Phase 3 | Complete |
+| LANG-02 | Phase 3 | Complete |
 | LANG-03 | Phase 3 | Complete |
 | LANG-04 | Phase 3 | Complete |
 | LANG-05 | Phase 3 | Complete |

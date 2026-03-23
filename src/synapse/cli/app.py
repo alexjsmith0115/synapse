@@ -12,6 +12,14 @@ logging.getLogger("solidlsp").setLevel(logging.ERROR)
 from synapse.container import ContainerManager
 from synapse.doctor.checks.docker_daemon import DockerDaemonCheck
 from synapse.doctor.checks.memgraph_bolt import MemgraphBoltCheck
+from synapse.doctor.checks.dotnet import DotNetCheck
+from synapse.doctor.checks.csharp_ls import CSharpLSCheck
+from synapse.doctor.checks.node import NodeCheck
+from synapse.doctor.checks.typescript_ls import TypeScriptLSCheck
+from synapse.doctor.checks.python3 import PythonCheck
+from synapse.doctor.checks.pylsp import PylspCheck
+from synapse.doctor.checks.java import JavaCheck
+from synapse.doctor.checks.jdtls import JdtlsCheck
 from synapse.doctor.service import DoctorService
 from synapse.graph.schema import ensure_schema
 from synapse.service import SynapseService
@@ -97,10 +105,21 @@ def _render_report(console: object, report: object) -> None:
 
 @app.command("doctor")
 def doctor() -> None:
-    """Check that Docker and Memgraph are reachable."""
+    """Check environment: Docker, Memgraph, and all language server dependencies."""
     from rich.console import Console
 
-    checks = [DockerDaemonCheck(), MemgraphBoltCheck()]
+    checks = [
+        DockerDaemonCheck(),
+        MemgraphBoltCheck(),
+        DotNetCheck(),
+        CSharpLSCheck(),
+        NodeCheck(),
+        TypeScriptLSCheck(),
+        PythonCheck(),
+        PylspCheck(),
+        JavaCheck(),
+        JdtlsCheck(),
+    ]
     report = DoctorService(checks).run()
 
     console = Console()

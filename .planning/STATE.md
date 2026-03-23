@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-23T22:31:08.501Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-23T22:31:43.120Z"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 9
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-23)
 ## Current Position
 
 Phase: 03 (language-server-checks) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 4 of 5
 | Phase 03-language-server-checks P02 | 8 | 2 tasks | 3 files |
 | Phase 03-language-server-checks P04 | 525514min | 2 tasks | 3 files |
 | Phase 03-language-server-checks P03 | 15 | 2 tasks | 3 files |
+| Phase 03-language-server-checks P01 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Recent decisions affecting current work:
 - [Phase 03-04]: JdtlsCheck warns (not fails) when java absent — degraded-but-working semantics, consistent with other skip-if-prereq-absent checks
 - [Phase 03-04]: JdtlsCheck uses Path.home() and glob.glob to probe equinox launcher jar, mirroring eclipse_jdtls.py without importing SolidLSPSettings
 - [Phase 03-language-server-checks]: python3.py filename (not python.py) prevents shadowing stdlib; PylspCheck warns when python3 absent (degraded-not-failed semantics)
+- [Phase 03-language-server-checks]: DotNetCheck uses --list-runtimes + Microsoft.NETCore.App regex (not --version) to confirm runtime is actually installed (D-03)
+- [Phase 03-language-server-checks]: CSharpLSCheck warns (not fails) when dotnet absent — skip-if-runtime-absent pattern (D-04); text=True required for regex stdout parsing
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T22:31:08.499Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-23T22:31:43.117Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
