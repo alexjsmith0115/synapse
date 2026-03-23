@@ -8,6 +8,17 @@ import time
 from pathlib import Path
 from typing import Literal
 
+from synapse.doctor.checks.docker_daemon import DockerDaemonCheck
+from synapse.doctor.checks.memgraph_bolt import MemgraphBoltCheck
+from synapse.doctor.checks.dotnet import DotNetCheck
+from synapse.doctor.checks.csharp_ls import CSharpLSCheck
+from synapse.doctor.checks.node import NodeCheck
+from synapse.doctor.checks.typescript_ls import TypeScriptLSCheck
+from synapse.doctor.checks.python3 import PythonCheck
+from synapse.doctor.checks.pylsp import PylspCheck
+from synapse.doctor.checks.java import JavaCheck
+from synapse.doctor.checks.jdtls import JdtlsCheck
+from synapse.doctor.service import DoctorService
 from synapse.indexer.git import is_git_repo, rev_parse_head
 from synapse.graph.nodes import get_last_indexed_commit
 from synapse.service import SynapseService
@@ -490,3 +501,35 @@ def register_tools(mcp: object, service: SynapseService, project_path: str = "")
         """
         _auto_sync_check()
         return service.summarize_from_graph(class_name)
+
+    @mcp.tool()
+    def check_environment() -> list[dict]:
+        """Check the Synapse runtime environment and return structured results for each dependency.
+
+        Returns a list of dicts, one per check, each with:
+          - name: human-readable check name (e.g. "Docker daemon")
+          - status: "pass", "warn", or "fail"
+          - detail: resolved path or error message
+          - fix: install/fix instruction string, or null if not applicable
+
+        "warn" means degraded-but-working (e.g. optional tool absent).
+        "fail" means a required dependency is missing or unreachable.
+        Use this to determine which dependencies need attention before indexing.
+        """
+        checks = [
+            DockerDaemonCheck(),
+            MemgraphBoltCheck(),
+            DotNetCheck(),
+            CSharpLSCheck(),
+            NodeCheck(),
+            TypeScriptLSCheck(),
+            PythonCheck(),
+            PylspCheck(),
+            JavaCheck(),
+            JdtlsCheck(),
+        ]
+        report = DoctorService(checks).run()
+        return [
+            {"name": r.name, "status": r.status, "detail": r.detail, "fix": r.fix}
+            for r in report.checks
+        ]
