@@ -5,6 +5,15 @@ from synapse.indexer.indexer import Indexer
 from synapse.lsp.interface import IndexSymbol, SymbolKind, LSPAdapter
 
 
+def _make_parsed_file(file_path: str, source: str):
+    """Create a mock ParsedFile for tests."""
+    pf = MagicMock()
+    pf.file_path = file_path
+    pf.source = source
+    pf.tree = MagicMock()
+    return pf
+
+
 def _make_plugin():
     plugin = MagicMock()
     plugin.name = "csharp"
@@ -15,6 +24,7 @@ def _make_plugin():
     plugin.create_call_extractor = MagicMock(return_value=None)
     plugin.create_type_ref_extractor = MagicMock(return_value=None)
     plugin.create_assignment_extractor = MagicMock(return_value=None)
+    plugin.parse_file = MagicMock(side_effect=lambda fp, src: _make_parsed_file(fp, src))
     return plugin
 
 

@@ -11,6 +11,11 @@ def _make_ls(root: str = "/proj") -> MagicMock:
     return ls
 
 
+def _mock_tree() -> MagicMock:
+    """Create a sentinel tree object for tests with mocked extractors."""
+    return MagicMock()
+
+
 def test_resolver_walks_cs_files_and_calls_both_extractors(tmp_path):
     (tmp_path / "A.cs").write_text("namespace X { class A { void M() {} } }")
 
@@ -62,7 +67,7 @@ def test_resolver_writes_calls_edge():
 
     symbol_map = {("/proj/MyClass.cs", 3): "MyNs.MyClass.Helper"}
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", symbol_map)
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), symbol_map)
 
     assert any("CALLS" in str(c) for c in conn.execute.call_args_list)
 
@@ -87,7 +92,7 @@ def test_resolver_writes_references_edge():
     call_extractor.extract.return_value = []
 
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), {})
 
     assert any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
 
@@ -117,7 +122,7 @@ def test_resolver_writes_calls_edge_when_lsp_returns_class():
 
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
     # Empty symbol_map triggers the fallback path
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), {})
 
     assert any("CALLS" in str(c) for c in conn.execute.call_args_list)
 
@@ -140,7 +145,7 @@ def test_resolver_skips_call_when_lsp_returns_class_without_matching_child():
 
     resolver = SymbolResolver(conn, ls, call_extractor=call_extractor, type_ref_extractor=type_ref_extractor)
     # Empty symbol_map triggers the fallback path
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), {})
 
     assert not any("CALLS" in str(c) for c in conn.execute.call_args_list)
 
@@ -165,7 +170,7 @@ def test_resolver_writes_references_edge_via_name_map_fallback():
         type_ref_extractor=type_ref_extractor,
         name_to_full_names={"ITaskService": ["Ns.ITaskService"]},
     )
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), {})
 
     assert any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
 
@@ -190,7 +195,7 @@ def test_resolver_skips_references_when_name_map_ambiguous():
         type_ref_extractor=type_ref_extractor,
         name_to_full_names={"Item": ["Ns.A.Item", "Ns.B.Item"]},
     )
-    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", {})
+    resolver._resolve_file("/proj/Foo.cs", "namespace X{}", _mock_tree(), {})
 
     assert not any("REFERENCES" in str(c) for c in conn.execute.call_args_list)
 
@@ -381,7 +386,7 @@ def test_resolve_call_fallback_via_assignment_map():
     resolver._stats = _ResolveStats()
 
     with patch("synapse.indexer.symbol_resolver.batch_upsert_calls") as mock_batch:
-        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", _mock_tree(), symbol_map)
 
     mock_batch.assert_called_once()
     batch = mock_batch.call_args[0][1]
@@ -427,7 +432,7 @@ def test_resolve_call_assignment_fallback_second_lsp_fails():
     resolver._stats = _ResolveStats()
 
     with patch("synapse.indexer.symbol_resolver.batch_upsert_calls") as mock_batch:
-        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", _mock_tree(), symbol_map)
 
     # batch_upsert_calls may be called with an empty batch or not at all
     if mock_batch.called:
@@ -476,7 +481,7 @@ def test_resolve_call_no_assignment_map_entry_falls_through():
     resolver._stats = _ResolveStats()
 
     with patch("synapse.indexer.symbol_resolver.batch_upsert_calls") as mock_batch:
-        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", _mock_tree(), symbol_map)
 
     # Should have fallen through to containing_symbol path and resolved
     mock_batch.assert_called_once()
@@ -514,7 +519,7 @@ def test_resolve_call_direct_hit_skips_assignment_fallback():
     resolver._stats = _ResolveStats()
 
     with patch("synapse.indexer.symbol_resolver.batch_upsert_calls") as mock_batch:
-        resolver._resolve_file("/proj/Foo.py", "class X: pass", symbol_map)
+        resolver._resolve_file("/proj/Foo.py", "class X: pass", _mock_tree(), symbol_map)
 
     mock_batch.assert_called_once()
     assert len(mock_batch.call_args[0][1]) == 1

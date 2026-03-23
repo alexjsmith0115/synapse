@@ -235,6 +235,15 @@ class Indexer:
     def reindex_file(self, file_path: str, root_path: str) -> None:
         self._root_path = root_path
 
+        # Read file once and build ParsedFile for reuse across all phases
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                source = f.read()
+            pf = self._plugin.parse_file(file_path, source)
+        except OSError:
+            log.warning("Could not read %s for reindexing", file_path)
+            return
+
         # D-12: capture existing symbols BEFORE upsert for orphan detection
         old_symbol_names = get_file_symbol_names(self._conn, file_path)
 
@@ -246,9 +255,7 @@ class Indexer:
             pre_attr_ext = self._attribute_extractor_factory()
             if pre_attr_ext is not None:
                 try:
-                    with open(file_path, encoding="utf-8") as f:
-                        source = f.read()
-                    results = pre_attr_ext.extract(file_path, source)
+                    results = pre_attr_ext.extract(file_path, pf.tree)
                     if results:
                         cached_attr_results = results
                         interface_names = {
@@ -258,11 +265,11 @@ class Indexer:
                         for sym in symbols:
                             if sym.kind == SymbolKind.CLASS and sym.name in interface_names:
                                 sym.kind = SymbolKind.INTERFACE
-                except OSError:
+                except Exception:
                     pass
 
         # D-12: upsert structure (MERGE updates in place, preserves summaries)
-        self._index_file_structure(file_path, root_path, symbols)
+        self._index_file_structure(file_path, root_path, symbols, pf)
 
         # D-12: delete orphaned symbols (removed from source but still in graph)
         new_symbol_names = {sym.full_name for sym in symbols}
@@ -274,29 +281,25 @@ class Indexer:
             name_to_full_names.setdefault(sym.name, []).append(sym.full_name)
             kind_map[sym.full_name] = sym.kind
 
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                source = f.read()
-            tree = self._plugin.parse_file(file_path, source).tree
-            self._index_base_types(file_path, tree, name_to_full_names, kind_map)
-            if cached_attr_results is not None:
-                self._index_attributes_from_results(file_path, cached_attr_results, symbols)
+        self._index_base_types(file_path, pf.tree, name_to_full_names, kind_map)
+        if cached_attr_results is not None:
+            self._index_attributes_from_results(file_path, cached_attr_results, symbols)
+        else:
+            if self._attribute_extractor_factory is not None:
+                attr_extractor = self._attribute_extractor_factory()
             else:
-                if self._attribute_extractor_factory is not None:
-                    attr_extractor = self._attribute_extractor_factory()
-                else:
-                    from synapse.indexer.csharp.csharp_attribute_extractor import CSharpAttributeExtractor
-                    attr_extractor = CSharpAttributeExtractor()
-                self._index_attributes(file_path, tree, symbols, attr_extractor)
-        except OSError:
-            log.warning("Could not read %s for base type extraction", file_path)
+                from synapse.indexer.csharp.csharp_attribute_extractor import CSharpAttributeExtractor
+                attr_extractor = CSharpAttributeExtractor()
+            self._index_attributes(file_path, pf.tree, symbols, attr_extractor)
 
         # D-11: delete outgoing resolution edges before re-resolving
         delete_outgoing_edges_for_file(self._conn, file_path)
 
+        parsed_cache = {file_path: pf}
         self._resolve_calls_and_refs(
             root_path, symbols, [file_path], name_to_full_names,
             single_file=file_path,
+            parsed_cache=parsed_cache,
         )
 
     def _resolve_calls_and_refs(
@@ -389,6 +392,14 @@ class Indexer:
                         len(semantic_map), len(assignment_position_map),
                     )
 
+        # Pre-build class_lines_per_file for the resolver so it doesn't have to
+        # recompute from class_symbol_map on each call.
+        resolver_class_lines: dict[str, list[tuple[int, str]]] = {}
+        for (fp, line), full_name in class_symbol_map.items():
+            resolver_class_lines.setdefault(fp, []).append((line, full_name))
+        for entries in resolver_class_lines.values():
+            entries.sort()
+
         resolver = SymbolResolver(
             self._conn,
             self._lsp.language_server,
@@ -398,6 +409,8 @@ class Indexer:
             file_extensions=self._file_extensions,
             module_full_names=module_full_names,
             assignment_position_map=assignment_position_map,
+            parsed_cache=parsed_cache,
+            class_lines_per_file=resolver_class_lines,
         )
         if single_file:
             resolver.resolve_single_file(single_file, symbol_map, class_symbol_map=class_symbol_map)

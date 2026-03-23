@@ -189,6 +189,15 @@ def test_typescript_const_object_produces_kind_str_const_object(mock_conn):
     assert "Class" in cypher
 
 
+def _make_parsed_file(file_path: str, source: str):
+    """Create a mock ParsedFile for tests."""
+    pf = MagicMock()
+    pf.file_path = file_path
+    pf.source = source
+    pf.tree = MagicMock()
+    return pf
+
+
 def _make_python_plugin():
     """Create a mock Python plugin with assignment extractor support."""
     plugin = MagicMock()
@@ -201,6 +210,7 @@ def _make_python_plugin():
     call_ext_mock._sites_seen = 0
     plugin.create_call_extractor = MagicMock(return_value=call_ext_mock)
     plugin.create_type_ref_extractor = MagicMock(return_value=MagicMock(extract=MagicMock(return_value=[])))
+    plugin.parse_file = MagicMock(side_effect=lambda fp, src: _make_parsed_file(fp, src))
     return plugin
 
 

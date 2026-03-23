@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
@@ -20,6 +21,10 @@ from synapse.indexer.csharp.csharp_type_ref_extractor import CSharpTypeRefExtrac
 from synapse.indexer.type_ref import TypeRef
 from synapse.lsp.interface import LSPResolverBackend
 from synapse.lsp.util import build_full_name
+
+if TYPE_CHECKING:
+    from tree_sitter import Tree
+    from synapse.indexer.tree_sitter_util import ParsedFile
 
 log = logging.getLogger(__name__)
 
@@ -76,6 +81,8 @@ class SymbolResolver:
         file_extensions: frozenset[str] | None = None,
         module_full_names: set[str] | None = None,
         assignment_position_map: dict[tuple[str, int], AssignmentRef] | None = None,
+        parsed_cache: dict[str, ParsedFile] | None = None,
+        class_lines_per_file: dict[str, list[tuple[int, str]]] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -85,6 +92,8 @@ class SymbolResolver:
         self._file_extensions = file_extensions or frozenset({".cs"})
         self._module_full_names = module_full_names or set()
         self._assignment_position_map = assignment_position_map or {}
+        self._parsed_cache = parsed_cache
+        self._class_lines_per_file = class_lines_per_file
         self._unresolved_sites: list[str] = []
         self._callee_name_cache: dict[str, str] = {}
         self._pending_calls: list[dict] = []
@@ -97,8 +106,15 @@ class SymbolResolver:
         symbol_map: dict[tuple[str, int], str],
         class_symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> None:
-        class_lines_per_file = _build_class_lines_per_file(class_symbol_map or {})
-        files = list(self._iter_files(root_path))
+        if self._class_lines_per_file is not None:
+            class_lines_per_file = self._class_lines_per_file
+        else:
+            class_lines_per_file = _build_class_lines_per_file(class_symbol_map or {})
+
+        if self._parsed_cache is not None:
+            files = list(self._parsed_cache.keys())
+        else:
+            files = list(self._iter_files(root_path))
         total_files = len(files)
         log.info("Call/type-ref resolution: %d files to process, %d method symbols in map", total_files, len(symbol_map))
 
@@ -106,12 +122,20 @@ class SymbolResolver:
         self._stats = _ResolveStats()
 
         for i, file_path in enumerate(files, 1):
-            try:
-                source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                log.warning("Could not read %s", file_path)
-                continue
-            self._resolve_file(file_path, source, symbol_map, class_lines_per_file.get(file_path, []))
+            if self._parsed_cache and file_path in self._parsed_cache:
+                pf = self._parsed_cache[file_path]
+                source = pf.source
+                tree = pf.tree
+            else:
+                try:
+                    source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    log.warning("Could not read %s", file_path)
+                    continue
+                tree = self._parse_source(file_path, source)
+                if tree is None:
+                    continue
+            self._resolve_file(file_path, source, tree, symbol_map, class_lines_per_file.get(file_path, []))
             if i % 50 == 0 or i == total_files:
                 elapsed = time.monotonic() - resolve_start
                 log.info(
@@ -145,20 +169,35 @@ class SymbolResolver:
         symbol_map: dict[tuple[str, int], str],
         class_symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> None:
-        try:
-            source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            log.warning("Could not read %s", file_path)
-            return
         if not hasattr(self, "_stats"):
             self._stats = _ResolveStats()
-        class_lines_per_file = _build_class_lines_per_file(class_symbol_map or {})
-        self._resolve_file(file_path, source, symbol_map, class_lines_per_file.get(file_path, []))
+
+        if self._class_lines_per_file is not None:
+            class_lines_per_file = self._class_lines_per_file
+        else:
+            class_lines_per_file = _build_class_lines_per_file(class_symbol_map or {})
+
+        if self._parsed_cache and file_path in self._parsed_cache:
+            pf = self._parsed_cache[file_path]
+            source = pf.source
+            tree = pf.tree
+        else:
+            try:
+                source = Path(file_path).read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                log.warning("Could not read %s", file_path)
+                return
+            tree = self._parse_source(file_path, source)
+            if tree is None:
+                return
+
+        self._resolve_file(file_path, source, tree, symbol_map, class_lines_per_file.get(file_path, []))
 
     def _resolve_file(
         self,
         file_path: str,
         source: str,
+        tree: Tree,
         symbol_map: dict[tuple[str, int], str],
         class_lines: list[tuple[int, str]] | None = None,
     ) -> None:
@@ -167,9 +206,9 @@ class SymbolResolver:
         stats = getattr(self, "_stats", None)
 
         t0 = time.monotonic()
-        call_sites = self._call_extractor.extract(file_path, source, symbol_map)
+        call_sites = self._call_extractor.extract(file_path, tree, symbol_map)
         t1 = time.monotonic()
-        type_refs = self._type_ref_extractor.extract(file_path, source, symbol_map, class_lines or []) if self._type_ref_extractor else []
+        type_refs = self._type_ref_extractor.extract(file_path, tree, symbol_map, class_lines or []) if self._type_ref_extractor else []
         t2 = time.monotonic()
         if stats:
             stats.extraction_calls_time += t1 - t0
@@ -427,6 +466,32 @@ class SymbolResolver:
             })
             if stats:
                 stats.type_refs_resolved += 1
+
+    def _parse_source(self, file_path: str, source: str) -> Tree | None:
+        """Fallback: parse source when no cached tree is available."""
+        if not hasattr(self, "_fallback_parser"):
+            self._fallback_parser = None
+            if self._file_extensions:
+                ext = next(iter(self._file_extensions), "")
+                if ext == ".py":
+                    import tree_sitter_python
+                    from tree_sitter import Language, Parser
+                    self._fallback_parser = Parser(Language(tree_sitter_python.language()))
+                elif ext in {".ts", ".tsx", ".js", ".jsx"}:
+                    import tree_sitter_typescript
+                    from tree_sitter import Language, Parser
+                    self._fallback_parser = Parser(Language(tree_sitter_typescript.language_typescript()))
+                elif ext == ".java":
+                    import tree_sitter_java
+                    from tree_sitter import Language, Parser
+                    self._fallback_parser = Parser(Language(tree_sitter_java.language()))
+                elif ext == ".cs":
+                    import tree_sitter_c_sharp
+                    from tree_sitter import Language, Parser
+                    self._fallback_parser = Parser(Language(tree_sitter_c_sharp.language()))
+        if self._fallback_parser:
+            return self._fallback_parser.parse(bytes(source, "utf-8"))
+        return None
 
     def _iter_files(self, root_path: str):
         for ext in self._file_extensions:
