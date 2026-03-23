@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-23T22:31:43.120Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-03-23T22:34:56.297Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -53,6 +53,7 @@ Plan: 5 of 5
 | Phase 03-language-server-checks P04 | 525514min | 2 tasks | 3 files |
 | Phase 03-language-server-checks P03 | 15 | 2 tasks | 3 files |
 | Phase 03-language-server-checks P01 | 3 | 2 tasks | 3 files |
+| Phase 03-language-server-checks P05 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [Phase 03-language-server-checks]: python3.py filename (not python.py) prevents shadowing stdlib; PylspCheck warns when python3 absent (degraded-not-failed semantics)
 - [Phase 03-language-server-checks]: DotNetCheck uses --list-runtimes + Microsoft.NETCore.App regex (not --version) to confirm runtime is actually installed (D-03)
 - [Phase 03-language-server-checks]: CSharpLSCheck warns (not fails) when dotnet absent — skip-if-runtime-absent pattern (D-04); text=True required for regex stdout parsing
+- [Phase 03-language-server-checks]: Module-level imports for all 10 check classes in app.py required for synapse.cli.app.* patch() targets to resolve correctly in tests
+- [Phase 03-language-server-checks]: _AllChecksPassingContext helper with _ALL_CHECKS table centralizes 10-check patch setup across all CLI doctor tests
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T22:31:43.117Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-23T22:34:56.294Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None

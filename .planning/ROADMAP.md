@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Core Data Model** - Define CheckResult, DoctorCheck protocol, and DoctorService with full unit test coverage using stub checks (completed 2026-03-23)
 - [ ] **Phase 2: Infrastructure Checks and CLI** - Docker and Memgraph health checks wired to `synapse doctor` Rich table output with exit code discipline
-- [ ] **Phase 3: Language Server Checks** - Eight checks covering .NET, C#, Node.js, TypeScript, Python, pylsp, Java runtime, and Java LS with inline fix instructions
+- [x] **Phase 3: Language Server Checks** - Eight checks covering .NET, C#, Node.js, TypeScript, Python, pylsp, Java runtime, and Java LS with inline fix instructions (completed 2026-03-23)
 - [ ] **Phase 4: MCP Tool** - `check_environment` MCP tool exposing DoctorService results as a structured dict for agent self-diagnosis
 
 ## Phase Details
@@ -65,7 +65,7 @@ Plans:
 - [x] 03-02-PLAN.md — Implement NodeCheck + TypeScriptLSCheck with TDD unit tests (TypeScript stack)
 - [x] 03-03-PLAN.md — Implement PythonCheck + PylspCheck with TDD unit tests (Python stack)
 - [x] 03-04-PLAN.md — Implement JavaCheck + JdtlsCheck with TDD unit tests (Java stack)
-- [ ] 03-05-PLAN.md — Wire all 8 new checks into app.py and update test_cli_doctor.py
+- [x] 03-05-PLAN.md — Wire all 8 new checks into app.py and update test_cli_doctor.py
 
 ### Phase 4: MCP Tool
 **Goal**: AI agents can call `check_environment` via MCP and receive a structured result they can reason about, with the same underlying data as `synapse doctor`
@@ -86,5 +86,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Core Data Model | 1/1 | Complete   | 2026-03-23 |
 | 2. Infrastructure Checks and CLI | 1/2 | In Progress|  |
-| 3. Language Server Checks | 4/5 | In Progress|  |
+| 3. Language Server Checks | 5/5 | Complete   | 2026-03-23 |
 | 4. MCP Tool | 0/? | Not started | - |
