@@ -1,10 +1,80 @@
 # Synapse
 
+**Give your AI agent a deep understanding of your codebase — not just files and symbols, but the relationships between them.**
+
+Synapse is an MCP server and CLI that builds a queryable graph of your codebase using Language Server Protocol analysis. It indexes symbols, call chains, inheritance trees, interface implementations, and type dependencies across C#, Python, TypeScript/JavaScript, and Java projects — then lets AI agents (or humans) query that graph to make safer, faster, better-informed code changes.
+
 > **Work in progress.** Synapse is under active development. APIs, CLI commands, and graph schema may change without notice.
 
-Synapse is an LSP-powered, Memgraph-backed tool that builds a queryable graph of your codebase. It indexes symbols, inheritance, interface implementations, method calls, and override relationships for C#, Python, and TypeScript/JavaScript projects, then exposes them via an MCP server (for AI assistants) and a CLI (for humans).
+## Why Synapse
 
-Each project gets its own isolated Memgraph instance via Docker — you can index multiple projects simultaneously and switch between them without re-indexing.
+AI agents working with code today rely on grep and file reads. That works for simple lookups, but falls apart when the question is *"what happens if I change this?"* — when the answer depends on call chains, interface dispatch, inheritance, and test coverage spanning dozens of files.
+
+Synapse gives your agent a compiler-grade understanding of how code connects, without reading every file.
+
+| Without Synapse | With Synapse |
+|---|---|
+| Grep for `.DoWork(` across the codebase, filter false positives manually | `find_callers("DoWork")` — precise results, including calls through interfaces |
+| Read 5+ files to understand a method before editing | `get_context_for("X", scope="edit")` — source, callers, dependencies, and test coverage in one call |
+| Hope you found every caller before refactoring | `analyze_change_impact("X")` — structured impact report with test coverage |
+| Manually trace from a method to its API endpoint | `find_entry_points("X")` — automatic root-caller discovery |
+| Guess which tests cover a method | Impact analysis separates prod callers from test callers automatically |
+
+## Key Features
+
+### Deep Call Graph
+
+Synapse uses a two-phase indexing approach: LSP extracts structural symbols (classes, methods, properties), then tree-sitter finds call sites and LSP resolves what each call points to. The result is a graph of CALLS edges between methods — not string matches, but semantically resolved references.
+
+This means your agent can follow a method call through 6 levels of indirection and know exactly what code is reachable, without reading a single file.
+
+**Tools:** `find_callers`, `find_callees`, `trace_call_chain`, `get_call_depth`, `find_entry_points`
+
+### Interface Dispatch Resolution
+
+In dependency-injected codebases, `service.Process()` could mean any of 5 concrete implementations. Grep finds the interface method. Synapse finds the interface method *and* every concrete implementation, automatically.
+
+The graph models interface dispatch explicitly: `find_callers("IOrderService.Process")` returns callers of every class that implements `Process`, not just callers of the interface declaration.
+
+**Tools:** `find_callers` (with `include_interface_dispatch`), `find_implementations`, `find_interface_contract`
+
+### Impact Analysis
+
+Before your agent changes a method, it should know: how many places call it, whether tests cover it, and what it depends on. `analyze_change_impact` answers all three in a single, token-efficient response — categorized into direct callers, transitive callers (2-4 hops), test coverage, and downstream callees.
+
+**Tools:** `analyze_change_impact`, `find_type_impact`, `get_context_for` (with `scope="edit"`)
+
+### Scoped Context
+
+`get_context_for` is the recommended starting point for understanding any symbol. Instead of reading entire files, your agent gets exactly the context it needs:
+
+- **`structure`** — type overview with member signatures (no method bodies)
+- **`method`** — source code + interface contract + callees + dependencies
+- **`edit`** — callers with line numbers, relevant dependencies, test coverage
+
+The right scope means fewer tokens spent on context your agent won't use.
+
+**Tools:** `get_context_for`
+
+### Automatic Graph Sync
+
+The graph stays fresh without manual intervention. When `auto_sync` is enabled (the default), every tool call checks whether the codebase has changed since the last index — using `git diff` for git repos, or file modification times otherwise — and re-indexes only the changed files.
+
+For longer sessions, `watch_project` keeps the graph updated in real-time as files change on disk.
+
+**Tools:** `sync_project`, `get_index_status`
+
+### Token-Efficient Output
+
+Synapse is designed for AI consumption. Outputs use shortened symbol references (`OrderService.Process` instead of `Com.Example.Services.OrderService.Process`), relative file paths, and compact text formats. Tools like `find_usages` and `analyze_change_impact` return structured Markdown summaries instead of raw JSON arrays, reducing token consumption while preserving all the information an agent needs to make decisions.
+
+### Multi-Language, One Interface
+
+C#, Python, TypeScript/JavaScript, and Java projects all use the same tools, the same graph schema, and the same query patterns. Each language has a plugin that handles LSP communication, call site extraction, import resolution, and type reference detection — but the agent doesn't need to know any of that. `find_callers` works the same whether the codebase is C# or Python.
+
+### Multi-Project Isolation
+
+Each project gets its own Memgraph instance via Docker, named deterministically from the project path. Index 10 projects simultaneously — queries from each directory hit the correct graph automatically. Containers persist across sessions and restart on demand.
 
 ## Prerequisites
 
@@ -138,36 +208,60 @@ These tools are available to any MCP client connected to `synapse-mcp`.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `index_project` | `path: str`, `language: str = "csharp"` | Index a project into the graph (language: csharp, python, typescript) |
-| `list_projects` | — | List all indexed projects |
-| `delete_project` | `path: str` | Remove a project from the graph |
-| `get_index_status` | `path: str` | Get the current index status for a project |
-| `watch_project` | `path: str` | Start watching a project for file changes |
-| `unwatch_project` | `path: str` | Stop watching a project |
+| `index_project` | `path`, `language?` | Index a project (auto-detects language if omitted) |
+| `sync_project` | `path` | Incremental sync — re-indexes only changed files using git diff or mtime |
+| `list_projects` | — | List all indexed projects with metadata |
+| `delete_project` | `path` | Remove a project and all its graph data |
+| `get_index_status` | `path` | File count, symbol count, per-label breakdown |
 
-### Graph queries
+### Symbol discovery
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `get_symbol` | `full_name: str` | Get a symbol's node and relationships by fully-qualified name |
-| `get_symbol_source` | `full_name: str`, `include_class_signature: bool = False` | Get the source code of a symbol |
-| `find_implementations` | `interface_name: str` | Find all concrete implementations of an interface |
-| `find_callers` | `method_full_name: str` | Find all methods that call a given method |
-| `find_callees` | `method_full_name: str` | Find all methods called by a given method |
-| `get_hierarchy` | `class_name: str` | Get the full inheritance chain for a class |
-| `search_symbols` | `query: str`, `kind: str \| None = None` | Search symbols by name, optionally filtered by kind |
-| `find_type_references` | `full_name: str` | Find all symbols that reference a given type |
-| `find_dependencies` | `full_name: str` | Find all types referenced by a given symbol |
-| `get_context_for` | `full_name: str` | Get the full context needed to understand or modify a symbol |
-| `execute_query` | `cypher: str` | Execute a read-only Cypher query (mutating statements are blocked) |
+| `search_symbols` | `query`, `kind?`, `namespace?`, `file_path?`, `language?` | Find symbols by name with optional filters |
+| `get_symbol` | `full_name` | Get a symbol's node properties and relationships |
+| `get_symbol_source` | `full_name`, `include_class_signature?` | Get the source code of a symbol from disk |
+| `find_implementations` | `interface_name` | Find all concrete implementations of an interface |
+| `get_hierarchy` | `class_name` | Full inheritance chain: parents, children, implemented interfaces |
+
+### Call graph
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `find_callers` | `method`, `include_interface_dispatch?`, `exclude_test_callers?` | Find all callers of a method, including through interface dispatch |
+| `find_callees` | `method`, `include_interface_dispatch?` | Find all methods called by a given method |
+| `find_usages` | `full_name`, `exclude_test_callers?`, `limit?` | Unified usage lookup — auto-selects strategy by symbol kind |
+| `trace_call_chain` | `start`, `end`, `max_depth?` | Find all call paths between two methods |
+| `find_entry_points` | `method`, `max_depth?`, `exclude_pattern?` | Find root callers (API/controller endpoints) that reach a method |
+| `get_call_depth` | `method`, `depth?` | Get all methods reachable from a starting point up to N levels deep |
+| `find_interface_contract` | `method` | Find the interface a method satisfies and all sibling implementations |
+
+### Impact analysis
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `get_context_for` | `full_name`, `scope?`, `max_lines?` | Context for understanding or editing a symbol (scopes: `structure`, `method`, `edit`) |
+| `analyze_change_impact` | `method` | What breaks if you change this? Direct callers, transitive callers, test coverage, callees |
+| `find_type_references` | `full_name`, `kind?` | Find all symbols that reference a type (as parameter, return type, or field) |
+| `find_type_impact` | `type_name`, `limit?` | All code referencing a type, categorized as prod or test |
+| `find_dependencies` | `full_name`, `depth?`, `limit?` | Field-type dependencies of a symbol, with optional transitive traversal |
 
 ### Summaries
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `set_summary` | `full_name: str`, `content: str` | Attach a summary to a symbol |
-| `get_summary` | `full_name: str` | Retrieve the summary for a symbol |
-| `list_summarized` | `project_path: str \| None = None` | List all symbols that have summaries, optionally scoped to a project |
+| `set_summary` | `full_name`, `content` | Attach a free-text summary to a symbol |
+| `get_summary` | `full_name` | Retrieve the summary for a symbol |
+| `list_summarized` | `project_path?` | List all symbols that have summaries |
+| `summarize_from_graph` | `class_name` | Auto-generate a structural summary from the graph |
+
+### Raw queries
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `get_schema` | — | Return the full graph schema: labels, properties, relationships |
+| `execute_query` | `cypher` | Execute a read-only Cypher query (mutating statements are blocked) |
+| `audit_architecture` | `rule` | Run architectural audit rules (e.g. `layering_violations`, `untested_services`) |
 
 ---
 
@@ -196,10 +290,12 @@ A `:Summarized` label is added to any node that has a user-attached summary.
 
 - `CONTAINS` — structural containment: Repository→Directory, Directory→File, File→Symbol, and Class/Package→nested symbols
 - `IMPORTS` — file imports a package/namespace
-- `CALLS` — method calls another method
+- `CALLS` — method calls another method (with optional `call_sites` property for line/column tracking)
 - `OVERRIDES` — method overrides a base method
-- `IMPLEMENTS` — class implements an interface
+- `IMPLEMENTS` — class implements an interface; also used at method level for interface method→concrete implementation
+- `DISPATCHES_TO` — interface method→concrete implementation (inverse of method-level IMPLEMENTS, used for call graph traversal)
 - `INHERITS` — class inherits from another class, or interface extends another interface
+- `REFERENCES` — symbol references a type (field type, parameter type, return type)
 
 Fully-qualified names (e.g. `MyNamespace.MyClass.DoWork`) are used as symbol identifiers throughout.
 
