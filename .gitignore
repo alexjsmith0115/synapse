@@ -10,3 +10,4 @@ htmlcov/
 .coverage
 .worktrees/
 .claude/
+.planning/

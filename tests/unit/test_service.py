@@ -717,7 +717,7 @@ def test_search_symbols_returns_slim_dicts() -> None:
     })
     with patch("synapse.service.search_symbols", return_value=[node]):
         result = svc.search_symbols("MyClass")
-    assert result == [{"full_name": "Ns.MyClass", "name": "MyClass", "kind": "class", "file_path": "/src/My.cs", "line": 5}]
+    assert result == [{"full_name": "Ns.MyClass", "name": "MyClass", "kind": "class", "file_path": "/src/My.cs", "line": 5, "language": "csharp"}]
     assert "end_line" not in result[0]
 
 

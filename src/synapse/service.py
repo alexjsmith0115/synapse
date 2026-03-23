@@ -465,7 +465,7 @@ class SynapseService:
 
     def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict] | dict:
         method_full_name = self._resolve(method_full_name, preference="concrete")
-        result = [_slim(item, "full_name", "file_path", "line") for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
+        result = [_slim(item, "full_name", "name", "file_path", "line") for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
         return _apply_limit(result, limit)
 
     def get_hierarchy(self, class_name: str) -> dict:
@@ -486,7 +486,7 @@ class SynapseService:
         language: str | None = None,
         limit: int = 50,
     ) -> list[dict]:
-        raw = [_slim(item, "full_name", "name", "kind", "file_path", "line") for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
+        raw = [_slim(item, "full_name", "name", "kind", "file_path", "line", "language") for item in search_symbols(self._conn, query, kind, namespace, file_path, language)]
         for item in raw:
             if "file_path" in item:
                 item["file_path"] = self._rel_path(item["file_path"])

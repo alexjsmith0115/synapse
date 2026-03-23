@@ -287,20 +287,7 @@ def usages(
     """Find all code that uses a symbol (callers + type references)."""
     svc = _get_service()
     result = svc.find_usages(full_name, exclude_test_callers=not include_tests)
-    if "error" in result:
-        typer.echo(result["error"])
-        raise typer.Exit(1)
-    typer.echo(f"Usages of {result['symbol']} ({result['kind']}):")
-    if "callers" in result:
-        for c in result["callers"]:
-            typer.echo(f"  [caller] {c['full_name']}")
-    if "type_references" in result:
-        for r in result["type_references"]:
-            typer.echo(f"  [ref:{r['kind']}] {r['symbol']['full_name']}")
-    if "method_callers" in result:
-        for method_fn, callers in result["method_callers"].items():
-            for c in callers:
-                typer.echo(f"  [caller of {method_fn.rsplit('.', 1)[-1]}] {c['full_name']}")
+    typer.echo(result)
 
 
 @app.command()
@@ -388,20 +375,7 @@ def impact(
     When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     result = svc.analyze_change_impact(method)
-    typer.echo(f"Impact analysis for: {result['target']}")
-    typer.echo(f"  Direct callers: {len(result['direct_callers'])}")
-    typer.echo(f"  Transitive callers: {len(result['transitive_callers'])}")
-    typer.echo(f"  Test coverage: {len(result['test_coverage'])}")
-    typer.echo(f"  Direct callees: {len(result.get('direct_callees', []))}")
-    typer.echo(f"  Total affected: {result['total_affected']}")
-    for c in result["direct_callers"]:
-        typer.echo(f"    [direct] {c['full_name']}")
-    for c in result["transitive_callers"]:
-        typer.echo(f"    [transitive] {c['full_name']}")
-    for t in result["test_coverage"]:
-        typer.echo(f"    [test] {t['full_name']}")
-    for c in result.get("direct_callees", []):
-        typer.echo(f"    [callee] {c['full_name']}")
+    typer.echo(result)
 
 
 @app.command("contract")

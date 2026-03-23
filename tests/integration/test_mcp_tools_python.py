@@ -231,13 +231,13 @@ def test_find_type_references(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_usages(python_mcp: FastMCP) -> None:
-    """find_usages returns dict without error for a Python class."""
+    """find_usages returns compact text summary for a Python class."""
     result = run(python_mcp.call_tool("find_usages", {
         "full_name": "synapsepytest.animals.IAnimal"
     }))
-    usages = result_json(result)
-    assert isinstance(usages, dict)
-    assert "error" not in usages
+    output = text(result)
+    assert "Usages of" in output
+    assert "IAnimal" in output
 
 
 @pytest.mark.integration
@@ -308,14 +308,14 @@ def test_get_call_depth(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_analyze_change_impact(python_mcp: FastMCP) -> None:
-    """analyze_change_impact returns dict with expected keys for a Python method."""
+    """analyze_change_impact returns compact text summary for a Python method."""
     result = run(python_mcp.call_tool("analyze_change_impact", {
         "method": "synapsepytest.services.AnimalService.get_greeting",
     }))
-    impact = result_json(result)
-    assert isinstance(impact, dict)
-    assert "direct_callers" in impact
-    assert "total_affected" in impact
+    output = text(result)
+    assert "Change Impact" in output
+    assert "get_greeting" in output
+    assert "affected" in output
 
 
 @pytest.mark.integration

@@ -284,13 +284,13 @@ def test_find_type_references(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_usages(typescript_mcp: FastMCP) -> None:
-    """find_usages returns dict without error for a TypeScript interface."""
+    """find_usages returns compact text summary for a TypeScript interface."""
     result = run(typescript_mcp.call_tool("find_usages", {
         "full_name": "src/animals.IAnimal"
     }))
-    usages = result_json(result)
-    assert isinstance(usages, dict)
-    assert "error" not in usages
+    output = text(result)
+    assert "Usages of" in output
+    assert "IAnimal" in output
 
 
 # ---------------------------------------------------------------------------
@@ -300,14 +300,14 @@ def test_find_usages(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_analyze_change_impact(typescript_mcp: FastMCP) -> None:
-    """analyze_change_impact returns dict with expected keys for a TypeScript method."""
+    """analyze_change_impact returns compact text summary for a TypeScript method."""
     result = run(typescript_mcp.call_tool("analyze_change_impact", {
         "method": "src/services.AnimalService.getGreeting"
     }))
-    impact = result_json(result)
-    assert isinstance(impact, dict)
-    assert "direct_callers" in impact
-    assert "total_affected" in impact
+    output = text(result)
+    assert "Change Impact" in output
+    assert "getGreeting" in output
+    assert "affected" in output
 
 
 @pytest.mark.integration
