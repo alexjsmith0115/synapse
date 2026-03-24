@@ -159,3 +159,37 @@ def java_mcp(java_service):
     mcp = FastMCP("synapse-java-test")
     register_tools(mcp, java_service)
     return mcp
+
+
+@pytest.fixture(scope="session")
+def http_service():
+    """Index SynapseTest with HTTP endpoint extraction enabled.
+
+    Uses a separate graph connection so that Endpoint nodes created by the
+    HTTP phase do not collide with the plain ``service`` fixture, which indexes
+    the same project without the experimental flag.
+    """
+    import json
+    import os
+
+    synapse_dir = os.path.join(FIXTURE_PATH, ".synapse")
+    os.makedirs(synapse_dir, exist_ok=True)
+    config_path = os.path.join(synapse_dir, "config.json")
+    with open(config_path, "w") as f:
+        json.dump({"experimental": {"http_endpoints": True}}, f)
+
+    conn = GraphConnection.create(database="memgraph")
+    ensure_schema(conn)
+    _delete_project(conn, FIXTURE_PATH)
+
+    svc = SynapseService(conn=conn)
+    svc.index_project(FIXTURE_PATH, "csharp")
+
+    yield svc, conn
+
+    _delete_project(conn, FIXTURE_PATH)
+    try:
+        os.remove(config_path)
+        os.rmdir(synapse_dir)
+    except OSError:
+        pass
