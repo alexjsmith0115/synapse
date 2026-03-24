@@ -186,12 +186,30 @@ class SynapseService:
             plugin_files = self._registry.detect_with_files(path)
         if not plugin_files:
             raise ValueError(f"No language plugin found for project at {path!r}")
+        all_http_results: list = []
         for plugin, files in plugin_files:
             if on_progress:
                 on_progress(f"Starting language server for {plugin.name}...")
             lsp = plugin.create_lsp_adapter(path)
             indexer = Indexer(self._conn, lsp, plugin=plugin)
             indexer.index_project(path, plugin.name, on_progress=on_progress, files=files)
+            all_http_results.extend(indexer._http_extraction_results)
+
+        # HTTP endpoint matching — runs once after all languages are indexed
+        # so frontend client calls can be matched to backend server endpoints
+        from synapse.config import is_http_endpoints_enabled
+        if all_http_results and is_http_endpoints_enabled(path):
+            import time
+            t_http = time.monotonic()
+            log.info(
+                "[EXPERIMENTAL] HTTP endpoint extraction is enabled. "
+                "This feature is experimental and may produce incomplete or incorrect endpoint mappings."
+            )
+            from synapse.indexer.http_phase import HttpPhase
+            http_phase = HttpPhase(self._conn, path)
+            http_phase.run(all_http_results)
+            http_phase.cleanup_orphans()
+            log.info("HTTP endpoint matching: %.1fs", time.monotonic() - t_http)
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""

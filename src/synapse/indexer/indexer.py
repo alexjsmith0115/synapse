@@ -83,6 +83,7 @@ class Indexer:
             self._http_extractor_factory = getattr(plugin, 'create_http_extractor', None)
             self._file_extensions = plugin.file_extensions
             self._language = plugin.name
+            self._http_extraction_results: list = []
         else:
             from synapse.plugin.csharp import CSharpPlugin
             from synapse.indexer.csharp.csharp_import_extractor import CSharpImportExtractor
@@ -96,6 +97,7 @@ class Indexer:
             self._http_extractor_factory = None
             self._file_extensions = frozenset({".cs"})
             self._language = "csharp"
+            self._http_extraction_results: list = []
 
     def index_project(
         self,
@@ -214,30 +216,22 @@ class Indexer:
                 log.warning("Could not process %s for attribute extraction", file_path)
         log.info("Attribute extraction: %.1fs", time.monotonic() - t_attr)
 
-        # Phase 4: HTTP endpoint extraction + matching (experimental, opt-in)
+        # Phase 4: HTTP endpoint extraction (experimental, opt-in)
+        # Extraction only — matching and graph writes happen at the project
+        # level in SynapseService after all languages have been extracted.
         if self._http_extractor_factory is not None:
             from synapse.config import is_http_endpoints_enabled
             if is_http_endpoints_enabled(root_path):
-                t_http = time.monotonic()
-                log.info(
-                    "[EXPERIMENTAL] HTTP endpoint extraction is enabled. "
-                    "This feature is experimental and may produce incomplete or incorrect endpoint mappings."
-                )
                 from synapse.indexer.http.interface import HttpExtractionResult
                 http_extractor = self._http_extractor_factory()
-                http_results: list[HttpExtractionResult] = []
                 for fp, pf in parsed_cache.items():
                     try:
                         file_symbols = symbols_by_file.get(fp, [])
-                        http_results.append(http_extractor.extract(fp, pf.tree, file_symbols))
+                        self._http_extraction_results.append(
+                            http_extractor.extract(fp, pf.tree, file_symbols),
+                        )
                     except Exception:
                         log.warning("Could not extract HTTP endpoints from %s", fp)
-
-                from synapse.indexer.http_phase import HttpPhase
-                http_phase = HttpPhase(self._conn, root_path)
-                http_phase.run(http_results)
-                http_phase.cleanup_orphans()
-                log.info("HTTP endpoint extraction: %.1fs", time.monotonic() - t_http)
 
         # Phase 1.5: method-level IMPLEMENTS edges (requires all class-level IMPLEMENTS to exist)
         MethodImplementsIndexer(self._conn).index()
