@@ -53,6 +53,10 @@ class TypeScriptPlugin:
     def create_assignment_extractor(self) -> None:
         return None
 
+    def create_http_extractor(self):
+        from synapse.indexer.typescript.typescript_http_extractor import TypeScriptHttpExtractor
+        return TypeScriptHttpExtractor()
+
     def parse_file(self, file_path: str, source: str) -> ParsedFile:
         from synapse.indexer.tree_sitter_util import ParsedFile
         uses_tsx = any(file_path.endswith(ext) for ext in _TSX_EXTENSIONS)

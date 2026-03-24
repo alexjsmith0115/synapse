@@ -44,6 +44,10 @@ class CSharpPlugin:
     def create_assignment_extractor(self) -> None:
         return None
 
+    def create_http_extractor(self):
+        from synapse.indexer.csharp.csharp_http_extractor import CSharpHttpExtractor
+        return CSharpHttpExtractor()
+
     def parse_file(self, file_path: str, source: str) -> ParsedFile:
         from synapse.indexer.tree_sitter_util import ParsedFile
         tree = self._ts_parser.parse(bytes(source, "utf-8"))
