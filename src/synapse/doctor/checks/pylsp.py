@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import subprocess
 
 from synapse.doctor.base import CheckResult
@@ -13,34 +14,11 @@ class PylspCheck:
     group = "python"
 
     def run(self) -> CheckResult:
-        # Skip if python3 not available
+        # Use sys.executable to check in the same venv Synapse is running in
+        # (matching how pyright_server.py launches pyright via sys.executable)
         try:
             result = subprocess.run(
-                ["python3", "--version"],
-                capture_output=True,
-                timeout=10,
-            )
-            if result.returncode != 0:
-                return CheckResult(
-                    name="pyright",
-                    status="warn",
-                    detail="python3 not available — cannot check pyright",
-                    fix=None,
-                    group=self.group,
-                )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            return CheckResult(
-                name="pyright",
-                status="warn",
-                detail="python3 not available — cannot check pyright",
-                fix=None,
-                group=self.group,
-            )
-
-        # Check if pyright module is importable
-        try:
-            result = subprocess.run(
-                ["python3", "-c", "import pyright; print(pyright.__file__)"],
+                [sys.executable, "-c", "import pyright; print(pyright.__file__)"],
                 capture_output=True,
                 timeout=10,
                 text=True,

@@ -68,12 +68,7 @@ def test_python_pass_fix_is_none() -> None:
 
 def test_pyright_pass_when_importable() -> None:
     with patch("synapse.doctor.checks.pylsp.subprocess") as mock_sub:
-        # First call: python3 --version (check runtime)
-        # Second call: python3 -c "import pyright..." (check module)
-        mock_sub.run.side_effect = [
-            MagicMock(returncode=0),
-            MagicMock(returncode=0, stdout="/usr/lib/python3/site-packages/pyright/__init__.py\n"),
-        ]
+        mock_sub.run.return_value = MagicMock(returncode=0, stdout="/usr/lib/python3/site-packages/pyright/__init__.py\n")
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = PylspCheck().run()
     assert result.status == "pass"
@@ -82,10 +77,7 @@ def test_pyright_pass_when_importable() -> None:
 
 def test_pyright_fail_when_not_importable() -> None:
     with patch("synapse.doctor.checks.pylsp.subprocess") as mock_sub:
-        mock_sub.run.side_effect = [
-            MagicMock(returncode=0),
-            MagicMock(returncode=1, stdout="", stderr="ModuleNotFoundError"),
-        ]
+        mock_sub.run.return_value = MagicMock(returncode=1, stdout="", stderr="ModuleNotFoundError")
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = PylspCheck().run()
     assert result.status == "fail"
@@ -93,21 +85,17 @@ def test_pyright_fail_when_not_importable() -> None:
     assert "pyright" in result.fix
 
 
-def test_pyright_warn_when_python3_absent() -> None:
+def test_pyright_fail_when_executable_not_found() -> None:
     with patch("synapse.doctor.checks.pylsp.subprocess") as mock_sub:
-        mock_sub.run.side_effect = FileNotFoundError("python3")
+        mock_sub.run.side_effect = FileNotFoundError("python")
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = PylspCheck().run()
-    assert result.status == "warn"
-    assert result.fix is None
+    assert result.status == "fail"
 
 
 def test_pyright_fail_when_timeout() -> None:
     with patch("synapse.doctor.checks.pylsp.subprocess") as mock_sub:
-        mock_sub.run.side_effect = [
-            MagicMock(returncode=0),
-            subprocess.TimeoutExpired(cmd="python3", timeout=10),
-        ]
+        mock_sub.run.side_effect = subprocess.TimeoutExpired(cmd="python", timeout=10)
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = PylspCheck().run()
     assert result.status == "fail"
