@@ -3,17 +3,16 @@ from __future__ import annotations
 _DARK = "#2D6A4F"
 _LIGHT = "#74C69D"
 
-# B2 block-letter ASCII art: chunky full-block characters spelling "SYNAPSE"
-# Alternating dark/light green on each line for a two-tone striped effect
-_BANNER_LINES = [
-    f"[{_DARK}]███[/{_DARK}][{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}]  [{_LIGHT}]█[/{_LIGHT}][{_DARK}]█  █[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]██[/{_DARK}][{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]███[/{_DARK}][{_LIGHT}]██[/{_LIGHT}]  [{_DARK}]███[/{_DARK}][{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}]  [{_LIGHT}]███[/{_LIGHT}][{_DARK}]█[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]",
-    f"[{_DARK}]█[/{_DARK}]      [{_LIGHT}]█[/{_LIGHT}][{_DARK}]█ █[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]██ █[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]█[/{_DARK}][{_LIGHT}]█  █[/{_LIGHT}][{_DARK}]█[/{_DARK}]  [{_LIGHT}]█[/{_LIGHT}]       [{_DARK}]█[/{_DARK}]    ",
-    f"[{_LIGHT}] ███[/{_LIGHT}]   [{_DARK}]██[/{_DARK}][{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}]   [{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}][{_LIGHT}]██[/{_LIGHT}][{_DARK}]█[/{_DARK}]  [{_LIGHT}]████[/{_LIGHT}][{_DARK}]█[/{_DARK}]   [{_LIGHT}]███[/{_LIGHT}][{_DARK}]█[/{_DARK}]    [{_LIGHT}]███[/{_LIGHT}][{_DARK}]█[/{_DARK}] ",
-    f"[{_DARK}]    █[/{_DARK}]  [{_LIGHT}] █[/{_LIGHT}][{_DARK}]█[/{_DARK}]    [{_LIGHT}]██  █[/{_LIGHT}][{_DARK}]█[/{_DARK}]  [{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}]       [{_LIGHT}]█[/{_LIGHT}]       [{_DARK}]█[/{_DARK}]    ",
-    f"[{_LIGHT}]████[/{_LIGHT}]   [{_DARK}] █[/{_DARK}]    [{_LIGHT}]█[/{_LIGHT}][{_DARK}]█  █[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]█[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]      [{_DARK}]████[/{_DARK}][{_LIGHT}]█[/{_LIGHT}]  [{_DARK}]███[/{_DARK}][{_LIGHT}]█[/{_LIGHT}][{_DARK}]█[/{_DARK}]",
+_BANNER_LINES: list[tuple[str, str]] = [
+    ("   ███████╗██╗   ██╗███╗   ██╗ █████╗ ██████╗ ███████╗███████╗", _DARK),
+    ("   ██╔════╝╚██╗ ██╔╝████╗  ██║██╔══██╗██╔══██╗██╔════╝██╔════╝", _DARK),
+    ("   ███████╗ ╚████╔╝ ██╔██╗ ██║███████║██████╔╝███████╗█████╗  ", _LIGHT),
+    ("   ╚════██║  ╚██╔╝  ██║╚██╗██║██╔══██║██╔═══╝ ╚════██║██╔══╝  ", _LIGHT),
+    ("   ███████║   ██║   ██║ ╚████║██║  ██║██║     ███████║███████╗", _DARK),
+    ("   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝", _DARK),
 ]
 
-_ACCENT_LINE = f"[{_LIGHT}]\u25cb\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25cb[/{_LIGHT}]"
+_ACCENT = f"[{_LIGHT}]   ○─────────────────────────────────────────────────────────○[/{_LIGHT}]"
 
 
 def print_banner(console: "Console | None" = None) -> None:
@@ -23,7 +22,7 @@ def print_banner(console: "Console | None" = None) -> None:
         console = Console()
 
     console.print()
-    for line in _BANNER_LINES:
-        console.print(line)
-    console.print(_ACCENT_LINE)
+    for text, color in _BANNER_LINES:
+        console.print(f"[{color}]{text}[/{color}]")
+    console.print(_ACCENT)
     console.print()

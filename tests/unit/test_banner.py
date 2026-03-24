@@ -4,7 +4,7 @@ from io import StringIO
 
 from rich.console import Console
 
-from synapse.cli.banner import print_banner, _BANNER_LINES, _ACCENT_LINE
+from synapse.cli.banner import print_banner, _BANNER_LINES, _ACCENT
 
 
 def _capture_banner() -> str:
@@ -15,15 +15,13 @@ def _capture_banner() -> str:
     return buf.getvalue()
 
 
-def test_banner_contains_synapse_text():
+def test_banner_contains_block_characters():
     output = _capture_banner()
-    # Block letters spell SYNAPSE -- strip ANSI to check for block characters
     assert "\u2588" in output  # █ full block character present
 
 
-def test_banner_markup_spells_synapse():
-    # The raw markup lines collectively spell S Y N A P S E
-    joined = " ".join(_BANNER_LINES)
+def test_banner_lines_spell_synapse():
+    joined = " ".join(text for text, _ in _BANNER_LINES)
     assert "\u2588" in joined
 
 
@@ -53,4 +51,12 @@ def test_banner_contains_light_green_color():
 
 
 def test_banner_accent_line_uses_light_green():
-    assert "#74C69D" in _ACCENT_LINE or "#74c69d" in _ACCENT_LINE
+    assert "#74C69D" in _ACCENT or "#74c69d" in _ACCENT
+
+
+def test_banner_has_alternating_colors():
+    """Banner lines alternate between dark and light green."""
+    colors = [color for _, color in _BANNER_LINES]
+    assert colors[0] == "#2D6A4F"
+    assert colors[2] == "#74C69D"
+    assert colors[4] == "#2D6A4F"
