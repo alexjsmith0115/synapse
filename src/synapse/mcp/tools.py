@@ -79,6 +79,7 @@ _GRAPH_SCHEMA = {
         "Method": ["full_name", "name", "file_path", "line", "end_line", "language", "signature", "is_abstract", "is_static", "is_classmethod", "is_async", "attributes"],
         "Property": ["full_name", "name", "file_path", "line", "end_line", "language", "type_name", "attributes"],
         "Field": ["full_name", "name", "file_path", "line", "end_line", "language", "type_name", "attributes"],
+        "Endpoint": ["route", "http_method", "name"],
     },
     "relationship_types": {
         "CONTAINS": "Repository/Directory/File/Class/Interface → any",
@@ -89,6 +90,8 @@ _GRAPH_SCHEMA = {
         "REFERENCES": "any → Class/Interface (field type, param type, return type)",
         "OVERRIDES": "Method → Method (child class method overrides parent class method by name)",
         "IMPORTS": "File → Package/any (import dependency)",
+        "SERVES": "Method → Endpoint (controller method handles this HTTP endpoint)",
+        "HTTP_CALLS": "Method → Endpoint (frontend method makes HTTP request to this endpoint)",
     },
     "notes": [
         "execute_query(cypher=...) accepts read-only Cypher only (no CREATE/MERGE/SET/DELETE/REMOVE/DROP).",
@@ -97,6 +100,7 @@ _GRAPH_SCHEMA = {
         "Nodes may have an 'attributes' property (JSON list of decorator/attribute names, e.g. '[\"staticmethod\",\"ApiController\"]').",
         "All symbol nodes (Class, Interface, Method, Property, Field) carry a 'language' property ('csharp', 'python', or 'typescript').",
         "Method nodes may carry boolean flags: is_abstract, is_static, is_classmethod, is_async.",
+        "Endpoint nodes and SERVES/HTTP_CALLS edges are experimental (requires experimental.http_endpoints in config).",
     ],
 }
 
