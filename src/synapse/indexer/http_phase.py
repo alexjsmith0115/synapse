@@ -73,5 +73,34 @@ class HttpPhase:
             sum(1 for m in matched if m.endpoint_def is not None and m.client_calls),
         )
 
+    def rebuild_from_graph(self) -> tuple[list, list]:
+        """Reconstruct endpoint defs and client calls from existing graph data.
+
+        Used during sync to get data for unchanged files.
+        """
+        from synapse.indexer.http.interface import HttpEndpointDef, HttpClientCall
+
+        raw_defs = self._conn.query(
+            "MATCH (m:Method)-[:SERVES]->(ep:Endpoint)<-[:CONTAINS]-(r:Repository {path: $repo}) "
+            "RETURN ep.route, ep.http_method, m.full_name, m.line",
+            {"repo": self._repo_path},
+        )
+        defs = [
+            HttpEndpointDef(route=r[0], http_method=r[1], handler_full_name=r[2], line=r[3] or 0)
+            for r in raw_defs
+        ]
+
+        raw_calls = self._conn.query(
+            "MATCH (m:Method)-[r:HTTP_CALLS]->(ep:Endpoint)<-[:CONTAINS]-(repo:Repository {path: $repo}) "
+            "RETURN ep.route, ep.http_method, m.full_name, m.line",
+            {"repo": self._repo_path},
+        )
+        calls = [
+            HttpClientCall(route=r[0], http_method=r[1], caller_full_name=r[2], line=r[3] or 0, col=0)
+            for r in raw_calls
+        ]
+
+        return defs, calls
+
     def cleanup_orphans(self) -> None:
         delete_orphan_endpoints(self._conn, self._repo_path)

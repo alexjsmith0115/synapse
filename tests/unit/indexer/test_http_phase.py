@@ -58,3 +58,13 @@ def test_phase_handles_unmatched_client_call() -> None:
 
     # Should create endpoint and HTTP_CALLS edge
     assert conn.execute.call_count >= 1
+
+
+def test_rebuild_from_graph_queries_existing_data() -> None:
+    conn = _mock_conn()
+    conn.query = MagicMock(return_value=[])
+    phase = HttpPhase(conn, repo_path="/repo")
+    defs, calls = phase.rebuild_from_graph()
+    assert defs == []
+    assert calls == []
+    assert conn.query.call_count == 2

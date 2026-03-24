@@ -298,6 +298,16 @@ class SynapseService:
             finally:
                 lsp.shutdown()
 
+        # Post-sync HTTP re-matching (experimental)
+        from synapse.config import is_http_endpoints_enabled
+        if is_http_endpoints_enabled(path):
+            from synapse.indexer.http_phase import HttpPhase
+            http_phase = HttpPhase(self._conn, path)
+            existing_defs, existing_calls = http_phase.rebuild_from_graph()
+            from synapse.indexer.http.interface import HttpExtractionResult
+            http_phase.run([HttpExtractionResult(endpoint_defs=existing_defs, client_calls=existing_calls)])
+            http_phase.cleanup_orphans()
+
         return total
 
     def smart_index(
@@ -365,6 +375,17 @@ class SynapseService:
                     total.deleted += result.deleted
                 finally:
                     lsp.shutdown()
+
+            # Post-sync HTTP re-matching (experimental)
+            from synapse.config import is_http_endpoints_enabled
+            if is_http_endpoints_enabled(path):
+                from synapse.indexer.http_phase import HttpPhase
+                http_phase = HttpPhase(self._conn, path)
+                existing_defs, existing_calls = http_phase.rebuild_from_graph()
+                from synapse.indexer.http.interface import HttpExtractionResult
+                http_phase.run([HttpExtractionResult(endpoint_defs=existing_defs, client_calls=existing_calls)])
+                http_phase.cleanup_orphans()
+
             return "git-sync"
 
         if on_progress:
