@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="synapse-logo.svg" alt="Synapse" width="300">
+</p>
+
 # Synapse
 
 [![CI](https://github.com/alexjsmith0115/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/alexjsmith0115/synapse/actions/workflows/ci.yml)
