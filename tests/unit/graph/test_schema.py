@@ -50,8 +50,8 @@ def test_schema_does_not_include_namespace_index() -> None:
 
 def test_schema_correct_number_of_indices() -> None:
     """One index per node type: Repository, Directory, File, Package,
-    Class, Interface, Method, Property, Field = 9 total."""
+    Class, Interface, Method, Property, Field, Endpoint = 10 total."""
     conn = MagicMock()
     conn.dialect = "memgraph"
     ensure_schema(conn)
-    assert conn.execute_implicit.call_count == 9
+    assert conn.execute_implicit.call_count == 10

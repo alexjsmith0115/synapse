@@ -15,6 +15,7 @@ _INDEX_DEFS = [
     ("Method", "full_name"),
     ("Property", "full_name"),
     ("Field", "full_name"),
+    ("Endpoint", "route"),
 ]
 
 

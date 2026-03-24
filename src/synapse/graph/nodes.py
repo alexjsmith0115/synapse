@@ -203,6 +203,14 @@ def rename_file_node(conn: GraphConnection, old_path: str, new_path: str) -> Non
     )
 
 
+def upsert_endpoint(conn: GraphConnection, route: str, http_method: str, name: str) -> None:
+    conn.execute(
+        "MERGE (n:Endpoint {route: $route, http_method: $http_method}) "
+        "SET n.name = $name",
+        {"route": route, "http_method": http_method, "name": name},
+    )
+
+
 def get_file_symbol_names(conn: GraphConnection, file_path: str) -> set[str]:
     rows = conn.query(
         "MATCH (f:File {path: $path})-[:CONTAINS*]->(n) "

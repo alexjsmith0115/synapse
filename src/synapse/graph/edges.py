@@ -200,7 +200,7 @@ def delete_outgoing_edges_for_file(conn: GraphConnection, file_path: str) -> Non
     # CALLS + REFERENCES + INHERITS + IMPLEMENTS + DISPATCHES_TO + OVERRIDES from file's symbols
     conn.execute(
         "MATCH (f:File {path: $path})-[:CONTAINS*]->(n)-[r]->() "
-        "WHERE type(r) IN ['CALLS', 'REFERENCES', 'INHERITS', 'IMPLEMENTS', 'DISPATCHES_TO', 'OVERRIDES'] "
+        "WHERE type(r) IN ['CALLS', 'REFERENCES', 'INHERITS', 'IMPLEMENTS', 'DISPATCHES_TO', 'OVERRIDES', 'SERVES', 'HTTP_CALLS'] "
         "DELETE r",
         {"path": file_path},
     )
@@ -221,4 +221,70 @@ def batch_upsert_references(conn: GraphConnection, batch: list[dict]) -> None:
         "WHERE dst:Class OR dst:Interface "
         "MERGE (src)-[r:REFERENCES {kind: row.kind}]->(dst)",
         {"batch": batch},
+    )
+
+
+def upsert_serves(conn: GraphConnection, handler_full_name: str, route: str, http_method: str) -> None:
+    conn.execute(
+        "MATCH (src:Method {full_name: $handler}), (dst:Endpoint {route: $route, http_method: $http_method}) "
+        "MERGE (src)-[:SERVES]->(dst)",
+        {"handler": handler_full_name, "route": route, "http_method": http_method},
+    )
+
+
+def upsert_http_calls(
+    conn: GraphConnection,
+    caller_full_name: str,
+    route: str,
+    http_method: str,
+    line: int | None = None,
+    col: int | None = None,
+) -> None:
+    if line is not None:
+        conn.execute(
+            "MATCH (src:Method {full_name: $caller}), (dst:Endpoint {route: $route, http_method: $http_method}) "
+            "MERGE (src)-[r:HTTP_CALLS]->(dst) "
+            "SET r.call_sites = coalesce(r.call_sites, []) + [[$line, $col]]",
+            {"caller": caller_full_name, "route": route, "http_method": http_method, "line": line, "col": col},
+        )
+    else:
+        conn.execute(
+            "MATCH (src:Method {full_name: $caller}), (dst:Endpoint {route: $route, http_method: $http_method}) "
+            "MERGE (src)-[:HTTP_CALLS]->(dst)",
+            {"caller": caller_full_name, "route": route, "http_method": http_method},
+        )
+
+
+def batch_upsert_serves(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write SERVES edges from Method nodes to Endpoint nodes."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src:Method {full_name: row.handler}), (dst:Endpoint {route: row.route, http_method: row.http_method}) "
+        "MERGE (src)-[:SERVES]->(dst)",
+        {"batch": batch},
+    )
+
+
+def batch_upsert_http_calls(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write HTTP_CALLS edges from Method nodes to Endpoint nodes."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src:Method {full_name: row.caller}), (dst:Endpoint {route: row.route, http_method: row.http_method}) "
+        "MERGE (src)-[r:HTTP_CALLS]->(dst) "
+        "SET r.call_sites = coalesce(r.call_sites, []) + [[row.line, row.col]]",
+        {"batch": batch},
+    )
+
+
+def delete_orphan_endpoints(conn: GraphConnection, repo_path: str) -> None:
+    """Delete Endpoint nodes with no SERVES or HTTP_CALLS edges."""
+    conn.execute(
+        "MATCH (r:Repository {path: $repo})-[:CONTAINS]->(ep:Endpoint) "
+        "WHERE NOT ()-[:SERVES]->(ep) AND NOT ()-[:HTTP_CALLS]->(ep) "
+        "DETACH DELETE ep",
+        {"repo": repo_path},
     )
