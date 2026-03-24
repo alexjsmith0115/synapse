@@ -114,7 +114,7 @@ Each project gets its own Memgraph instance via Docker, named deterministically 
 
 | Language | File Extensions | Language Server |
 |---|---|---|
-| C# | `.cs` | OmniSharp |
+| C# | `.cs` | Roslyn Language Server |
 | Python | `.py` | Pyright |
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs` | typescript-language-server |
 | Java | `.java` | Eclipse JDTLS |
@@ -125,7 +125,7 @@ All languages use the same tools, graph schema, and query patterns. Language det
 
 - **Python 3.11+**
 - **Docker** — Synapse automatically manages per-project Memgraph containers
-- **.NET SDK** — required for C# projects (Roslyn language server)
+- **.NET SDK** — required for C# projects (Roslyn Language Server is auto-downloaded on first index)
 - **Pyright** (`npm install -g pyright`) — required for Python projects
 - **typescript-language-server** (`npm install -g typescript-language-server typescript`) — required for TypeScript/JavaScript projects
 
