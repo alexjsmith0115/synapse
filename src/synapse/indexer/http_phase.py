@@ -29,14 +29,6 @@ class HttpPhase:
             all_defs.extend(result.endpoint_defs)
             all_calls.extend(result.client_calls)
 
-        # Clear existing HTTP edges before re-matching to avoid duplicates
-        self._conn.execute(
-            "MATCH (r:Repository {path: $repo})-[:CONTAINS]->(ep:Endpoint)<-[rel]-(m:Method) "
-            "WHERE type(rel) IN ['SERVES', 'HTTP_CALLS'] "
-            "DELETE rel",
-            {"repo": self._repo_path},
-        )
-
         if not all_defs and not all_calls:
             return
 

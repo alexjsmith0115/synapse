@@ -28,13 +28,10 @@ def test_phase_creates_endpoint_nodes_and_edges() -> None:
 
 
 def test_phase_skips_when_no_results() -> None:
-    # The cleanup DELETE always runs to clear stale edges, even when there is nothing new to write.
     conn = _mock_conn()
     phase = HttpPhase(conn, repo_path="/repo")
     phase.run([])
-    conn.execute.assert_called_once()
-    call_args = conn.execute.call_args[0][0]
-    assert "DELETE rel" in call_args
+    conn.execute.assert_not_called()
 
 
 def test_phase_handles_unmatched_server_endpoint() -> None:

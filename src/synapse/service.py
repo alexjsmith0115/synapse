@@ -380,13 +380,25 @@ class SynapseService:
         return "mtime-sync"
 
     def _run_http_rematch(self, path: str) -> None:
-        """Post-sync HTTP endpoint re-matching (experimental)."""
+        """Post-sync HTTP endpoint re-matching (experimental).
+
+        Rebuilds HTTP data from the graph (for unchanged files) and re-runs
+        matching. Clears existing HTTP edges first to avoid call_sites
+        duplication from re-MERGE over existing edges.
+        """
         from synapse.config import is_http_endpoints_enabled
         if is_http_endpoints_enabled(path):
             from synapse.indexer.http_phase import HttpPhase
             from synapse.indexer.http.interface import HttpExtractionResult
             http_phase = HttpPhase(self._conn, path)
             existing_defs, existing_calls = http_phase.rebuild_from_graph()
+            # Clear all HTTP edges before re-matching to avoid call_sites duplication
+            self._conn.execute(
+                "MATCH (r:Repository {path: $repo})-[:CONTAINS]->(ep:Endpoint)<-[rel]-(m:Method) "
+                "WHERE type(rel) IN ['SERVES', 'HTTP_CALLS'] "
+                "DELETE rel",
+                {"repo": path},
+            )
             http_phase.run([HttpExtractionResult(endpoint_defs=existing_defs, client_calls=existing_calls)])
             http_phase.cleanup_orphans()
 
