@@ -5,7 +5,7 @@ import re
 
 from tree_sitter import Tree
 
-from synapse.indexer.http.interface import HttpEndpointDef, HttpExtractionResult
+from synapse.indexer.http.interface import HttpClientCall, HttpEndpointDef, HttpExtractionResult
 from synapse.indexer.http.route_utils import normalize_route
 from synapse.indexer.tree_sitter_util import node_text
 from synapse.lsp.interface import IndexSymbol
@@ -22,9 +22,31 @@ _HTTP_VERB_MAP: dict[str, str] = {
 
 _CONTROLLER_ATTRS = frozenset({"ApiController"})
 
+_HTTPCLIENT_VERB_MAP: dict[str, str] = {
+    "GetAsync": "GET",
+    "GetStringAsync": "GET",
+    "GetByteArrayAsync": "GET",
+    "PostAsync": "POST",
+    "PutAsync": "PUT",
+    "DeleteAsync": "DELETE",
+    "PatchAsync": "PATCH",
+}
+
+_RESTSHARP_METHOD_MAP: dict[str, str] = {
+    "Get": "GET",
+    "Post": "POST",
+    "Put": "PUT",
+    "Delete": "DELETE",
+    "Patch": "PATCH",
+}
+
 
 class CSharpHttpExtractor:
-    """Extract HTTP endpoint definitions from ASP.NET Core controllers."""
+    """Extract HTTP endpoint definitions and client calls from C# source files.
+
+    Server-side: detects ASP.NET Core controller methods annotated with [HttpGet], etc.
+    Client-side: detects HttpClient.GetAsync/PostAsync/etc. and RestSharp RestRequest constructor calls.
+    """
 
     def extract(
         self,
@@ -36,15 +58,29 @@ class CSharpHttpExtractor:
         for sym in symbols:
             symbol_by_name_line[(sym.name, sym.line)] = sym
 
-        endpoint_defs: list[HttpEndpointDef] = []
-        self._walk(tree.root_node, endpoint_defs, symbol_by_name_line)
-        return HttpExtractionResult(endpoint_defs=endpoint_defs)
+        # Build sorted (start_line_0, end_line_0, full_name) for enclosing-method lookup
+        sorted_symbols: list[tuple[int, int, str]] = sorted(
+            [
+                (s.line - 1, s.end_line - 1 if s.end_line else s.line - 1, s.full_name)
+                for s in symbols
+            ],
+            key=lambda t: t[0],
+        )
 
-    def _walk(self, node, results, symbol_map):
+        endpoint_defs: list[HttpEndpointDef] = []
+        client_calls: list[HttpClientCall] = []
+        self._walk(tree.root_node, endpoint_defs, symbol_by_name_line, client_calls, sorted_symbols)
+        return HttpExtractionResult(endpoint_defs=endpoint_defs, client_calls=client_calls)
+
+    def _walk(self, node, results, symbol_map, client_results, sorted_symbols):
         if node.type == "class_declaration":
             self._handle_class(node, results, symbol_map)
+        if node.type == "invocation_expression":
+            self._handle_invocation(node, client_results, sorted_symbols)
+        elif node.type == "object_creation_expression":
+            self._handle_object_creation(node, client_results, sorted_symbols)
         for child in node.children:
-            self._walk(child, results, symbol_map)
+            self._walk(child, results, symbol_map, client_results, sorted_symbols)
 
     def _handle_class(self, node, results, symbol_map):
         attrs = _collect_attrs_with_args(node)
@@ -110,6 +146,99 @@ class CSharpHttpExtractor:
                 handler_full_name=sym.full_name,
                 line=method_line,
             ))
+
+    def _handle_invocation(self, node, client_results, sorted_symbols):
+        """Detect HttpClient verb calls: _httpClient.GetAsync(url), etc."""
+        # invocation_expression children: member_access_expression + argument_list
+        member_node = None
+        arg_list_node = None
+        for child in node.children:
+            if child.type == "member_access_expression":
+                member_node = child
+            elif child.type == "argument_list":
+                arg_list_node = child
+
+        if member_node is None or arg_list_node is None:
+            return
+
+        # Extract the method name (last identifier in member_access_expression)
+        method_name = _extract_last_identifier(member_node)
+        if method_name is None:
+            return
+
+        http_method = _HTTPCLIENT_VERB_MAP.get(method_name)
+        if http_method is None:
+            return
+
+        # First argument is the URL
+        url_node = _first_arg(arg_list_node)
+        if url_node is None:
+            return
+
+        route = _resolve_csharp_url(url_node)
+        if route is None or "/" not in route:
+            return
+
+        call_line_0 = node.start_point[0]
+        call_col_0 = node.start_point[1]
+
+        caller = _find_enclosing_symbol(call_line_0, sorted_symbols)
+        if caller is None:
+            return
+
+        client_results.append(HttpClientCall(
+            route=route,
+            http_method=http_method,
+            caller_full_name=caller,
+            line=call_line_0 + 1,
+            col=call_col_0,
+        ))
+
+    def _handle_object_creation(self, node, client_results, sorted_symbols):
+        """Detect RestSharp calls: new RestRequest("/api/users", Method.Get)."""
+        # object_creation_expression: new <type> <argument_list>
+        type_name = None
+        arg_list_node = None
+        for child in node.children:
+            if child.type == "identifier":
+                type_name = node_text(child)
+            elif child.type == "argument_list":
+                arg_list_node = child
+
+        if type_name != "RestRequest" or arg_list_node is None:
+            return
+
+        # Extract positional arguments: (url, Method.Verb)
+        args = [c for c in arg_list_node.children if c.type == "argument"]
+        if len(args) < 2:
+            return
+
+        url_node = args[0]
+        method_arg_node = args[1]
+
+        route = _resolve_csharp_url(url_node)
+        if route is None or "/" not in route:
+            return
+
+        # Method.Get -> member_access_expression -> last identifier
+        http_method = _extract_restsharp_method(method_arg_node)
+        if http_method is None:
+            return
+
+        call_line_0 = node.start_point[0]
+        call_col_0 = node.start_point[1]
+
+        caller = _find_enclosing_symbol(call_line_0, sorted_symbols)
+        if caller is None:
+            return
+
+        client_results.append(HttpClientCall(
+            route=route,
+            http_method=http_method,
+            caller_full_name=caller,
+            line=call_line_0 + 1,
+            col=call_col_0,
+        ))
 
 
 def _collect_attrs_with_args(node) -> list[tuple[str, str]]:
@@ -196,3 +325,76 @@ def _extract_qualified_text(node) -> str:
         elif child.type == "qualified_name":
             parts.append(_extract_qualified_text(child))
     return ".".join(parts)
+
+
+def _extract_last_identifier(node) -> str | None:
+    """Extract the rightmost identifier from a member_access_expression (the method name)."""
+    last: str | None = None
+    for child in node.children:
+        if child.type == "identifier":
+            last = node_text(child)
+    return last
+
+
+def _first_arg(arg_list_node) -> object | None:
+    """Return the first argument node from an argument_list."""
+    for child in arg_list_node.children:
+        if child.type == "argument":
+            return child
+    return None
+
+
+def _resolve_csharp_url(node) -> str | None:
+    """Resolve a C# URL from an argument node.
+
+    Handles:
+    - string_literal: extract inner content
+    - interpolated_string_expression: collect text fragments and replace interpolations with {param}
+    - Unwraps argument node to its expression child if needed
+    """
+    # Unwrap argument node
+    if node.type == "argument":
+        for child in node.children:
+            if child.type not in (",", "(", ")", "ref", "out", "in"):
+                return _resolve_csharp_url(child)
+        return None
+
+    if node.type == "string_literal":
+        # Extract string_literal_content child
+        for child in node.children:
+            if child.type == "string_literal_content":
+                return node_text(child)
+        return ""
+
+    if node.type == "interpolated_string_expression":
+        parts: list[str] = []
+        for child in node.children:
+            if child.type == "string_content":
+                parts.append(node_text(child))
+            elif child.type == "interpolation":
+                parts.append("{param}")
+        return "".join(parts)
+
+    return None
+
+
+def _extract_restsharp_method(arg_node) -> str | None:
+    """Extract HTTP verb from a RestSharp Method.Get argument node."""
+    # arg_node is an argument containing member_access_expression (Method.Get)
+    for child in arg_node.children:
+        if child.type == "member_access_expression":
+            verb = _extract_last_identifier(child)
+            if verb:
+                return _RESTSHARP_METHOD_MAP.get(verb)
+    return None
+
+
+def _find_enclosing_symbol(call_line_0: int, sorted_symbols: list[tuple[int, int, str]]) -> str | None:
+    """Return the full_name of the innermost symbol whose line range contains call_line_0."""
+    best: str | None = None
+    for start_0, end_0, full_name in sorted_symbols:
+        if start_0 <= call_line_0 <= end_0:
+            best = full_name
+        elif start_0 > call_line_0:
+            break
+    return best
