@@ -61,7 +61,6 @@ class ContainerManager:
         if config is not None:
             return config
         config = {
-            "project_path": str(self._project_path),
             "container_name": self._container_name(),
             "port": self._find_free_port(),
             "last_indexed": None,
