@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree, hierarchy_tree, trace_tree, entry_points_tree
+from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree, hierarchy_tree, trace_tree, entry_points_tree, dependencies_tree
 
 
 class TestRenderTree:
@@ -344,3 +344,38 @@ class TestEntryPointsTree:
         assert root.label == "Repo.Query"
         assert len(root.children) == 1
         assert root.children[0].label == "Controller.Get"
+
+
+class TestDependenciesTree:
+    def test_flat_depth_one(self) -> None:
+        data = [
+            {"type": {"full_name": "Logger"}, "depth": 1},
+            {"type": {"full_name": "IRepository"}, "depth": 1},
+        ]
+        root = dependencies_tree("Service", data)
+        assert root.label == "Service"
+        assert len(root.children) == 2
+        assert root.children[0].label == "Logger"
+        assert root.children[1].label == "IRepository"
+
+    def test_nested_depths(self) -> None:
+        data = [
+            {"type": {"full_name": "A"}, "depth": 1},
+            {"type": {"full_name": "B"}, "depth": 2},
+            {"type": {"full_name": "C"}, "depth": 1},
+        ]
+        root = dependencies_tree("Root", data)
+        assert len(root.children) == 2
+        assert root.children[0].label == "A"
+        assert root.children[0].children[0].label == "B"
+        assert root.children[1].label == "C"
+
+    def test_empty(self) -> None:
+        root = dependencies_tree("Root", [])
+        assert root.label == "Root"
+        assert root.children == []
+
+    def test_with_annotation(self) -> None:
+        data = [{"type": {"full_name": "A"}, "depth": 1}]
+        root = dependencies_tree("Root", data, annotation="showing 1 of 60")
+        assert root.annotation == "showing 1 of 60"

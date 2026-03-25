@@ -94,3 +94,10 @@ def trace_tree(data: dict) -> TreeNode:
 def entry_points_tree(data: dict) -> TreeNode:
     reversed_paths = [ep["path"][::-1] for ep in data["entry_points"]]
     return _merge_paths_into_tree(data["target"], reversed_paths)
+
+
+def dependencies_tree(symbol_name: str, data: list[dict], annotation: str | None = None) -> TreeNode:
+    items = [{"full_name": item["type"].get("full_name", "?"), "depth": item["depth"]} for item in data]
+    root = _build_depth_tree(symbol_name, items)
+    root.annotation = annotation
+    return root
