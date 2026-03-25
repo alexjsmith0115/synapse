@@ -281,10 +281,23 @@ def batch_upsert_http_calls(conn: GraphConnection, batch: list[dict]) -> None:
 
 
 def delete_orphan_endpoints(conn: GraphConnection, repo_path: str) -> None:
-    """Delete Endpoint nodes with no SERVES or HTTP_CALLS edges."""
+    """Remove orphaned endpoints safely for shared-mode graphs.
+
+    Step 1: Remove this repository's CONTAINS edge to endpoints with no
+    SERVES or HTTP_CALLS edges.
+    Step 2: Delete Endpoint nodes that are fully orphaned (no CONTAINS,
+    SERVES, or HTTP_CALLS from any source).
+    """
     conn.execute(
-        "MATCH (r:Repository {path: $repo})-[:CONTAINS]->(ep:Endpoint) "
+        "MATCH (r:Repository {path: $repo})-[c:CONTAINS]->(ep:Endpoint) "
         "WHERE NOT ()-[:SERVES]->(ep) AND NOT ()-[:HTTP_CALLS]->(ep) "
-        "DETACH DELETE ep",
+        "DELETE c",
         {"repo": repo_path},
+    )
+    conn.execute(
+        "MATCH (ep:Endpoint) "
+        "WHERE NOT ()-[:SERVES]->(ep) AND NOT ()-[:HTTP_CALLS]->(ep) "
+        "AND NOT ()-[:CONTAINS]->(ep) "
+        "DELETE ep",
+        {},
     )
