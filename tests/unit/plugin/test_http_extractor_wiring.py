@@ -18,9 +18,10 @@ def test_typescript_plugin_has_http_extractor() -> None:
     assert extractor is not None
 
 
-def test_python_plugin_no_http_extractor_yet() -> None:
+def test_python_plugin_has_http_extractor() -> None:
     plugin = PythonPlugin()
-    assert not hasattr(plugin, "create_http_extractor")
+    extractor = plugin.create_http_extractor()
+    assert extractor is not None
 
 
 def test_java_plugin_no_http_extractor_yet() -> None:

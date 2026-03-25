@@ -45,6 +45,10 @@ class PythonPlugin:
     def create_assignment_extractor(self) -> PythonAssignmentExtractor:
         return PythonAssignmentExtractor()
 
+    def create_http_extractor(self):
+        from synapse.indexer.python.python_http_extractor import PythonHttpExtractor
+        return PythonHttpExtractor()
+
     def parse_file(self, file_path: str, source: str) -> ParsedFile:
         from synapse.indexer.tree_sitter_util import ParsedFile
         tree = self._ts_parser.parse(bytes(source, "utf-8"))
