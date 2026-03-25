@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-03-25T01:25:20.629Z"
+status: Phase complete — ready for verification
+last_updated: "2026-03-25T01:37:38.455Z"
 last_activity: 2026-03-25
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Plan: 5 of 5
 | Phase 05 P04 | 3 | 1 tasks | 2 files |
 | Phase 05 P01 | 4 | 2 tasks | 4 files |
 | Phase 05 P03 | 5 | 2 tasks | 4 files |
+| Phase 05 P05 | 11 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting current work:
 - [Phase 05-01]: Django ViewSet routes only emitted for methods actually present in class body — prevents phantom routes for inherited methods not overridden
 - [Phase 05]: _method_invocation_name() scans backwards from argument_list to find method name — handles chained builder calls where first identifier is the receiver, not the method
 - [Phase 05]: WebClient verb detected via object field of .uri() invocation; java.net.http verb detected by parent-chain walk from URI.create() through argument_list and .uri() up to .GET()/.POST()
+- [Phase 05]: Cross-language test in tests/integration/ (no @pytest.mark.integration) — spans subsystems but needs no external services
+- [Phase 05]: collect_cross_file_constants filters to URL-like values at collection time — reduces noise in resolution maps
 
 ### Pending Todos
 

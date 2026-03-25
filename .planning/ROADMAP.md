@@ -105,11 +105,11 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
   4. C# extractor produces HTTP_CALLS edges for HttpClient and RestSharp calls (SERVES already exists)
   5. One-hop imported constant resolution resolves URL strings stored in constants files when used in HTTP calls
   6. Cross-language integration test verifies endpoint matching between at least two different language pairs
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 05-01-PLAN.md — Python HTTP extractor (FastAPI/Flask/Django SERVES + requests HTTP_CALLS) with plugin wiring
 - [x] 05-02-PLAN.md — TypeScript server-side extension (Express/Fastify/Hono SERVES added to existing extractor)
 - [x] 05-03-PLAN.md — Java HTTP extractor (Spring SERVES + RestTemplate/WebClient/java.net.http HTTP_CALLS) with plugin wiring
 - [x] 05-04-PLAN.md — C# client-side extension (HttpClient/RestSharp HTTP_CALLS added to existing extractor)
-- [ ] 05-05-PLAN.md — Plugin wiring test updates, cross-file constant resolution, cross-language integration test
+- [x] 05-05-PLAN.md — Plugin wiring test updates, cross-file constant resolution, cross-language integration test
