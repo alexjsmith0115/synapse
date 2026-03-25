@@ -206,11 +206,13 @@ function setupRoutes() {
 def test_express_post_route() -> None:
     source = """
 function setupRoutes() {
-    router.post('/items', handler);
+    router.post('/items', (req, res) => {
+        res.json({ created: true });
+    });
 }
 """
     extractor = TypeScriptHttpExtractor()
-    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 4)]))
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
     assert len(result.endpoint_defs) == 1
     ep = result.endpoint_defs[0]
     assert ep.route == "/items"
@@ -220,11 +222,13 @@ function setupRoutes() {
 def test_express_param_normalization() -> None:
     source = """
 function setupRoutes() {
-    app.get('/items/:id', handler);
+    app.get('/items/:id', (req, res) => {
+        res.json({});
+    });
 }
 """
     extractor = TypeScriptHttpExtractor()
-    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 4)]))
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
     assert len(result.endpoint_defs) == 1
     assert result.endpoint_defs[0].route == "/items/{id}"
 
@@ -232,11 +236,13 @@ function setupRoutes() {
 def test_fastify_get_route() -> None:
     source = """
 function setupRoutes() {
-    fastify.get('/items', handler);
+    fastify.get('/items', async (request, reply) => {
+        reply.send([]);
+    });
 }
 """
     extractor = TypeScriptHttpExtractor()
-    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 4)]))
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
     assert len(result.endpoint_defs) == 1
     ep = result.endpoint_defs[0]
     assert ep.route == "/items"
