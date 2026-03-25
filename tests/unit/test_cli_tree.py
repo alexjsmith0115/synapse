@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from synapse.cli.tree import TreeNode, render_tree
+from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree
 
 
 class TestRenderTree:
@@ -91,3 +91,51 @@ class TestRenderTree:
             "    └── Redis.Read()",
         ])
         assert render_tree(root) == expected
+
+
+class TestCallersTree:
+    def test_basic(self) -> None:
+        data = [
+            {"full_name": "Controller.GetUser", "file_path": "controller.cs", "line": 10},
+            {"full_name": "Handler.Process", "file_path": "handler.cs", "line": 20},
+        ]
+        root = callers_tree("Service.FindUser", data)
+        assert root.label == "Service.FindUser"
+        assert len(root.children) == 2
+        assert root.children[0].label == "Controller.GetUser"
+        assert root.children[1].label == "Handler.Process"
+        assert root.children[0].children == []
+
+    def test_empty_list(self) -> None:
+        root = callers_tree("Service.FindUser", [])
+        assert root.label == "Service.FindUser"
+        assert root.children == []
+
+    def test_with_annotation(self) -> None:
+        data = [{"full_name": "A", "file_path": "a.cs", "line": 1}]
+        root = callers_tree("Target", data, annotation="showing 1 of 50")
+        assert root.annotation == "showing 1 of 50"
+
+    def test_single_caller(self) -> None:
+        data = [{"full_name": "Caller.Method", "file_path": "caller.cs", "line": 5}]
+        root = callers_tree("Target.Method", data)
+        assert len(root.children) == 1
+        assert root.children[0].label == "Caller.Method"
+
+
+class TestCalleesTree:
+    def test_basic(self) -> None:
+        data = [
+            {"full_name": "Repo.Query", "name": "Query", "file_path": "repo.cs", "line": 10},
+            {"full_name": "Logger.Info", "name": "Info", "file_path": "logger.cs", "line": 20},
+        ]
+        root = callees_tree("Service.FindUser", data)
+        assert root.label == "Service.FindUser"
+        assert len(root.children) == 2
+        assert root.children[0].label == "Repo.Query"
+        assert root.children[1].label == "Logger.Info"
+
+    def test_empty_list(self) -> None:
+        root = callees_tree("Service.FindUser", [])
+        assert root.label == "Service.FindUser"
+        assert root.children == []
