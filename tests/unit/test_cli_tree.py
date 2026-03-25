@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree
+from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree, hierarchy_tree
 
 
 class TestRenderTree:
@@ -212,3 +212,42 @@ class TestCallDepthTree:
         assert len(root.children[0].children) == 2
         assert root.children[0].children[0].label == "C"
         assert root.children[0].children[1].label == "D"
+
+
+class TestHierarchyTree:
+    def test_all_categories(self) -> None:
+        data = {
+            "parents": [{"full_name": "Base.Entity", "file_path": "base.cs"}],
+            "children": [
+                {"full_name": "Domain.User", "file_path": "user.cs"},
+                {"full_name": "Domain.Order", "file_path": "order.cs"},
+            ],
+            "implements": [{"full_name": "IRepository", "file_path": "interface.cs"}],
+        }
+        root = hierarchy_tree("MyClass", data)
+        assert root.label == "MyClass"
+        assert len(root.children) == 3
+        assert root.children[0].label == "Parents"
+        assert root.children[0].children[0].label == "Base.Entity"
+        assert root.children[1].label == "Children"
+        assert len(root.children[1].children) == 2
+        assert root.children[2].label == "Implements"
+        assert root.children[2].children[0].label == "IRepository"
+
+    def test_empty_categories_omitted(self) -> None:
+        data = {"parents": [], "children": [{"full_name": "Child", "file_path": "c.cs"}], "implements": []}
+        root = hierarchy_tree("MyClass", data)
+        assert len(root.children) == 1
+        assert root.children[0].label == "Children"
+
+    def test_all_empty(self) -> None:
+        data = {"parents": [], "children": [], "implements": []}
+        root = hierarchy_tree("MyClass", data)
+        assert root.label == "MyClass"
+        assert root.children == []
+
+    def test_missing_implements_key(self) -> None:
+        data = {"parents": [{"full_name": "Base", "file_path": "b.cs"}], "children": []}
+        root = hierarchy_tree("MyClass", data)
+        assert len(root.children) == 1
+        assert root.children[0].label == "Parents"

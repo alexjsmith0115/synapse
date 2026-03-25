@@ -60,3 +60,13 @@ def _build_depth_tree(root_label: str, items: list[dict], name_key: str = "full_
 
 def call_depth_tree(data: dict) -> TreeNode:
     return _build_depth_tree(data["root"], data["callees"])
+
+
+def hierarchy_tree(class_name: str, data: dict) -> TreeNode:
+    categories: list[TreeNode] = []
+    for key, label in [("parents", "Parents"), ("children", "Children"), ("implements", "Implements")]:
+        items = data.get(key, [])
+        if items:
+            children = [TreeNode(label=item.get("full_name", "?")) for item in items]
+            categories.append(TreeNode(label=label, children=children))
+    return TreeNode(label=class_name, children=categories)
