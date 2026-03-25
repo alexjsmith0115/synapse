@@ -11,3 +11,5 @@ htmlcov/
 .worktrees/
 .claude/
 .planning/
+.serena/
+docs/superpowers/
