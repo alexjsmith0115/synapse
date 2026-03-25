@@ -21,6 +21,16 @@ _SPRING_VERB_MAP: dict[str, str] = {
 
 _SPRING_CONTROLLER_MARKERS = frozenset({"RestController", "Controller"})
 
+_JAXRS_VERB_MAP: dict[str, str] = {
+    "GET": "GET",
+    "POST": "POST",
+    "PUT": "PUT",
+    "DELETE": "DELETE",
+    "PATCH": "PATCH",
+    "HEAD": "HEAD",
+    "OPTIONS": "OPTIONS",
+}
+
 _REQUEST_METHOD_MAP: dict[str, str] = {
     "GET": "GET",
     "POST": "POST",
@@ -97,12 +107,18 @@ class JavaHttpExtractor:
         annotations = _collect_annotations(modifiers_node)
         ann_names = {name for name, _, _ in annotations}
 
-        if not (_SPRING_CONTROLLER_MARKERS & ann_names):
+        is_spring = bool(_SPRING_CONTROLLER_MARKERS & ann_names)
+        is_jaxrs = "Path" in ann_names
+
+        if not is_spring and not is_jaxrs:
             return
 
         class_route = ""
         for name, args, _arg_list_node in annotations:
             if name == "RequestMapping":
+                class_route = _extract_route_from_annotation_args(args) or ""
+                break
+            if name == "Path":
                 class_route = _extract_route_from_annotation_args(args) or ""
                 break
 
@@ -112,7 +128,10 @@ class JavaHttpExtractor:
 
         for child in class_body.children:
             if child.type == "method_declaration":
-                self._handle_method(child, class_route, endpoint_defs, symbol_map)
+                if is_jaxrs:
+                    self._handle_jaxrs_method(child, class_route, endpoint_defs, symbol_map)
+                else:
+                    self._handle_method(child, class_route, endpoint_defs, symbol_map)
 
     def _handle_method(self, node, class_route, endpoint_defs, symbol_map) -> None:
         modifiers_node = _find_child_by_type(node, "modifiers")
@@ -154,6 +173,50 @@ class JavaHttpExtractor:
                     handler_full_name=sym.full_name,
                     line=method_line,
                 ))
+
+    # ------------------------------------------------------------------
+    # JAX-RS server-side extraction
+    # ------------------------------------------------------------------
+
+    def _handle_jaxrs_method(self, node, class_route, endpoint_defs, symbol_map) -> None:
+        modifiers_node = _find_child_by_type(node, "modifiers")
+        if modifiers_node is None:
+            return
+
+        annotations = _collect_annotations(modifiers_node)
+        method_name = _find_child_text_by_type(node, "identifier")
+        if not method_name:
+            return
+
+        method_line = node.start_point[0] + 1
+        sym = symbol_map.get((method_name, method_line))
+        if sym is None:
+            for (name, _line), s in symbol_map.items():
+                if name == method_name:
+                    sym = s
+                    break
+        if sym is None:
+            return
+
+        # Find HTTP verb and optional method-level @Path
+        http_method: str | None = None
+        method_route = ""
+        for ann_name, args, _arg_list_node in annotations:
+            if ann_name in _JAXRS_VERB_MAP:
+                http_method = _JAXRS_VERB_MAP[ann_name]
+            elif ann_name == "Path":
+                method_route = _extract_route_from_annotation_args(args) or ""
+
+        if http_method is None:
+            return
+
+        route = normalize_route(class_route, method_route)
+        endpoint_defs.append(HttpEndpointDef(
+            route=route,
+            http_method=http_method,
+            handler_full_name=sym.full_name,
+            line=method_line,
+        ))
 
     # ------------------------------------------------------------------
     # Client-side extraction

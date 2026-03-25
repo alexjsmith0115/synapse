@@ -347,3 +347,150 @@ def test_empty_source() -> None:
     result = extractor.extract("test.java", _parse(""), [])
     assert result.endpoint_defs == []
     assert result.client_calls == []
+
+
+# ---------------------------------------------------------------------------
+# JAX-RS server-side endpoint tests
+# ---------------------------------------------------------------------------
+
+def test_jaxrs_path_with_get() -> None:
+    """JAX-RS: @Path on class + @GET on method → SERVES edge."""
+    source = """
+@Path("/route")
+public class RouteResource {
+    @GET
+    public Response getRoute() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getRoute", "RouteResource.getRoute", 4, 5)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/route"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "RouteResource.getRoute"
+
+
+def test_jaxrs_path_with_post() -> None:
+    """JAX-RS: @Path on class + @POST on method → POST endpoint."""
+    source = """
+@Path("/route")
+public class RouteResource {
+    @POST
+    public Response createRoute() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("createRoute", "RouteResource.createRoute", 4, 5)]))
+    assert len(result.endpoint_defs) == 1
+    assert result.endpoint_defs[0].http_method == "POST"
+    assert result.endpoint_defs[0].route == "/route"
+
+
+def test_jaxrs_class_and_method_path_combined() -> None:
+    """JAX-RS: class @Path + method @Path combined."""
+    source = """
+@Path("/api")
+public class InfoResource {
+    @GET
+    @Path("/info")
+    public Response getInfo() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getInfo", "InfoResource.getInfo", 4, 6)]))
+    assert len(result.endpoint_defs) == 1
+    assert result.endpoint_defs[0].route == "/api/info"
+    assert result.endpoint_defs[0].http_method == "GET"
+
+
+def test_jaxrs_put_delete_patch() -> None:
+    """JAX-RS: @PUT, @DELETE, @PATCH marker annotations."""
+    source = """
+@Path("/items")
+public class ItemResource {
+    @PUT
+    @Path("/{id}")
+    public Response updateItem() { return null; }
+
+    @DELETE
+    @Path("/{id}")
+    public Response deleteItem() { return null; }
+
+    @PATCH
+    @Path("/{id}")
+    public Response patchItem() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([
+        ("updateItem", "ItemResource.updateItem", 4, 6),
+        ("deleteItem", "ItemResource.deleteItem", 8, 10),
+        ("patchItem", "ItemResource.patchItem", 12, 14),
+    ]))
+    assert len(result.endpoint_defs) == 3
+    methods = {ep.http_method for ep in result.endpoint_defs}
+    assert methods == {"PUT", "DELETE", "PATCH"}
+    for ep in result.endpoint_defs:
+        assert ep.route == "/items/{id}"
+
+
+def test_jaxrs_no_verb_annotation_skipped() -> None:
+    """JAX-RS: method with @Path but no HTTP verb annotation is skipped."""
+    source = """
+@Path("/items")
+public class ItemResource {
+    @Path("/sub")
+    public SubResource getSubResource() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getSubResource", "ItemResource.getSubResource", 4, 5)]))
+    assert len(result.endpoint_defs) == 0
+
+
+def test_jaxrs_class_without_path_skipped() -> None:
+    """A class without @Path or Spring controller annotation is still skipped."""
+    source = """
+public class ItemService {
+    @GET
+    public Response getAll() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getAll", "ItemService.getAll", 3, 4)]))
+    assert len(result.endpoint_defs) == 0
+
+
+def test_jaxrs_mixed_with_spring_in_same_file() -> None:
+    """Both Spring and JAX-RS classes in the same file are detected independently."""
+    source = """
+@RestController
+@RequestMapping("/spring")
+public class SpringController {
+    @GetMapping("/hello")
+    public String hello() { return "hello"; }
+}
+
+@Path("/jaxrs")
+public class JaxrsResource {
+    @GET
+    public Response getAll() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([
+        ("hello", "SpringController.hello", 5, 6),
+        ("getAll", "JaxrsResource.getAll", 11, 12),
+    ]))
+    assert len(result.endpoint_defs) == 2
+    routes = {ep.route for ep in result.endpoint_defs}
+    assert "/spring/hello" in routes
+    assert "/jaxrs" in routes
