@@ -70,3 +70,22 @@ def hierarchy_tree(class_name: str, data: dict) -> TreeNode:
             children = [TreeNode(label=item.get("full_name", "?")) for item in items]
             categories.append(TreeNode(label=label, children=children))
     return TreeNode(label=class_name, children=categories)
+
+
+def _merge_paths_into_tree(root_label: str, paths: list[list[str]]) -> TreeNode:
+    root = TreeNode(label=root_label)
+    for path in paths:
+        current = root
+        for step in path[1:]:  # skip first element (it's the root)
+            existing = next((c for c in current.children if c.label == step), None)
+            if existing:
+                current = existing
+            else:
+                new_node = TreeNode(label=step)
+                current.children.append(new_node)
+                current = new_node
+    return root
+
+
+def trace_tree(data: dict) -> TreeNode:
+    return _merge_paths_into_tree(data["start"], data["paths"])

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree, hierarchy_tree
+from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree, hierarchy_tree, trace_tree
 
 
 class TestRenderTree:
@@ -251,3 +251,45 @@ class TestHierarchyTree:
         root = hierarchy_tree("MyClass", data)
         assert len(root.children) == 1
         assert root.children[0].label == "Parents"
+
+
+class TestTraceTree:
+    def test_single_path(self) -> None:
+        data = {"paths": [["A", "B", "C"]], "start": "A", "end": "C"}
+        root = trace_tree(data)
+        assert root.label == "A"
+        assert len(root.children) == 1
+        assert root.children[0].label == "B"
+        assert root.children[0].children[0].label == "C"
+
+    def test_shared_prefix(self) -> None:
+        data = {"paths": [["A", "B", "C"], ["A", "D", "C"]], "start": "A", "end": "C"}
+        root = trace_tree(data)
+        assert root.label == "A"
+        assert len(root.children) == 2
+        labels = {c.label for c in root.children}
+        assert labels == {"B", "D"}
+
+    def test_fully_shared_prefix_then_diverge(self) -> None:
+        data = {"paths": [["A", "B", "C", "D"], ["A", "B", "E", "D"]], "start": "A", "end": "D"}
+        root = trace_tree(data)
+        assert root.label == "A"
+        assert len(root.children) == 1
+        b = root.children[0]
+        assert b.label == "B"
+        assert len(b.children) == 2
+        labels = {c.label for c in b.children}
+        assert labels == {"C", "E"}
+
+    def test_no_paths(self) -> None:
+        data = {"paths": [], "start": "A", "end": "B"}
+        root = trace_tree(data)
+        assert root.label == "A"
+        assert root.children == []
+
+    def test_single_step_path(self) -> None:
+        data = {"paths": [["A", "B"]], "start": "A", "end": "B"}
+        root = trace_tree(data)
+        assert root.label == "A"
+        assert len(root.children) == 1
+        assert root.children[0].label == "B"
