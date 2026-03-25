@@ -1,239 +1,341 @@
-"""Unit tests for ContainerManager with mocked Docker client."""
+"""Unit tests for ConnectionManager with mocked Docker client."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 
-@pytest.fixture()
-def mock_docker():
-    """Return a MagicMock Docker client."""
-    return MagicMock()
+_MODULE = "synapse.container.manager"
 
 
-@pytest.fixture()
-def manager(tmp_path, mock_docker):
-    """Return a ContainerManager with a mocked Docker client."""
-    from synapse.container.manager import ContainerManager
-    return ContainerManager(str(tmp_path), docker_client=mock_docker)
+def _make_manager(tmp_path, mock_docker=None, dedicated=False, global_config=None):
+    """Helper to create a ConnectionManager with controlled config."""
+    from synapse.container.manager import ConnectionManager
+
+    gc = global_config or {
+        "shared_container_name": "synapse-shared",
+        "shared_port": 7687,
+        "external_host": None,
+        "external_port": None,
+    }
+    with patch(f"{_MODULE}.is_dedicated_instance", return_value=dedicated), \
+         patch(f"{_MODULE}.load_global_config", return_value=gc):
+        return ConnectionManager(str(tmp_path), docker_client=mock_docker)
 
 
-# --- Container naming ---
-
-def test_container_name_uses_directory_name(tmp_path, mock_docker):
-    from synapse.container.manager import ContainerManager
-    m = ContainerManager(str(tmp_path), docker_client=mock_docker)
-    expected = f"synapse-{tmp_path.name}"
-    assert m._container_name() == expected
+# --- Shared mode ---
 
 
-def test_container_name_different_paths(mock_docker, tmp_path):
-    from synapse.container.manager import ContainerManager
-    p1 = tmp_path / "project_a"
-    p2 = tmp_path / "project_b"
-    p1.mkdir()
-    p2.mkdir()
-    m1 = ContainerManager(str(p1), docker_client=mock_docker)
-    m2 = ContainerManager(str(p2), docker_client=mock_docker)
-    assert m1._container_name() == "synapse-project_a"
-    assert m2._container_name() == "synapse-project_b"
-    assert m1._container_name() != m2._container_name()
-
-
-# --- Container lifecycle ---
-
-def test_creates_container(manager, mock_docker, tmp_path):
+def test_shared_mode_creates_shared_container(tmp_path):
+    """No config -> creates synapse-shared container."""
     import docker.errors
-    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
 
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"):
+    mock_docker = MagicMock()
+    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
         mock_gc.create.return_value = MagicMock()
-        manager.get_connection()
+        mgr.get_connection()
 
     mock_docker.containers.run.assert_called_once()
     call_kwargs = mock_docker.containers.run.call_args
-    assert call_kwargs[0][0] == "memgraph/memgraph"  # image
-    assert call_kwargs[1]["detach"] is True
-    assert "name" in call_kwargs[1]
-    assert "ports" in call_kwargs[1]
+    assert call_kwargs[1]["name"] == "synapse-shared"
+    assert call_kwargs[1]["ports"] == {"7687/tcp": 7687}
 
 
-def test_reuses_running_container(manager, mock_docker, tmp_path):
+def test_shared_mode_reuses_running_container(tmp_path):
+    """Shared container running -> reuse, no start/run."""
+    mock_docker = MagicMock()
     mock_container = MagicMock()
     mock_container.status = "running"
     mock_docker.containers.get.return_value = mock_container
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker)
 
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"):
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
         mock_gc.create.return_value = MagicMock()
-        manager.get_connection()
+        mgr.get_connection()
 
     mock_docker.containers.run.assert_not_called()
     mock_container.start.assert_not_called()
 
 
-def test_restarts_exited_container(manager, mock_docker, tmp_path):
+def test_shared_mode_custom_port(tmp_path):
+    """Global config custom port -> uses it."""
+    mock_docker = MagicMock()
     mock_container = MagicMock()
-    mock_container.status = "exited"
+    mock_container.status = "running"
     mock_docker.containers.get.return_value = mock_container
 
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"):
+    gc = {
+        "shared_container_name": "synapse-shared",
+        "shared_port": 9999,
+        "external_host": None,
+        "external_port": None,
+    }
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, global_config=gc)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
         mock_gc.create.return_value = MagicMock()
-        manager.get_connection()
+        mgr.get_connection()
 
-    mock_container.start.assert_called_once()
-    mock_docker.containers.run.assert_not_called()
+    mock_gc.create.assert_called_once_with(port=9999)
 
 
-# --- Config persistence ---
+# --- Dedicated mode ---
 
-def test_config_created_on_first_use(manager, mock_docker, tmp_path):
+
+def test_dedicated_mode_creates_project_container(tmp_path):
+    """dedicated_instance:true -> per-project container named synapse-{dirname}."""
     import docker.errors
-    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
 
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"):
+    mock_docker = MagicMock()
+    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, dedicated=True)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
         mock_gc.create.return_value = MagicMock()
-        manager.get_connection()
+        mgr.get_connection()
+
+    mock_docker.containers.run.assert_called_once()
+    call_kwargs = mock_docker.containers.run.call_args
+    assert call_kwargs[1]["name"] == f"synapse-{tmp_path.name}"
+
+
+def test_dedicated_mode_persists_config(tmp_path):
+    """Dedicated mode writes container_name/port to project config."""
+    import docker.errors
+
+    mock_docker = MagicMock()
+    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, dedicated=True)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
+        mock_gc.create.return_value = MagicMock()
+        mgr.get_connection()
 
     config_path = tmp_path / ".synapse" / "config.json"
     assert config_path.exists()
     config = json.loads(config_path.read_text())
-    assert "container_name" in config
+    assert config["container_name"] == f"synapse-{tmp_path.name}"
     assert "port" in config
-    assert "last_indexed" in config
-    assert config["last_indexed"] is None
+    assert isinstance(config["port"], int)
 
 
-def test_config_reused(manager, mock_docker, tmp_path):
-    # Pre-create config with specific port
-    config_dir = tmp_path / ".synapse"
-    config_dir.mkdir()
-    config = {
-        "project_path": str(tmp_path),
-        "container_name": "synapse-test",
-        "port": 55555,
-        "last_indexed": None,
+# --- External mode ---
+
+
+def test_external_mode_connects_directly(tmp_path):
+    """external_host set -> GraphConnection.create(host=..., port=...), no Docker."""
+    gc = {
+        "shared_container_name": "synapse-shared",
+        "shared_port": 7687,
+        "external_host": "db.example.com",
+        "external_port": 7688,
     }
-    (config_dir / "config.json").write_text(json.dumps(config))
+    mgr = _make_manager(tmp_path, mock_docker=None, global_config=gc)
 
-    mock_container = MagicMock()
-    mock_container.status = "running"
-    mock_docker.containers.get.return_value = mock_container
-
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"), \
-         patch("synapse.container.manager.ContainerManager._find_free_port", return_value=99999) as mock_port:
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc:
         mock_gc.create.return_value = MagicMock()
-        manager.get_connection()
-        mock_port.assert_not_called()
+        conn = mgr.get_connection()
 
-    # Verify the container was fetched with the config's container_name
-    mock_docker.containers.get.assert_called_with("synapse-test")
+    mock_gc.create.assert_called_once_with(host="db.example.com", port=7688)
 
 
-# --- Readiness polling ---
-
-def test_wait_for_bolt_success(manager):
-    mock_sock = MagicMock()
-    mock_sock.recv.return_value = b"\x00\x00\x04\x04"  # 4-byte Bolt version response
-    with patch("synapse.container.manager.socket.create_connection") as mock_conn:
-        mock_conn.return_value.__enter__ = MagicMock(return_value=mock_sock)
-        mock_conn.return_value.__exit__ = MagicMock(return_value=False)
-        manager._wait_for_bolt(12345, timeout=5.0)
-    mock_conn.assert_called()
-    mock_sock.sendall.assert_called_once()
-
-
-def test_wait_for_bolt_timeout(manager):
-    with patch("synapse.container.manager.socket.create_connection", side_effect=OSError("refused")):
-        with pytest.raises(TimeoutError):
-            manager._wait_for_bolt(12345, timeout=0.5)
-
-
-# --- Docker daemon error ---
-
-def test_docker_not_running_raises(tmp_path):
+def test_dedicated_overrides_external(tmp_path):
+    """dedicated_instance takes priority over external_host."""
     import docker.errors
-    with patch("synapse.container.manager.docker.from_env", side_effect=docker.errors.DockerException("nope")):
-        from synapse.container.manager import ContainerManager
-        with pytest.raises(RuntimeError, match="Docker"):
-            ContainerManager(str(tmp_path))
+
+    mock_docker = MagicMock()
+    mock_docker.containers.get.side_effect = docker.errors.NotFound("nope")
+
+    gc = {
+        "shared_container_name": "synapse-shared",
+        "shared_port": 7687,
+        "external_host": "db.example.com",
+        "external_port": 7688,
+    }
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, dedicated=True, global_config=gc)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
+        mock_gc.create.return_value = MagicMock()
+        mgr.get_connection()
+
+    # Should have used Docker (dedicated), not the external host
+    mock_docker.containers.run.assert_called_once()
+    call_kwargs = mock_docker.containers.run.call_args
+    assert call_kwargs[1]["name"] == f"synapse-{tmp_path.name}"
 
 
-# --- get_connection return type ---
+# --- Race condition ---
 
-def test_get_connection_returns_graph_connection(manager, mock_docker, tmp_path):
+
+def test_shared_mode_handles_name_conflict(tmp_path):
+    """Docker run conflict -> retry get -> succeeds."""
+    import docker.errors
+
+    mock_docker = MagicMock()
     mock_container = MagicMock()
     mock_container.status = "running"
-    mock_docker.containers.get.return_value = mock_container
 
-    with patch("synapse.container.manager.GraphConnection") as mock_gc, \
-         patch.object(manager, "_wait_for_bolt"):
-        sentinel = MagicMock()
-        mock_gc.create.return_value = sentinel
-        result = manager.get_connection()
+    # First get -> NotFound, run -> APIError (race), second get -> found
+    mock_docker.containers.get.side_effect = [
+        docker.errors.NotFound("nope"),
+        mock_container,
+    ]
+    mock_docker.containers.run.side_effect = docker.errors.APIError("conflict")
 
-    assert result is sentinel
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker)
+
+    with patch(f"{_MODULE}.GraphConnection") as mock_gc, \
+         patch.object(mgr, "_wait_for_bolt"):
+        mock_gc.create.return_value = MagicMock()
+        mgr.get_connection()
+
+    mock_docker.containers.run.assert_called_once()
 
 
 # --- stop / remove ---
 
-def test_stop_stops_container(manager, mock_docker, tmp_path):
-    # Create config so stop() can find the container name
-    config_dir = tmp_path / ".synapse"
-    config_dir.mkdir()
-    config = {
-        "project_path": str(tmp_path),
-        "container_name": "synapse-test",
-        "port": 55555,
-        "last_indexed": None,
-    }
-    (config_dir / "config.json").write_text(json.dumps(config))
 
+def test_stop_noop_for_shared_mode(tmp_path):
+    """stop() shared -> zero Docker interaction."""
+    mock_docker = MagicMock()
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker)
+    mgr.stop()
+    mock_docker.containers.get.assert_not_called()
+
+
+def test_stop_stops_dedicated_container(tmp_path):
+    """stop() dedicated -> container.stop()."""
+    mock_docker = MagicMock()
     mock_container = MagicMock()
     mock_docker.containers.get.return_value = mock_container
-    manager.stop()
+
+    # Create project config so stop() can find the container name
+    config_dir = tmp_path / ".synapse"
+    config_dir.mkdir()
+    config = {"container_name": "synapse-test", "port": 55555, "last_indexed": None}
+    (config_dir / "config.json").write_text(json.dumps(config))
+
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, dedicated=True)
+    mgr.stop()
     mock_container.stop.assert_called_once()
 
 
-def test_stop_ignores_not_found(manager, mock_docker, tmp_path):
-    import docker.errors
-    config_dir = tmp_path / ".synapse"
-    config_dir.mkdir()
-    config = {
-        "project_path": str(tmp_path),
-        "container_name": "synapse-test",
-        "port": 55555,
-        "last_indexed": None,
-    }
-    (config_dir / "config.json").write_text(json.dumps(config))
-
-    mock_docker.containers.get.side_effect = docker.errors.NotFound("gone")
-    # Should not raise
-    manager.stop()
-
-
-def test_remove_removes_container(manager, mock_docker, tmp_path):
-    config_dir = tmp_path / ".synapse"
-    config_dir.mkdir()
-    config = {
-        "project_path": str(tmp_path),
-        "container_name": "synapse-test",
-        "port": 55555,
-        "last_indexed": None,
-    }
-    config_path = config_dir / "config.json"
-    config_path.write_text(json.dumps(config))
-
+def test_remove_dedicated_removes_container_and_config(tmp_path):
+    """remove() dedicated -> container.remove(force=True) + config deleted."""
+    mock_docker = MagicMock()
     mock_container = MagicMock()
     mock_docker.containers.get.return_value = mock_container
-    manager.remove()
+
+    config_dir = tmp_path / ".synapse"
+    config_dir.mkdir()
+    config_path = config_dir / "config.json"
+    config = {"container_name": "synapse-test", "port": 55555, "last_indexed": None}
+    config_path.write_text(json.dumps(config))
+
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker, dedicated=True)
+    mgr.remove()
 
     mock_container.remove.assert_called_once_with(force=True)
     assert not config_path.exists()
+
+
+def test_remove_shared_only_deletes_config(tmp_path):
+    """remove() shared -> config deleted, no Docker."""
+    mock_docker = MagicMock()
+
+    config_dir = tmp_path / ".synapse"
+    config_dir.mkdir()
+    config_path = config_dir / "config.json"
+    config_path.write_text(json.dumps({"some": "config"}))
+
+    mgr = _make_manager(tmp_path, mock_docker=mock_docker)
+    mgr.remove()
+
+    mock_docker.containers.get.assert_not_called()
+    assert not config_path.exists()
+
+
+# --- Docker daemon error ---
+
+
+def test_docker_not_running_raises_on_get_connection(tmp_path):
+    """Docker error raised lazily on get_connection(), not __init__."""
+    import docker.errors
+
+    from synapse.container.manager import ConnectionManager
+
+    with patch(f"{_MODULE}.is_dedicated_instance", return_value=False), \
+         patch(f"{_MODULE}.load_global_config", return_value={
+             "shared_container_name": "synapse-shared",
+             "shared_port": 7687,
+             "external_host": None,
+             "external_port": None,
+         }), \
+         patch(f"{_MODULE}.docker.from_env", side_effect=docker.errors.DockerException("nope")):
+        # __init__ should NOT raise
+        mgr = ConnectionManager(str(tmp_path))
+        # get_connection() SHOULD raise
+        with pytest.raises(RuntimeError, match="Docker"):
+            mgr.get_connection()
+
+
+def test_external_mode_no_docker_needed(tmp_path):
+    """External mode works even when docker.from_env raises."""
+    import docker.errors
+
+    gc = {
+        "shared_container_name": "synapse-shared",
+        "shared_port": 7687,
+        "external_host": "db.example.com",
+        "external_port": 7688,
+    }
+
+    from synapse.container.manager import ConnectionManager
+
+    with patch(f"{_MODULE}.is_dedicated_instance", return_value=False), \
+         patch(f"{_MODULE}.load_global_config", return_value=gc), \
+         patch(f"{_MODULE}.docker.from_env", side_effect=docker.errors.DockerException("nope")), \
+         patch(f"{_MODULE}.GraphConnection") as mock_gc:
+        mock_gc.create.return_value = MagicMock()
+        mgr = ConnectionManager(str(tmp_path))
+        conn = mgr.get_connection()
+
+    mock_gc.create.assert_called_once_with(host="db.example.com", port=7688)
+
+
+# --- Bolt readiness ---
+
+
+def test_wait_for_bolt_success():
+    """Bolt readiness check succeeds on valid 4-byte response."""
+    from synapse.container.manager import ConnectionManager
+
+    mock_sock = MagicMock()
+    mock_sock.recv.return_value = b"\x00\x00\x04\x04"
+    with patch(f"{_MODULE}.socket.create_connection") as mock_conn:
+        mock_conn.return_value.__enter__ = MagicMock(return_value=mock_sock)
+        mock_conn.return_value.__exit__ = MagicMock(return_value=False)
+        ConnectionManager._wait_for_bolt(12345, timeout=5.0)
+    mock_conn.assert_called()
+    mock_sock.sendall.assert_called_once()
+
+
+def test_wait_for_bolt_timeout():
+    """Bolt readiness check times out on persistent connection failures."""
+    from synapse.container.manager import ConnectionManager
+
+    with patch(f"{_MODULE}.socket.create_connection", side_effect=OSError("refused")):
+        with pytest.raises(TimeoutError):
+            ConnectionManager._wait_for_bolt(12345, timeout=0.5)

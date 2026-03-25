@@ -1,3 +1,3 @@
-from synapse.container.manager import ContainerManager
+from synapse.container.manager import ConnectionManager
 
-__all__ = ["ContainerManager"]
+__all__ = ["ConnectionManager"]
