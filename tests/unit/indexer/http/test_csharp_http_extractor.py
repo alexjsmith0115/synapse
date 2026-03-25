@@ -22,6 +22,14 @@ def _symbols(pairs: list[tuple[str, str, int]]) -> list[IndexSymbol]:
     ]
 
 
+def _symbols_with_end(pairs: list[tuple[str, str, int, int]]) -> list[IndexSymbol]:
+    """Build IndexSymbol list from (name, full_name, start_line, end_line) tuples."""
+    return [
+        IndexSymbol(name=n, full_name=fn, kind=SymbolKind.METHOD, file_path="test.cs", line=ln, end_line=end)
+        for n, fn, ln, end in pairs
+    ]
+
+
 def test_basic_controller_endpoint() -> None:
     source = '''
 [ApiController]
@@ -189,3 +197,228 @@ public class TasksController : ControllerBase {
     extractor = CSharpHttpExtractor()
     result = extractor.extract("test.cs", _parse(source), _symbols([("GetAll", "TasksController.GetAll", 5)]))
     assert result.endpoint_defs[0].route == "/api/tasks"
+
+
+# ---------------------------------------------------------------------------
+# Client-side extraction tests (HTTP_CALLS)
+# ---------------------------------------------------------------------------
+
+def test_httpclient_get_async() -> None:
+    source = '''\
+public class UserService {
+    private HttpClient _httpClient;
+    public async Task<string> FetchUsers() {
+        var response = await _httpClient.GetAsync("/api/users");
+        return response;
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("FetchUsers", "UserService.FetchUsers", 3, 6)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.http_method == "GET"
+    assert call.route == "/api/users"
+    assert call.caller_full_name == "UserService.FetchUsers"
+
+
+def test_httpclient_post_async() -> None:
+    source = '''\
+public class UserService {
+    private HttpClient _httpClient;
+    public async Task Create() {
+        var response = await _httpClient.PostAsync("/api/users", content);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("Create", "UserService.Create", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "POST"
+    assert result.client_calls[0].route == "/api/users"
+
+
+def test_httpclient_put_async() -> None:
+    source = '''\
+public class UserService {
+    private HttpClient _httpClient;
+    public async Task Update(int id) {
+        await _httpClient.PutAsync("/api/users/1", content);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("Update", "UserService.Update", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "PUT"
+    assert result.client_calls[0].route == "/api/users/1"
+
+
+def test_httpclient_delete_async() -> None:
+    source = '''\
+public class UserService {
+    private HttpClient _httpClient;
+    public async Task Delete(int id) {
+        await _httpClient.DeleteAsync("/api/users/1");
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("Delete", "UserService.Delete", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "DELETE"
+    assert result.client_calls[0].route == "/api/users/1"
+
+
+def test_httpclient_patch_async() -> None:
+    source = '''\
+public class UserService {
+    private HttpClient _httpClient;
+    public async Task Patch() {
+        await _httpClient.PatchAsync("/api/users/1", content);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("Patch", "UserService.Patch", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "PATCH"
+
+
+def test_httpclient_get_string_async() -> None:
+    source = '''\
+public class DataService {
+    private HttpClient _httpClient;
+    public async Task<string> GetData() {
+        return await _httpClient.GetStringAsync("/api/data");
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("GetData", "DataService.GetData", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "GET"
+    assert result.client_calls[0].route == "/api/data"
+
+
+def test_restsharp_request_get() -> None:
+    source = '''\
+public class ApiClient {
+    public void FetchUsers() {
+        var request = new RestRequest("/api/users", Method.Get);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("FetchUsers", "ApiClient.FetchUsers", 2, 4)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.http_method == "GET"
+    assert call.route == "/api/users"
+    assert call.caller_full_name == "ApiClient.FetchUsers"
+
+
+def test_restsharp_request_post() -> None:
+    source = '''\
+public class ApiClient {
+    public void CreateUser() {
+        var request = new RestRequest("/api/users", Method.Post);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("CreateUser", "ApiClient.CreateUser", 2, 4)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "POST"
+    assert result.client_calls[0].route == "/api/users"
+
+
+def test_interpolated_string_url() -> None:
+    source = '''\
+public class ItemService {
+    private HttpClient _httpClient;
+    public async Task FetchItem(int id) {
+        await _httpClient.GetAsync($"/api/items/{id}");
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("FetchItem", "ItemService.FetchItem", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.http_method == "GET"
+    assert call.route == "/api/items/{param}"
+
+
+def test_client_and_server_in_same_file() -> None:
+    """File with both ASP.NET controller and HttpClient calls produces both endpoint_defs and client_calls."""
+    source = '''\
+[ApiController]
+[Route("api/proxy")]
+public class ProxyController : ControllerBase {
+    private HttpClient _httpClient;
+
+    [HttpGet]
+    public async Task<IActionResult> ForwardGet() {
+        var response = await _httpClient.GetAsync("/api/upstream");
+        return Ok(response);
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("ForwardGet", "ProxyController.ForwardGet", 7, 10)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    # Server-side endpoint
+    assert len(result.endpoint_defs) == 1
+    assert result.endpoint_defs[0].route == "/api/proxy"
+    assert result.endpoint_defs[0].http_method == "GET"
+    # Client-side call
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].route == "/api/upstream"
+    assert result.client_calls[0].http_method == "GET"
+
+
+def test_existing_server_extraction_unchanged() -> None:
+    """Regression guard: existing [HttpGet] extraction still works after client-side changes."""
+    source = '''
+[ApiController]
+[Route("api/items")]
+public class ItemsController : ControllerBase {
+    [HttpGet]
+    public IActionResult GetAll() { }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    result = extractor.extract("test.cs", _parse(source), _symbols([("GetAll", "ItemsController.GetAll", 5)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/api/items"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "ItemsController.GetAll"
+    # No spurious client calls from server-side extraction
+    assert result.client_calls == []
+
+
+def test_url_without_slash_skipped() -> None:
+    """HttpClient calls with URLs lacking '/' are ignored (false positive filter)."""
+    source = '''\
+public class SomeService {
+    private HttpClient _httpClient;
+    public async Task DoThing() {
+        await _httpClient.GetAsync("no-slash-here");
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([("DoThing", "SomeService.DoThing", 3, 5)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert result.client_calls == []
