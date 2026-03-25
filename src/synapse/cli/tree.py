@@ -43,3 +43,20 @@ def callers_tree(symbol_name: str, data: list[dict], annotation: str | None = No
 
 def callees_tree(symbol_name: str, data: list[dict], annotation: str | None = None) -> TreeNode:
     return _flat_tree(symbol_name, data, annotation)
+
+
+def _build_depth_tree(root_label: str, items: list[dict], name_key: str = "full_name") -> TreeNode:
+    root = TreeNode(label=root_label)
+    stack: list[tuple[TreeNode, int]] = [(root, 0)]
+    for item in items:
+        depth = item["depth"]
+        node = TreeNode(label=item.get(name_key, "?"))
+        while len(stack) > 1 and stack[-1][1] >= depth:
+            stack.pop()
+        stack[-1][0].children.append(node)
+        stack.append((node, depth))
+    return root
+
+
+def call_depth_tree(data: dict) -> TreeNode:
+    return _build_depth_tree(data["root"], data["callees"])

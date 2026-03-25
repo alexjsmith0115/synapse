@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree
+from synapse.cli.tree import TreeNode, render_tree, callers_tree, callees_tree, call_depth_tree
 
 
 class TestRenderTree:
@@ -139,3 +139,76 @@ class TestCalleesTree:
         root = callees_tree("Service.FindUser", [])
         assert root.label == "Service.FindUser"
         assert root.children == []
+
+
+class TestCallDepthTree:
+    def test_flat_depth_one(self) -> None:
+        data = {
+            "root": "Service.Process",
+            "callees": [
+                {"full_name": "Repo.Query", "file_path": "repo.cs", "depth": 1},
+                {"full_name": "Logger.Info", "file_path": "log.cs", "depth": 1},
+            ],
+            "depth_limit": 3,
+        }
+        root = call_depth_tree(data)
+        assert root.label == "Service.Process"
+        assert len(root.children) == 2
+        assert root.children[0].label == "Repo.Query"
+        assert root.children[1].label == "Logger.Info"
+
+    def test_nested_depths(self) -> None:
+        data = {
+            "root": "A",
+            "callees": [
+                {"full_name": "B", "file_path": "b.cs", "depth": 1},
+                {"full_name": "C", "file_path": "c.cs", "depth": 2},
+                {"full_name": "D", "file_path": "d.cs", "depth": 1},
+            ],
+            "depth_limit": 3,
+        }
+        root = call_depth_tree(data)
+        assert root.label == "A"
+        assert len(root.children) == 2
+        assert root.children[0].label == "B"
+        assert len(root.children[0].children) == 1
+        assert root.children[0].children[0].label == "C"
+        assert root.children[1].label == "D"
+        assert root.children[1].children == []
+
+    def test_deep_chain(self) -> None:
+        data = {
+            "root": "A",
+            "callees": [
+                {"full_name": "B", "file_path": "b.cs", "depth": 1},
+                {"full_name": "C", "file_path": "c.cs", "depth": 2},
+                {"full_name": "D", "file_path": "d.cs", "depth": 3},
+            ],
+            "depth_limit": 3,
+        }
+        root = call_depth_tree(data)
+        assert root.children[0].label == "B"
+        assert root.children[0].children[0].label == "C"
+        assert root.children[0].children[0].children[0].label == "D"
+
+    def test_empty_callees(self) -> None:
+        data = {"root": "A", "callees": [], "depth_limit": 3}
+        root = call_depth_tree(data)
+        assert root.label == "A"
+        assert root.children == []
+
+    def test_siblings_at_depth_two(self) -> None:
+        data = {
+            "root": "A",
+            "callees": [
+                {"full_name": "B", "file_path": "b.cs", "depth": 1},
+                {"full_name": "C", "file_path": "c.cs", "depth": 2},
+                {"full_name": "D", "file_path": "d.cs", "depth": 2},
+            ],
+            "depth_limit": 3,
+        }
+        root = call_depth_tree(data)
+        assert root.children[0].label == "B"
+        assert len(root.children[0].children) == 2
+        assert root.children[0].children[0].label == "C"
+        assert root.children[0].children[1].label == "D"
