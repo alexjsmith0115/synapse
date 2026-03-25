@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from tree_sitter import Tree
 
-from synapse.indexer.http.interface import HttpClientCall, HttpExtractionResult
+from synapse.indexer.http.interface import HttpClientCall, HttpEndpointDef, HttpExtractionResult
 from synapse.indexer.tree_sitter_util import node_text
 from synapse.lsp.interface import IndexSymbol
 
@@ -20,12 +21,15 @@ _METHOD_MAP = {
     "patch": "PATCH",
 }
 
+# Converts Express :param syntax to {param} format
+_EXPRESS_PARAM_RE = re.compile(r":(\w+)")
+
 
 class TypeScriptHttpExtractor:
-    """Extract HTTP client calls from TypeScript/JavaScript source files.
+    """Extract HTTP server routes and client calls from TypeScript/JavaScript source files.
 
-    Detects: api.get(...), api.post(...), fetch(...), axios.post(...), etc.
-    Performs three-tier URL resolution: inline strings, constants, template literals.
+    Server-side (SERVES): Express/Fastify/Hono route registrations.
+    Client-side (HTTP_CALLS): api.get(...), fetch(...), axios.post(...), etc.
     """
 
     def extract(
@@ -46,19 +50,32 @@ class TypeScriptHttpExtractor:
             key=lambda t: t[0],
         )
 
+        endpoint_defs: list[HttpEndpointDef] = []
         client_calls: list[HttpClientCall] = []
-        _walk(tree.root_node, constants, sorted_symbols, client_calls)
-        return HttpExtractionResult(client_calls=client_calls)
+        _walk(tree.root_node, constants, sorted_symbols, endpoint_defs, client_calls)
+        return HttpExtractionResult(endpoint_defs=endpoint_defs, client_calls=client_calls)
 
 
-def _walk(node, constants: dict[str, str], sorted_symbols, results: list[HttpClientCall]) -> None:
+def _walk(
+    node,
+    constants: dict[str, str],
+    sorted_symbols,
+    endpoint_defs: list[HttpEndpointDef],
+    client_calls: list[HttpClientCall],
+) -> None:
     if node.type == "call_expression":
-        _handle_call_expression(node, constants, sorted_symbols, results)
+        _handle_call_expression(node, constants, sorted_symbols, endpoint_defs, client_calls)
     for child in node.children:
-        _walk(child, constants, sorted_symbols, results)
+        _walk(child, constants, sorted_symbols, endpoint_defs, client_calls)
 
 
-def _handle_call_expression(node, constants: dict[str, str], sorted_symbols, results: list[HttpClientCall]) -> None:
+def _handle_call_expression(
+    node,
+    constants: dict[str, str],
+    sorted_symbols,
+    endpoint_defs: list[HttpEndpointDef],
+    client_calls: list[HttpClientCall],
+) -> None:
     fn_node = node.child_by_field_name("function")
     if fn_node is None:
         return
@@ -75,11 +92,18 @@ def _handle_call_expression(node, constants: dict[str, str], sorted_symbols, res
     http_method: str | None = None
 
     if fn_node.type == "member_expression":
-        # Pattern: someObj.get(...), api.post(...)
         prop = fn_node.child_by_field_name("property")
         if prop is None:
             return
         method_name = node_text(prop)
+
+        # Handle Fastify .route({ method, url, handler }) config object pattern
+        if method_name == "route":
+            args_node = node.child_by_field_name("arguments")
+            if args_node is not None:
+                _handle_fastify_route_config(node, args_node, sorted_symbols, endpoint_defs)
+            return
+
         if method_name not in _HTTP_VERB_METHODS:
             return
         http_method = _METHOD_MAP[method_name]
@@ -93,10 +117,12 @@ def _handle_call_expression(node, constants: dict[str, str], sorted_symbols, res
     if args_node is None:
         return
 
+    positional = [c for c in args_node.children if c.type not in (",", "(", ")")]
+
     # First positional argument is the URL
-    url_node = _first_arg(args_node)
-    if url_node is None:
+    if not positional:
         return
+    url_node = positional[0]
 
     route = _resolve_url(url_node, constants)
     if route is None or "/" not in route:
@@ -104,18 +130,81 @@ def _handle_call_expression(node, constants: dict[str, str], sorted_symbols, res
         return
 
     call_line_0 = node.start_point[0]
-    call_col_0 = node.start_point[1]
-
     caller = _find_enclosing_symbol(call_line_0, sorted_symbols)
     if caller is None:
         return
 
-    results.append(HttpClientCall(
+    # Server route: second arg is a function/arrow_function -> SERVES
+    if len(positional) >= 2 and _is_handler_arg(positional[1]):
+        normalized_route = _EXPRESS_PARAM_RE.sub(r"{\1}", route)
+        endpoint_defs.append(HttpEndpointDef(
+            route=normalized_route,
+            http_method=http_method,
+            handler_full_name=caller,
+            line=call_line_0 + 1,
+        ))
+        return
+
+    # Client call -> HTTP_CALLS
+    call_col_0 = node.start_point[1]
+    client_calls.append(HttpClientCall(
         route=route,
         http_method=http_method,
         caller_full_name=caller,
         line=call_line_0 + 1,
         col=call_col_0,
+    ))
+
+
+def _is_handler_arg(node) -> bool:
+    """Return True if the node is a function literal (arrow or named), indicating a server route handler."""
+    return node.type in ("arrow_function", "function_expression", "function")
+
+
+def _handle_fastify_route_config(
+    call_node,
+    args_node,
+    sorted_symbols,
+    endpoint_defs: list[HttpEndpointDef],
+) -> None:
+    """Handle fastify.route({ method: 'POST', url: '/items', handler: fn }) pattern."""
+    positional = [c for c in args_node.children if c.type not in (",", "(", ")")]
+    if not positional or positional[0].type != "object":
+        return
+
+    obj_node = positional[0]
+    method_val: str | None = None
+    url_val: str | None = None
+
+    for pair in obj_node.children:
+        if pair.type != "pair":
+            continue
+        key_node = pair.child_by_field_name("key")
+        val_node = pair.child_by_field_name("value")
+        if key_node is None or val_node is None:
+            continue
+        key = node_text(key_node).strip("\"'")
+        if key == "method":
+            raw = _extract_string_value(val_node)
+            if raw:
+                method_val = raw.upper()
+        elif key == "url":
+            url_val = _extract_string_value(val_node)
+
+    if method_val is None or url_val is None or "/" not in url_val:
+        return
+
+    call_line_0 = call_node.start_point[0]
+    caller = _find_enclosing_symbol(call_line_0, sorted_symbols)
+    if caller is None:
+        return
+
+    normalized_route = _EXPRESS_PARAM_RE.sub(r"{\1}", url_val)
+    endpoint_defs.append(HttpEndpointDef(
+        route=normalized_route,
+        http_method=method_val,
+        handler_full_name=caller,
+        line=call_line_0 + 1,
     ))
 
 
@@ -149,14 +238,6 @@ def _extract_fetch_method(call_node) -> str:
             return method_text.upper()
 
     return "GET"
-
-
-def _first_arg(args_node) -> object | None:
-    """Return the first non-punctuation child of an arguments node."""
-    for child in args_node.children:
-        if child.type not in (",", "(", ")"):
-            return child
-    return None
 
 
 def _resolve_url(node, constants: dict[str, str]) -> str | None:

@@ -180,3 +180,135 @@ async function sync() {
     assert len(result.client_calls) == 2
     methods = {c.http_method for c in result.client_calls}
     assert methods == {"GET", "POST"}
+
+
+# --- Server-side route extraction tests ---
+
+
+def test_express_get_route() -> None:
+    source = """
+const app = express();
+
+function setupRoutes() {
+    app.get('/items', (req, res) => {
+        res.json([]);
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 4, 8)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "GET"
+
+
+def test_express_post_route() -> None:
+    source = """
+function setupRoutes() {
+    router.post('/items', (req, res) => {
+        res.json({ created: true });
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "POST"
+
+
+def test_express_param_normalization() -> None:
+    source = """
+function setupRoutes() {
+    app.get('/items/:id', (req, res) => {
+        res.json({});
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
+    assert len(result.endpoint_defs) == 1
+    assert result.endpoint_defs[0].route == "/items/{id}"
+
+
+def test_fastify_get_route() -> None:
+    source = """
+function setupRoutes() {
+    fastify.get('/items', async (request, reply) => {
+        reply.send([]);
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "GET"
+
+
+def test_fastify_route_config() -> None:
+    source = """
+function setupRoutes() {
+    fastify.route({
+        method: 'POST',
+        url: '/items',
+        handler: async (request, reply) => {
+            reply.send({});
+        }
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 10)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "POST"
+
+
+def test_hono_get_route() -> None:
+    source = """
+function setupRoutes() {
+    app.get('/items', (c) => {
+        return c.json([]);
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "GET"
+
+
+def test_server_route_not_duplicated_as_client_call() -> None:
+    source = """
+function setupRoutes() {
+    app.get('/items', (req, res) => {
+        res.json([]);
+    });
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("setupRoutes", "mod.setupRoutes", 2, 6)]))
+    assert len(result.endpoint_defs) == 1
+    assert len(result.client_calls) == 0
+
+
+def test_existing_client_call_still_works() -> None:
+    """Regression guard: single-arg api.get('/items') must remain a client call."""
+    source = """
+function getItems() {
+    return api.get('/items');
+}
+"""
+    extractor = TypeScriptHttpExtractor()
+    result = extractor.extract("test.ts", _parse(source), _symbols([("getItems", "mod.getItems", 2, 4)]))
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].route == "/items"
+    assert result.client_calls[0].http_method == "GET"
+    assert len(result.endpoint_defs) == 0
