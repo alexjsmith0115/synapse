@@ -32,6 +32,16 @@ class HttpPhase:
         if not all_defs and not all_calls:
             return
 
+        # Clear existing HTTP edges before re-creating them to avoid stale
+        # edges surviving when route normalization changes (e.g. base URL
+        # variable stripping).
+        self._conn.execute(
+            "MATCH (r:Repository {path: $repo})-[:CONTAINS]->(ep:Endpoint)<-[rel]-(m:Method) "
+            "WHERE type(rel) IN ['SERVES', 'HTTP_CALLS'] "
+            "DELETE rel",
+            {"repo": self._repo_path},
+        )
+
         matched = match_endpoints(all_defs, all_calls)
 
         serves_batch: list[dict] = []
