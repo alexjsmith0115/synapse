@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase complete — ready for verification
-last_updated: "2026-03-25T01:37:38.455Z"
-last_activity: 2026-03-25
+status: Ready to execute
+last_updated: "2026-03-26T02:16:28.632Z"
+last_activity: 2026-03-26
 progress:
-  total_phases: 5
+  total_phases: 7
   completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 17
+  completed_plans: 16
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** AI coding agents can instantly understand code structure and relationships across an entire codebase without reading every file.
-**Current focus:** Phase 05 — expand-http-endpoint-mapping-to-all-languages
+**Current focus:** Phase 07 — mcp-tools-consolidation
 
 ## Current Position
 
-Phase: 05 (expand-http-endpoint-mapping-to-all-languages) — EXECUTING
-Plan: 5 of 5
+Phase: 07 (mcp-tools-consolidation) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Plan: 5 of 5
 | Phase 05 P01 | 4 | 2 tasks | 4 files |
 | Phase 05 P03 | 5 | 2 tasks | 4 files |
 | Phase 05 P05 | 11 | 2 tasks | 3 files |
+| Phase 07 P01 | 4 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,8 @@ Recent decisions affecting current work:
 - [Phase 05]: WebClient verb detected via object field of .uri() invocation; java.net.http verb detected by parent-chain walk from URI.create() through argument_list and .uri() up to .GET()/.POST()
 - [Phase 05]: Cross-language test in tests/integration/ (no @pytest.mark.integration) — spans subsystems but needs no external services
 - [Phase 05]: collect_cross_file_constants filters to URL-like values at collection time — reduces noise in resolution maps
+- [Phase 07]: summary(action) tool uses SummaryActionLiteral = Literal['get','set','list'] — mirrors existing SymbolKindLiteral pattern
+- [Phase 07]: find_callees depth param bypasses include_interface_dispatch and limit — both irrelevant to the call-tree path via get_call_depth
 
 ### Pending Todos
 
@@ -105,6 +108,8 @@ None yet.
 ### Roadmap Evolution
 
 - Phase 5 added: Expand HTTP endpoint mapping to all languages
+- Phase 6 added: HTTP Endpoint Extraction Fixes — JAX-RS support and route normalization improvements
+- Phase 7 added: MCP Tools Consolidation — reduce from 30 to ~20 tools by merging, removing, and demoting overlapping tools
 
 ### Blockers/Concerns
 
@@ -120,5 +125,5 @@ None yet.
 
 ## Session Continuity
 
-Last activity: 2026-03-25
+Last activity: 2026-03-26
 Resume file: None

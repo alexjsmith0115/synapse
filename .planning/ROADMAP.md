@@ -113,3 +113,32 @@ Plans:
 - [x] 05-03-PLAN.md — Java HTTP extractor (Spring SERVES + RestTemplate/WebClient/java.net.http HTTP_CALLS) with plugin wiring
 - [x] 05-04-PLAN.md — C# client-side extension (HttpClient/RestSharp HTTP_CALLS added to existing extractor)
 - [x] 05-05-PLAN.md — Plugin wiring test updates, cross-file constant resolution, cross-language integration test
+
+### Phase 6: HTTP Endpoint Extraction Fixes — JAX-RS support and route normalization improvements
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 5
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 6 to break down)
+
+### Phase 7: MCP Tools Consolidation
+
+**Goal:** Reduce MCP tool count from 30 to ~20 by merging overlapping tools, removing redundant ones, and demoting admin/diagnostic tools to CLI-only
+**Requirements**: CONSOL-01, CONSOL-02, CONSOL-03, CONSOL-04, CONSOL-05, CONSOL-06, CONSOL-07, CONSOL-08, CONSOL-09
+**Depends on:** Phase 6
+**Success Criteria** (what must be TRUE):
+  1. MCP server registers exactly ~20 tools (down from 30)
+  2. `summary` tool with action param replaces separate set_summary/get_summary/list_summarized tools
+  3. `find_callees` with depth param replaces standalone get_call_depth tool
+  4. `find_usages` with kind and include_test_breakdown params replaces find_type_references and find_type_impact tools
+  5. `list_projects` with path param replaces standalone get_index_status tool
+  6. check_environment, delete_project, find_interface_contract, and audit_architecture are not registered as MCP tools
+  7. MCP instructions document consolidated tools and list CLI-only capabilities
+**Plans:** 1/2 plans executed
+
+Plans:
+- [x] 07-01-PLAN.md — Merge, remove, and demote tools in tools.py with unit test updates
+- [ ] 07-02-PLAN.md — Rewrite MCP instructions and update all integration tests
