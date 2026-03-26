@@ -18,17 +18,13 @@ from tests.integration.conftest import run, text, result_json, FIXTURE_PATH
 # ---------------------------------------------------------------------------
 
 EXPECTED_TOOLS = {
-    "index_project", "list_projects", "delete_project", "get_index_status",
+    "index_project", "list_projects", "sync_project",
     "get_symbol", "get_symbol_source", "find_implementations", "find_callers",
-    "find_callees", "get_hierarchy", "search_symbols", "set_summary",
-    "get_summary", "list_summarized", "execute_query", "find_usages",
-    "find_type_references", "find_dependencies",
+    "find_callees", "get_hierarchy", "search_symbols", "summary",
+    "execute_query", "find_usages", "find_dependencies",
     "get_context_for", "trace_call_chain", "find_entry_points",
-    "get_call_depth", "analyze_change_impact", "find_interface_contract",
-    "find_type_impact", "audit_architecture", "summarize_from_graph",
+    "analyze_change_impact", "summarize_from_graph",
     "get_schema",
-    "sync_project",
-    "check_environment",
 }
 
 
@@ -80,9 +76,10 @@ def test_controller_calls_service_method(
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_impact_counts_test_refs(mcp_server: FastMCP) -> None:
-    """Bug 2 regression: find_type_impact must count test project references."""
-    result = run(mcp_server.call_tool("find_type_impact", {
-        "type_name": "SynapseTest.Services.ITaskService"
+    """Bug 2 regression: find_usages with include_test_breakdown must count test project references."""
+    result = run(mcp_server.call_tool("find_usages", {
+        "full_name": "SynapseTest.Services.ITaskService",
+        "include_test_breakdown": True,
     }))
     impact = result_json(result)
     assert impact["test_count"] > 0, (
@@ -107,7 +104,7 @@ def test_list_projects(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_index_status(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("get_index_status", {"path": FIXTURE_PATH}))
+    result = run(mcp_server.call_tool("list_projects", {"path": FIXTURE_PATH}))
     status = result_json(result)
     assert status["file_count"] > 0
     assert status["symbol_count"] > 0
@@ -244,8 +241,9 @@ def test_get_hierarchy_model(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_references(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("find_type_references", {
-        "full_name": "SynapseTest.Services.ITaskService"
+    result = run(mcp_server.call_tool("find_usages", {
+        "full_name": "SynapseTest.Services.ITaskService",
+        "kind": "parameter",
     }))
     refs = result_json(result)
     ref_names = [r.get("symbol", {}).get("full_name", "") for r in refs]
@@ -394,40 +392,17 @@ def test_analyze_change_impact(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_call_depth(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("get_call_depth", {
-        "method": "SynapseTest.Controllers.TaskController.Create",
+    result = run(mcp_server.call_tool("find_callees", {
+        "method_full_name": "SynapseTest.Controllers.TaskController.Create",
         "depth": 3,
     }))
     depth_result = result_json(result)
     assert len(depth_result["callees"]) > 0
 
 
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_interface_contract(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("find_interface_contract", {
-        "method": "SynapseTest.Services.TaskService.CreateTaskAsync",
-    }))
-    contract = result_json(result)
-    assert "ITaskService" in (contract.get("interface") or ""), (
-        f"Expected ITaskService as interface, got: {contract}"
-    )
-
-
 # ---------------------------------------------------------------------------
 # Audit / summarize tools
 # ---------------------------------------------------------------------------
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_audit_architecture(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("audit_architecture", {
-        "rule": "untested_services",
-    }))
-    audit = result_json(result)
-    assert audit["rule"] == "untested_services"
-    assert "count" in audit
-
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
@@ -447,12 +422,14 @@ def test_summarize_from_graph(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_set_and_get_summary(mcp_server: FastMCP) -> None:
-    run(mcp_server.call_tool("set_summary", {
+    run(mcp_server.call_tool("summary", {
+        "action": "set",
         "full_name": "SynapseTest.Services.TaskService",
         "content": "Manages task CRUD operations.",
     }))
-    result = run(mcp_server.call_tool("get_summary", {
-        "full_name": "SynapseTest.Services.TaskService"
+    result = run(mcp_server.call_tool("summary", {
+        "action": "get",
+        "full_name": "SynapseTest.Services.TaskService",
     }))
     assert text(result) == "Manages task CRUD operations."
 
@@ -460,11 +437,12 @@ def test_set_and_get_summary(mcp_server: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_list_summarized(mcp_server: FastMCP) -> None:
-    run(mcp_server.call_tool("set_summary", {
+    run(mcp_server.call_tool("summary", {
+        "action": "set",
         "full_name": "SynapseTest.Services.TaskService",
         "content": "Manages task CRUD operations.",
     }))
-    result = run(mcp_server.call_tool("list_summarized", {}))
+    result = run(mcp_server.call_tool("summary", {"action": "list"}))
     items = result_json(result)
     names = [i.get("full_name") for i in items]
     assert "SynapseTest.Services.TaskService" in names

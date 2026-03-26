@@ -9,7 +9,6 @@ from __future__ import annotations
 import pytest
 from mcp.server.fastmcp import FastMCP
 
-from synapse.service import SynapseService
 from tests.integration.conftest import run, text, result_json, TYPESCRIPT_FIXTURE_PATH
 
 
@@ -32,8 +31,8 @@ def test_list_projects(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_index_status(typescript_mcp: FastMCP) -> None:
-    """get_index_status returns a populated status dict for the TypeScript fixture."""
-    result = run(typescript_mcp.call_tool("get_index_status", {"path": TYPESCRIPT_FIXTURE_PATH}))
+    """list_projects(path=...) returns a populated status dict for the TypeScript fixture."""
+    result = run(typescript_mcp.call_tool("list_projects", {"path": TYPESCRIPT_FIXTURE_PATH}))
     status = result_json(result)
     assert status is not None
     assert status["file_count"] > 0
@@ -60,19 +59,6 @@ def test_index_project(typescript_mcp: FastMCP) -> None:
     msg = text(result)
     assert "Indexed" in msg
 
-
-@pytest.mark.integration
-@pytest.mark.timeout(60)
-def test_delete_project(typescript_mcp: FastMCP, typescript_service: SynapseService) -> None:
-    """delete_project removes the TypeScript project; re-index restores it for downstream tests."""
-    result = run(typescript_mcp.call_tool("delete_project", {
-        "path": TYPESCRIPT_FIXTURE_PATH,
-    }))
-    msg = text(result)
-    assert "Deleted" in msg
-
-    # Restore the graph so session fixtures remain valid for all other tests.
-    typescript_service.index_project(TYPESCRIPT_FIXTURE_PATH, "typescript")
 
 
 # ---------------------------------------------------------------------------
@@ -149,9 +135,10 @@ def test_search_symbols_language_filter(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_related_symbols(typescript_mcp: FastMCP) -> None:
-    """find_type_references returns a list (possibly empty) for a TypeScript class."""
-    result = run(typescript_mcp.call_tool("find_type_references", {
-        "full_name": "src/animals.Dog"
+    """find_usages with kind='parameter' returns a list (possibly empty) for a TypeScript class."""
+    result = run(typescript_mcp.call_tool("find_usages", {
+        "full_name": "src/animals.Dog",
+        "kind": "parameter",
     }))
     refs = result_json(result)
     assert isinstance(refs, list)
@@ -190,17 +177,6 @@ def test_find_implementations(typescript_mcp: FastMCP) -> None:
     assert any("Animal" in n for n in names), f"Expected Animal (or subclass) in {names}"
 
 
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_interface_contract(typescript_mcp: FastMCP) -> None:
-    """find_interface_contract returns a dict with interface key for a TypeScript method."""
-    result = run(typescript_mcp.call_tool("find_interface_contract", {
-        "method": "src/animals.Dog.speak"
-    }))
-    contract = result_json(result)
-    assert isinstance(contract, dict)
-    assert "interface" in contract
-
 
 # ---------------------------------------------------------------------------
 # Call graph tools
@@ -232,9 +208,9 @@ def test_find_callees(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_call_depth(typescript_mcp: FastMCP) -> None:
-    """get_call_depth returns dict with callees key for a TypeScript method."""
-    result = run(typescript_mcp.call_tool("get_call_depth", {
-        "method": "src/services.Greeter.greet",
+    """find_callees with depth param returns dict with callees key for a TypeScript method."""
+    result = run(typescript_mcp.call_tool("find_callees", {
+        "method_full_name": "src/services.Greeter.greet",
         "depth": 3,
     }))
     depth_result = result_json(result)
@@ -273,9 +249,10 @@ def test_find_dependencies(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_references(typescript_mcp: FastMCP) -> None:
-    """find_type_references returns list (possibly empty) without error for TypeScript interface."""
-    result = run(typescript_mcp.call_tool("find_type_references", {
-        "full_name": "src/animals.IAnimal"
+    """find_usages with kind='parameter' returns list (possibly empty) without error for TypeScript interface."""
+    result = run(typescript_mcp.call_tool("find_usages", {
+        "full_name": "src/animals.IAnimal",
+        "kind": "parameter",
     }))
     refs = result_json(result)
     assert isinstance(refs, list)
@@ -337,9 +314,10 @@ def test_find_entry_points(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_impact(typescript_mcp: FastMCP) -> None:
-    """find_type_impact returns dict with expected keys for a TypeScript type."""
-    result = run(typescript_mcp.call_tool("find_type_impact", {
-        "type_name": "src/animals.IAnimal"
+    """find_usages with include_test_breakdown returns dict with expected keys for a TypeScript type."""
+    result = run(typescript_mcp.call_tool("find_usages", {
+        "full_name": "src/animals.IAnimal",
+        "include_test_breakdown": True,
     }))
     impact = result_json(result)
     assert isinstance(impact, dict)
@@ -355,25 +333,28 @@ def test_find_type_impact(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_summary_no_summary(typescript_mcp: FastMCP) -> None:
-    """get_summary returns None or empty when no summary set for TypeScript symbol."""
-    result = run(typescript_mcp.call_tool("get_summary", {
-        "full_name": "src/animals.Cat"
+    """summary action=get returns None or empty when no summary set for TypeScript symbol."""
+    result = run(typescript_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "src/animals.Cat",
     }))
     summary = result_json(result)
-    # No summary set yet — should be None
+    # No summary set yet -- should be None
     assert summary is None or isinstance(summary, str)
 
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_set_and_get_summary(typescript_mcp: FastMCP) -> None:
-    """set_summary and get_summary round-trip correctly for a TypeScript symbol."""
-    run(typescript_mcp.call_tool("set_summary", {
+    """summary action=set/get round-trip correctly for a TypeScript symbol."""
+    run(typescript_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "src/animals.Dog",
         "content": "A dog class in TypeScript.",
     }))
-    result = run(typescript_mcp.call_tool("get_summary", {
-        "full_name": "src/animals.Dog"
+    result = run(typescript_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "src/animals.Dog",
     }))
     assert text(result) == "A dog class in TypeScript."
 
@@ -381,12 +362,13 @@ def test_set_and_get_summary(typescript_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_list_summarized(typescript_mcp: FastMCP) -> None:
-    """list_summarized includes the symbol annotated in test_set_and_get_summary."""
-    run(typescript_mcp.call_tool("set_summary", {
+    """summary action=list includes the symbol annotated in test_set_and_get_summary."""
+    run(typescript_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "src/animals.Dog",
         "content": "A dog class in TypeScript.",
     }))
-    result = run(typescript_mcp.call_tool("list_summarized", {}))
+    result = run(typescript_mcp.call_tool("summary", {"action": "list"}))
     items = result_json(result)
     names = [i.get("full_name") for i in items]
     assert "src/animals.Dog" in names
@@ -403,18 +385,6 @@ def test_summarize_from_graph(typescript_mcp: FastMCP) -> None:
     assert summary is not None
     assert "summary" in summary
 
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_audit_architecture(typescript_mcp: FastMCP) -> None:
-    """audit_architecture runs without error (empty violations for TypeScript is OK)."""
-    result = run(typescript_mcp.call_tool("audit_architecture", {
-        "rule": "layering_violations",
-    }))
-    audit = result_json(result)
-    assert isinstance(audit, dict)
-    assert "violations" in audit
-    assert "count" in audit
 
 
 # ---------------------------------------------------------------------------

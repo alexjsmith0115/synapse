@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 from mcp.server.fastmcp import FastMCP
 
-from synapse.service import SynapseService
 from tests.integration.conftest import run, text, result_json, JAVA_FIXTURE_PATH
 
 
@@ -35,8 +34,8 @@ def test_list_projects(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_index_status(java_mcp: FastMCP) -> None:
-    """get_index_status returns a populated status dict for the Java fixture."""
-    result = run(java_mcp.call_tool("get_index_status", {"path": JAVA_FIXTURE_PATH}))
+    """list_projects(path=...) returns a populated status dict for the Java fixture."""
+    result = run(java_mcp.call_tool("list_projects", {"path": JAVA_FIXTURE_PATH}))
     status = result_json(result)
     assert status is not None
     assert status["file_count"] > 0
@@ -63,19 +62,6 @@ def test_index_project(java_mcp: FastMCP) -> None:
     msg = text(result)
     assert "Indexed" in msg
 
-
-@pytest.mark.integration
-@pytest.mark.timeout(60)
-def test_delete_project(java_mcp: FastMCP, java_service: SynapseService) -> None:
-    """delete_project removes the Java project; re-index restores it for downstream tests."""
-    result = run(java_mcp.call_tool("delete_project", {
-        "path": JAVA_FIXTURE_PATH,
-    }))
-    msg = text(result)
-    assert "Deleted" in msg
-
-    # Restore the graph so session fixtures remain valid for all other tests.
-    java_service.index_project(JAVA_FIXTURE_PATH, "java")
 
 
 # ---------------------------------------------------------------------------
@@ -222,9 +208,10 @@ def test_find_callees(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_references(java_mcp: FastMCP) -> None:
-    """find_type_references returns list (possibly empty) without error for Java interface."""
-    result = run(java_mcp.call_tool("find_type_references", {
-        "full_name": "com.synapsetest.IAnimal"
+    """find_usages with kind='parameter' returns list (possibly empty) without error for Java interface."""
+    result = run(java_mcp.call_tool("find_usages", {
+        "full_name": "com.synapsetest.IAnimal",
+        "kind": "parameter",
     }))
     refs = result_json(result)
     assert isinstance(refs, list)
@@ -265,17 +252,6 @@ def test_get_context_for(java_mcp: FastMCP) -> None:
     assert "Dog" in ctx
 
 
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_interface_contract(java_mcp: FastMCP) -> None:
-    """find_interface_contract returns dict with interface key for a Java method."""
-    result = run(java_mcp.call_tool("find_interface_contract", {
-        "method": "com.synapsetest.Dog.speak"
-    }))
-    contract = result_json(result)
-    assert isinstance(contract, dict)
-    assert "interface" in contract
-
 
 # ---------------------------------------------------------------------------
 # Call chain / entry point / impact tools
@@ -309,9 +285,9 @@ def test_find_entry_points(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_call_depth(java_mcp: FastMCP) -> None:
-    """get_call_depth returns dict with callees key without error."""
-    result = run(java_mcp.call_tool("get_call_depth", {
-        "method": "com.synapsetest.AnimalService.greet",
+    """find_callees with depth param returns dict with callees key without error."""
+    result = run(java_mcp.call_tool("find_callees", {
+        "method_full_name": "com.synapsetest.AnimalService.greet",
         "depth": 3,
     }))
     depth_result = result_json(result)
@@ -335,9 +311,10 @@ def test_analyze_change_impact(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_impact(java_mcp: FastMCP) -> None:
-    """find_type_impact returns dict with expected keys for a Java type."""
-    result = run(java_mcp.call_tool("find_type_impact", {
-        "type_name": "com.synapsetest.IAnimal"
+    """find_usages with include_test_breakdown returns dict with expected keys for a Java type."""
+    result = run(java_mcp.call_tool("find_usages", {
+        "full_name": "com.synapsetest.IAnimal",
+        "include_test_breakdown": True,
     }))
     impact = result_json(result)
     assert isinstance(impact, dict)
@@ -349,19 +326,6 @@ def test_find_type_impact(java_mcp: FastMCP) -> None:
 # ---------------------------------------------------------------------------
 # Audit / summarize tools
 # ---------------------------------------------------------------------------
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_audit_architecture(java_mcp: FastMCP) -> None:
-    """audit_architecture runs without error (empty violations for Java is OK)."""
-    result = run(java_mcp.call_tool("audit_architecture", {
-        "rule": "layering_violations",
-    }))
-    audit = result_json(result)
-    assert isinstance(audit, dict)
-    assert "violations" in audit
-    assert "count" in audit
-
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
@@ -382,13 +346,15 @@ def test_summarize_from_graph(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_set_and_get_summary(java_mcp: FastMCP) -> None:
-    """set_summary and get_summary round-trip correctly for a Java symbol."""
-    run(java_mcp.call_tool("set_summary", {
+    """summary action=set/get round-trip correctly for a Java symbol."""
+    run(java_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "com.synapsetest.Dog",
         "content": "A dog class that barks.",
     }))
-    result = run(java_mcp.call_tool("get_summary", {
-        "full_name": "com.synapsetest.Dog"
+    result = run(java_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "com.synapsetest.Dog",
     }))
     assert text(result) == "A dog class that barks."
 
@@ -396,12 +362,13 @@ def test_set_and_get_summary(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_list_summarized(java_mcp: FastMCP) -> None:
-    """list_summarized includes the symbol annotated in test_set_and_get_summary."""
-    run(java_mcp.call_tool("set_summary", {
+    """summary action=list includes the symbol annotated in test_set_and_get_summary."""
+    run(java_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "com.synapsetest.Dog",
         "content": "A dog class that barks.",
     }))
-    result = run(java_mcp.call_tool("list_summarized", {}))
+    result = run(java_mcp.call_tool("summary", {"action": "list"}))
     items = result_json(result)
     names = [i.get("full_name") for i in items]
     assert "com.synapsetest.Dog" in names

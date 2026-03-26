@@ -32,8 +32,8 @@ def test_list_projects(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_index_status(python_mcp: FastMCP) -> None:
-    """get_index_status returns a populated status dict for the Python fixture."""
-    result = run(python_mcp.call_tool("get_index_status", {"path": PYTHON_FIXTURE_PATH}))
+    """list_projects(path=...) returns a populated status dict for the Python fixture."""
+    result = run(python_mcp.call_tool("list_projects", {"path": PYTHON_FIXTURE_PATH}))
     status = result_json(result)
     assert status is not None
     assert status["file_count"] > 0
@@ -220,9 +220,10 @@ def test_find_callees(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_type_references(python_mcp: FastMCP) -> None:
-    """find_type_references returns list (possibly empty for Python) without error."""
-    result = run(python_mcp.call_tool("find_type_references", {
-        "full_name": "synapsepytest.animals.IAnimal"
+    """find_usages with kind='parameter' returns list (possibly empty for Python) without error."""
+    result = run(python_mcp.call_tool("find_usages", {
+        "full_name": "synapsepytest.animals.IAnimal",
+        "kind": "parameter",
     }))
     refs = result_json(result)
     assert isinstance(refs, list)
@@ -295,9 +296,9 @@ def test_find_entry_points(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_call_depth(python_mcp: FastMCP) -> None:
-    """get_call_depth returns dict with callees key without error."""
-    result = run(python_mcp.call_tool("get_call_depth", {
-        "method": "synapsepytest.services.AnimalService.get_greeting",
+    """find_callees with depth param returns dict with callees key without error."""
+    result = run(python_mcp.call_tool("find_callees", {
+        "method_full_name": "synapsepytest.services.AnimalService.get_greeting",
         "depth": 3,
     }))
     depth_result = result_json(result)
@@ -320,22 +321,11 @@ def test_analyze_change_impact(python_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_find_interface_contract(python_mcp: FastMCP) -> None:
-    """find_interface_contract returns dict without error (may be empty for Python)."""
-    result = run(python_mcp.call_tool("find_interface_contract", {
-        "method": "synapsepytest.services.AnimalService.get_greeting",
-    }))
-    contract = result_json(result)
-    assert isinstance(contract, dict)
-    assert "interface" in contract
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_find_type_impact(python_mcp: FastMCP) -> None:
-    """find_type_impact returns dict with expected keys for a Python type."""
-    result = run(python_mcp.call_tool("find_type_impact", {
-        "type_name": "synapsepytest.animals.IAnimal"
+    """find_usages with include_test_breakdown returns dict with expected keys for a Python type."""
+    result = run(python_mcp.call_tool("find_usages", {
+        "full_name": "synapsepytest.animals.IAnimal",
+        "include_test_breakdown": True,
     }))
     impact = result_json(result)
     assert isinstance(impact, dict)
@@ -347,19 +337,6 @@ def test_find_type_impact(python_mcp: FastMCP) -> None:
 # ---------------------------------------------------------------------------
 # Audit / summarize tools
 # ---------------------------------------------------------------------------
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_audit_architecture(python_mcp: FastMCP) -> None:
-    """audit_architecture runs without error (empty violations for Python is OK)."""
-    result = run(python_mcp.call_tool("audit_architecture", {
-        "rule": "layering_violations",
-    }))
-    audit = result_json(result)
-    assert isinstance(audit, dict)
-    assert "violations" in audit
-    assert "count" in audit
-
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
@@ -380,13 +357,15 @@ def test_summarize_from_graph(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_set_and_get_summary(python_mcp: FastMCP) -> None:
-    """set_summary and get_summary round-trip correctly for a Python symbol."""
-    run(python_mcp.call_tool("set_summary", {
+    """summary action=set/get round-trip correctly for a Python symbol."""
+    run(python_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "synapsepytest.animals.Dog",
         "content": "A dog that barks.",
     }))
-    result = run(python_mcp.call_tool("get_summary", {
-        "full_name": "synapsepytest.animals.Dog"
+    result = run(python_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "synapsepytest.animals.Dog",
     }))
     assert text(result) == "A dog that barks."
 
@@ -394,12 +373,13 @@ def test_set_and_get_summary(python_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_list_summarized(python_mcp: FastMCP) -> None:
-    """list_summarized includes the symbol annotated in test_set_and_get_summary."""
-    run(python_mcp.call_tool("set_summary", {
+    """summary action=list includes the symbol annotated in test_set_and_get_summary."""
+    run(python_mcp.call_tool("summary", {
+        "action": "set",
         "full_name": "synapsepytest.animals.Dog",
         "content": "A dog that barks.",
     }))
-    result = run(python_mcp.call_tool("list_summarized", {}))
+    result = run(python_mcp.call_tool("summary", {"action": "list"}))
     items = result_json(result)
     names = [i.get("full_name") for i in items]
     assert "synapsepytest.animals.Dog" in names
