@@ -469,7 +469,7 @@ pytest tests/integration/ -m integration
 
 Synapse automatically provides usage instructions to any MCP-compliant client via the protocol — most AI agents will make good tool choices out of the box.
 
-The snippets below are **optional** additions for your AI platform's rules/instructions file. They provide platform-specific optimizations that go beyond what the MCP protocol delivers.
+The snippets below are **optional** additions for your AI platform's rules/instructions file. They reinforce tool selection patterns and add platform-specific guidance that goes beyond what the MCP protocol delivers.
 
 <details>
 <summary><strong>Claude Code / Claude Desktop</strong> — add to your project's <code>CLAUDE.md</code></summary>
@@ -479,16 +479,43 @@ The snippets below are **optional** additions for your AI platform's rules/instr
 
 This project is indexed by the Synapse MCP server. Use it instead of grep/read for navigating code relationships:
 
-- Before modifying a method, use `get_context_for` (scope="edit") to understand its callers, callees, dependencies, and test coverage
+### Workflow
+- Projects must be indexed before querying. Use `list_projects` to check what's indexed, `index_project` to index, `sync_project` to refresh a stale index.
+- If queries return empty results, use `list_projects(path=...)` to check whether the project is indexed.
+
+### Tool selection (by task)
+- Before modifying a method, use `get_context_for` with scope="edit" to understand its callers, callees, dependencies, and test coverage
 - Use `find_callers` / `find_usages` to trace how a symbol is used across the codebase — prefer this over grep
-- Use `find_callees` (with `depth` for reachable call trees) to understand what a method depends on downstream
+- Use `find_callees` (with optional `depth` param for reachable call tree) to understand what a method depends on downstream
+- Read source code of a symbol with `get_symbol_source` (not by reading files by line range)
+- Full context (source + relationships) in one call: `get_context_for` (not get_symbol + get_symbol_source + find_callers separately)
+- Find a symbol by name: `search_symbols` (not guessing full_name strings) — supports kind, namespace, file_path, language filters
+- All usages of any symbol: `find_usages` (auto-selects strategy by symbol kind). Use `kind` param to filter type references, `include_test_breakdown=True` for prod/test split
 - After making changes, use `analyze_change_impact` to verify no unexpected breakage
+- Trace call paths between two methods: `trace_call_chain`
+- Find API/controller entry points that reach a method: `find_entry_points`
+- Find all classes implementing an interface: `find_implementations`
 - Use `get_hierarchy` to understand inheritance before modifying class structures
-- Use `search_symbols` to find symbols by name, kind, file, or namespace — faster and more precise than file search
+- Find constructor/field dependencies: `find_dependencies` (with optional `depth` for transitive)
+- Annotate symbols with non-derivable context (design rationale, constraints, ownership): `summary` with action='set'/'get'/'list'
 - Use `execute_query` for ad-hoc Cypher queries; call `get_schema` first to see available labels and relationships
-- Synapse tools appear as `mcp__synapse__<tool_name>` (e.g., `mcp__synapse__get_context_for`)
-- Prefer Synapse tools over grep and Read for navigating code structure and call relationships
+
+### Anti-patterns
+- Do not use `execute_query` when a dedicated tool exists for the task
+- Do not read files with grep or cat when `get_symbol_source` or `get_context_for` can retrieve the exact code
+- Do not guess symbol names — use `search_symbols` to discover them first
+- Do not skip `get_context_for` with scope="edit" before modifying a method
+
+### Efficiency
+- Use the `scope` parameter on `get_context_for` to control detail level: "structure" for overview, "method" for focused, "edit" for modification prep
+- Use `search_symbols` with kind, namespace, or file_path filters to narrow results
 - Parallelize independent Synapse calls when possible (e.g., `find_callers` and `find_callees` for different methods)
+- Synapse tools appear as `mcp__synapse__<tool_name>` (e.g., `mcp__synapse__get_context_for`)
+
+### CLI-only tools (not available via MCP)
+- `synapse doctor` — check runtime environment and dependencies
+- `synapse delete <path>` — delete a project and all its graph data
+- `synapse status <path>` — detailed index status (also available via `list_projects(path=...)`)
 ```
 
 </details>
@@ -507,33 +534,49 @@ alwaysApply: true
 
 Use Synapse MCP tools for all code navigation and understanding tasks. Do not use grep or file reads when a Synapse tool can answer the question.
 
+## Workflow
+- Projects must be indexed before querying. Use list_projects to check, index_project to index, sync_project to refresh.
+- If queries return empty results, use list_projects(path=...) to verify the project is indexed.
+
 ## Before editing code
 - Call get_context_for with scope="edit" to see callers, dependencies, and test coverage
+- Do not skip this step — it shows what might break
 
-## Finding code
+## Finding symbols
 - search_symbols to find symbols by name (supports kind, namespace, file_path, language filters)
+- get_symbol for metadata (file path, line range, kind) without source code
+- get_symbol_source for source code of a specific symbol
 - find_implementations to find classes implementing an interface
 - get_hierarchy to understand inheritance chains
 
 ## Understanding call relationships
 - find_callers to find who calls a method (includes interface dispatch automatically)
 - find_callees to find what a method calls (use depth param for full call tree)
-- find_usages for unified lookup (auto-selects strategy by symbol kind)
+- find_usages for unified lookup (auto-selects strategy by symbol kind; use kind param to filter type references, include_test_breakdown=True for prod/test split)
 - trace_call_chain to find paths between two methods
 - find_entry_points to find API/controller entry points that reach a method
+- find_dependencies for constructor/field type dependencies (use depth for transitive)
 
 ## Impact analysis
 - analyze_change_impact before and after changes
 - find_usages with include_test_breakdown=True for prod/test categorized impact
-- find_dependencies for constructor/field type dependencies
 
-## Reading code
-- get_symbol_source for source code of a specific symbol
-- get_context_for for source code plus relationships in one call
+## Annotations
+- summary with action='set'/'get'/'list' to persist non-derivable context (design rationale, constraints, ownership) on symbols. Do not store structural descriptions — use get_context_for for that.
+
+## Context scopes
+- get_context_for(scope="structure") — type overview with member signatures, no method bodies
+- get_context_for(scope="method") — source + interface contract + callees + dependencies
+- get_context_for(scope="edit") — callers with line numbers, dependencies, test coverage
 
 ## Raw queries
 - Call get_schema before writing Cypher
 - execute_query is a last resort — use dedicated tools when possible
+
+## Anti-patterns
+- Do not use execute_query when a dedicated tool exists
+- Do not read files with grep when get_symbol_source or get_context_for works
+- Do not guess symbol names — use search_symbols to discover them first
 ```
 
 </details>
@@ -546,22 +589,36 @@ Use Synapse MCP tools for all code navigation and understanding tasks. Do not us
 
 Use Synapse MCP tools for code navigation instead of grep or file reads.
 
-Key tools by task:
+## Workflow
+- Use list_projects to check what's indexed, index_project to index, sync_project to refresh.
+- If queries return empty, use list_projects(path=...) to verify the project is indexed.
+
+## Tool selection by task
 - Before editing: get_context_for(scope="edit") for callers, deps, tests
-- Find symbols: search_symbols (with kind/namespace/file_path filters)
+- Find symbols: search_symbols (with kind/namespace/file_path/language filters)
+- Symbol metadata: get_symbol (file path, line range, kind)
+- Source code: get_symbol_source, or get_context_for for code + relationships
 - Who calls a method: find_callers (includes interface dispatch)
 - What a method calls: find_callees (use depth for call tree)
-- All usages: find_usages (auto-selects by symbol kind)
+- All usages: find_usages (auto-selects by kind; use kind param for type refs, include_test_breakdown for prod/test split)
+- Call paths: trace_call_chain
+- Entry points: find_entry_points (API/controller roots)
 - Implementations: find_implementations
 - Inheritance: get_hierarchy
-- Call paths: trace_call_chain
-- Entry points: find_entry_points
+- Dependencies: find_dependencies (use depth for transitive)
 - Impact analysis: analyze_change_impact
-- Source code: get_symbol_source, or get_context_for for code + relationships
-- Dependencies: find_dependencies
+- Annotations: summary(action='set'/'get'/'list') for non-derivable context
 - Raw Cypher: get_schema first, then execute_query (last resort)
 
-Avoid guessing symbol names — use search_symbols to discover them.
+## Context scopes
+- "structure" — type overview, member signatures (no bodies)
+- "method" — source + interface contract + callees + deps
+- "edit" — callers with lines, deps, test coverage
+
+## Anti-patterns
+- Don't guess symbol names — use search_symbols to discover them
+- Don't use execute_query when a dedicated tool exists
+- Don't read files with grep when get_symbol_source or get_context_for works
 ```
 
 </details>
@@ -574,23 +631,40 @@ Avoid guessing symbol names — use search_symbols to discover them.
 
 This project has a Synapse MCP server providing code intelligence tools. Use these tools proactively for code navigation — they are faster and more accurate than grep or file reads for understanding code structure.
 
-## Essential workflow
+## Workflow
+1. Projects must be indexed before querying. Use `list_projects` to check, `index_project` to index, `sync_project` to refresh.
+2. If queries return empty results, use `list_projects(path=...)` to check whether the project is indexed.
+
+## Essential workflow for edits
 1. Use `search_symbols` to find symbols by name (don't guess fully-qualified names)
-2. Use `get_context_for` with `scope="edit"` before modifying any method
+2. Use `get_context_for` with `scope="edit"` before modifying any method — it shows callers, dependencies, and tests that might break
 3. Use `analyze_change_impact` after making changes to verify safety
 
 ## Tool selection
-- Callers of a method: `find_callers` (not raw Cypher)
-- Callees of a method: `find_callees` (use `depth` for call tree)
-- All usages of any symbol: `find_usages`
+- Find symbols by name: `search_symbols` (supports kind, namespace, file_path, language filters)
+- Symbol metadata: `get_symbol` (file path, line range, kind — no source code)
+- Source code: `get_symbol_source` (or `get_context_for` for source + relationships)
+- Callers of a method: `find_callers` (includes interface dispatch — not raw Cypher)
+- Callees of a method: `find_callees` (use `depth` for full call tree)
+- All usages of any symbol: `find_usages` (auto-selects by kind; use `kind` for type refs, `include_test_breakdown` for prod/test split)
 - Interface implementations: `find_implementations`
 - Inheritance chain: `get_hierarchy`
-- Source code: `get_symbol_source`
-- Full context: `get_context_for`
-- Call paths: `trace_call_chain`
-- Entry points: `find_entry_points`
-- Dependencies: `find_dependencies`
+- Constructor/field dependencies: `find_dependencies` (use `depth` for transitive)
+- Call paths between methods: `trace_call_chain`
+- API/controller entry points: `find_entry_points`
+- Impact analysis: `analyze_change_impact`
+- Non-derivable annotations: `summary` (set/get/list — design rationale, constraints, ownership)
 - Raw Cypher: `get_schema` then `execute_query` (last resort)
+
+## Context scopes for get_context_for
+- `"structure"` — type overview with member signatures (no bodies)
+- `"method"` — source + interface contract + callees + dependencies
+- `"edit"` — callers with line numbers, relevant dependencies, test coverage
+
+## Anti-patterns
+- Do not use `execute_query` when a dedicated tool exists
+- Do not read files with grep when `get_symbol_source` or `get_context_for` works
+- Do not guess symbol names — use `search_symbols` to discover them
 ```
 
 </details>
@@ -603,37 +677,52 @@ Synapse MCP — Code Intelligence Tools (19 tools)
 
 Use Synapse tools instead of grep/file reads for code navigation.
 
-Before editing code:
-  get_context_for(full_name, scope="edit") — shows callers, deps, tests
+WORKFLOW:
+  Projects must be indexed first. list_projects to check, index_project to
+  index, sync_project to refresh. If queries return empty, check with
+  list_projects(path=...).
 
-Finding symbols:
-  search_symbols(query, kind, namespace, file_path) — discover by name
+BEFORE EDITING CODE:
+  get_context_for(full_name, scope="edit") — callers, deps, test coverage
 
-Call relationships:
+FINDING SYMBOLS:
+  search_symbols(query, kind?, namespace?, file_path?, language?) — by name
+  get_symbol(full_name) — metadata (file path, line range, kind)
+  get_symbol_source(full_name) — source code from disk
+
+CALL RELATIONSHIPS:
   find_callers(method) — who calls this (includes interface dispatch)
-  find_callees(method) — what this calls (use depth for call tree)
-  find_usages(symbol) — unified lookup, auto-selects by kind
+  find_callees(method, depth?) — what this calls (depth for call tree)
+  find_usages(symbol, kind?, include_test_breakdown?) — unified lookup
   trace_call_chain(start, end) — paths between two methods
   find_entry_points(method) — API/controller roots
 
-Structure:
+STRUCTURE:
   find_implementations(interface) — concrete implementors
   get_hierarchy(class) — inheritance chain
-  find_dependencies(symbol) — field/constructor dependencies
+  find_dependencies(symbol, depth?) — field/constructor dependencies
 
-Reading code:
-  get_symbol_source(full_name) — source code
-  get_context_for(full_name) — source + relationships
+IMPACT ANALYSIS:
+  analyze_change_impact(method) — callers, transitive callers, tests, callees
 
-Impact analysis:
-  analyze_change_impact(method) — callers, tests, callees
+ANNOTATIONS:
+  summary(action='set'/'get'/'list') — persist non-derivable context
+    (design rationale, constraints, ownership) on symbols
 
-Raw queries (last resort):
+CONTEXT SCOPES (get_context_for):
+  "structure" — type overview, member signatures (no bodies)
+  "method"    — source + interface contract + callees + deps
+  "edit"      — callers with lines, deps, test coverage
+
+RAW QUERIES (last resort):
   get_schema() — read schema first
   execute_query(cypher) — read-only Cypher
 
-Don't guess symbol names — use search_symbols to discover them.
-Don't use execute_query when a dedicated tool exists.
+AVOID:
+  - Don't use execute_query when a dedicated tool exists
+  - Don't read files with grep when get_symbol_source or get_context_for works
+  - Don't guess symbol names — use search_symbols to discover them
+  - Don't skip get_context_for(scope="edit") before modifying a method
 ```
 
 </details>
