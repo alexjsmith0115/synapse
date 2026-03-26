@@ -163,3 +163,122 @@ def test_get_hierarchy_ambiguous_returns_error_dict() -> None:
     result = tools["get_hierarchy"](class_name="Path")
     assert "error" in result
     assert "Ambiguous" in result["error"]
+
+
+# --- summary tool tests ---
+
+def test_summary_action_get() -> None:
+    service = MagicMock()
+    service.get_summary.return_value = "A summary"
+    fns = _register(service)
+    result = fns["summary"](action="get", full_name="Ns.Cls")
+    service.get_summary.assert_called_once_with("Ns.Cls")
+    assert result == "A summary"
+
+
+def test_summary_action_set() -> None:
+    service = MagicMock()
+    fns = _register(service)
+    result = fns["summary"](action="set", full_name="Ns.Cls", content="My summary")
+    service.set_summary.assert_called_once_with("Ns.Cls", "My summary")
+    assert "saved" in result.lower()
+
+
+def test_summary_action_list() -> None:
+    service = MagicMock()
+    service.list_summarized.return_value = [{"full_name": "Ns.Cls"}]
+    fns = _register(service)
+    result = fns["summary"](action="list")
+    service.list_summarized.assert_called_once_with(None)
+    assert isinstance(result, list)
+
+
+def test_summary_set_missing_params() -> None:
+    service = MagicMock()
+    fns = _register(service)
+    result = fns["summary"](action="set", full_name=None, content=None)
+    assert "error" in result.lower()
+    service.set_summary.assert_not_called()
+
+
+def test_summary_get_missing_full_name() -> None:
+    service = MagicMock()
+    fns = _register(service)
+    result = fns["summary"](action="get", full_name=None)
+    assert "error" in result.lower()
+    service.get_summary.assert_not_called()
+
+
+# --- find_callees depth tests ---
+
+def test_find_callees_with_depth_delegates_to_get_call_depth() -> None:
+    service = MagicMock()
+    service.get_call_depth.return_value = {"root": "Ns.M", "callees": [], "depth_limit": 3}
+    fns = _register(service)
+    result = fns["find_callees"](method_full_name="Ns.M", depth=3)
+    service.get_call_depth.assert_called_once_with("Ns.M", 3)
+    service.find_callees.assert_not_called()
+    assert result["depth_limit"] == 3
+
+
+def test_find_callees_without_depth_uses_normal_path() -> None:
+    service = MagicMock()
+    service.find_callees.return_value = [{"name": "callee"}]
+    fns = _register(service)
+    result = fns["find_callees"](method_full_name="Ns.M")
+    service.find_callees.assert_called_once_with("Ns.M", True, limit=50)
+    service.get_call_depth.assert_not_called()
+
+
+# --- find_usages kind/breakdown tests ---
+
+def test_find_usages_with_kind_delegates_to_type_references() -> None:
+    service = MagicMock()
+    service.find_type_references.return_value = [{"symbol": {"full_name": "Ns.X"}, "kind": "parameter"}]
+    fns = _register(service)
+    result = fns["find_usages"](full_name="Ns.Cls", kind="parameter")
+    service.find_type_references.assert_called_once_with("Ns.Cls", kind="parameter", limit=20)
+    service.find_usages.assert_not_called()
+
+
+def test_find_usages_with_test_breakdown_delegates_to_type_impact() -> None:
+    service = MagicMock()
+    service.find_type_impact.return_value = {"type": "Ns.Cls", "prod_count": 3, "test_count": 1}
+    fns = _register(service)
+    result = fns["find_usages"](full_name="Ns.Cls", include_test_breakdown=True)
+    service.find_type_impact.assert_called_once_with("Ns.Cls", limit=20)
+    service.find_usages.assert_not_called()
+    assert result["prod_count"] == 3
+
+
+# --- list_projects path filter tests ---
+
+def test_list_projects_with_path_returns_index_status() -> None:
+    service = MagicMock()
+    service.get_index_status.return_value = {"path": "/my/proj", "file_count": 10}
+    fns = _register(service)
+    result = fns["list_projects"](path="/my/proj")
+    service.get_index_status.assert_called_once_with("/my/proj")
+    service.list_projects.assert_not_called()
+    assert result["file_count"] == 10
+
+
+def test_list_projects_without_path_returns_all() -> None:
+    service = MagicMock()
+    service.list_projects.return_value = [{"path": "/a"}, {"path": "/b"}]
+    fns = _register(service)
+    result = fns["list_projects"]()
+    service.list_projects.assert_called_once()
+    assert len(result) == 2
+
+
+# --- removed tools absence test ---
+
+def test_removed_tools_not_registered() -> None:
+    fns = _register(MagicMock())
+    removed = {"set_summary", "get_summary", "list_summarized", "get_call_depth",
+                "find_type_references", "find_type_impact", "get_index_status",
+                "find_interface_contract", "audit_architecture", "check_environment",
+                "delete_project"}
+    present = removed & set(fns.keys())
+    assert not present, f"Removed tools still registered: {present}"
