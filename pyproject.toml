@@ -4,13 +4,13 @@ requires = ["hatchling"]
 
 [project]
 name = "synapse"
-version = "0.1.0"
+version = "1.0.0"
 description = "Code intelligence MCP server — indexes codebases into a queryable graph of symbols, call chains, and relationships"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 keywords = ["mcp", "code-intelligence", "tree-sitter", "graph-database", "language-server-protocol"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

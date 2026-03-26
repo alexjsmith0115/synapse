@@ -12,8 +12,6 @@
 
 Synapse is an MCP server and CLI that builds a queryable graph of your codebase using Language Server Protocol analysis. It indexes symbols, call chains, inheritance trees, interface implementations, and type dependencies across C#, Python, TypeScript/JavaScript, and Java projects — then lets AI agents (or humans) query that graph to make safer, faster, better-informed code changes.
 
-> **Work in progress.** Synapse is under active development. APIs, CLI commands, and graph schema may change without notice.
-
 ## Why Synapse
 
 AI agents working with code today rely on grep and file reads. That works for simple lookups, but falls apart when the question is *"what happens if I change this?"* — when the answer depends on call chains, interface dispatch, inheritance, and test coverage spanning dozens of files.
@@ -36,7 +34,7 @@ Synapse uses a two-phase indexing approach: LSP extracts structural symbols (cla
 
 This means your agent can follow a method call through 6 levels of indirection and know exactly what code is reachable, without reading a single file.
 
-**Tools:** `find_callers`, `find_callees`, `trace_call_chain`, `get_call_depth`, `find_entry_points`
+**Tools:** `find_callers`, `find_callees` (with `depth` for call trees), `trace_call_chain`, `find_entry_points`
 
 ### Interface Dispatch Resolution
 
@@ -44,13 +42,13 @@ In dependency-injected codebases, `service.Process()` could mean any of 5 concre
 
 The graph models interface dispatch explicitly: `find_callers("IOrderService.Process")` returns callers of every class that implements `Process`, not just callers of the interface declaration.
 
-**Tools:** `find_callers` (with `include_interface_dispatch`), `find_implementations`, `find_interface_contract`
+**Tools:** `find_callers` (with `include_interface_dispatch`), `find_implementations` | **CLI:** `contract`
 
 ### Impact Analysis
 
 Before your agent changes a method, it should know: how many places call it, whether tests cover it, and what it depends on. `analyze_change_impact` answers all three in a single, token-efficient response — categorized into direct callers, transitive callers (2-4 hops), test coverage, and downstream callees.
 
-**Tools:** `analyze_change_impact`, `find_type_impact`, `get_context_for` (with `scope="edit"`)
+**Tools:** `analyze_change_impact`, `find_usages` (with `include_test_breakdown`), `get_context_for` (with `scope="edit"`)
 
 ### Scoped Context
 
@@ -70,7 +68,7 @@ The graph stays fresh without manual intervention. When `auto_sync` is enabled (
 
 For longer sessions, `watch_project` keeps the graph updated in real-time as files change on disk.
 
-**Tools:** `sync_project`, `get_index_status`
+**Tools:** `sync_project`, `list_projects` (with `path` for index status)
 
 ### Token-Efficient Output
 
@@ -106,9 +104,15 @@ RETURN fe.full_name, ep.route
 
 Route matching handles parameterized paths (`{id}` on either side) and common base URL prefixes (`/api`, `/api/v1`).
 
-### Multi-Project Isolation
+### Container Management
 
-Each project gets its own Memgraph instance via Docker, named deterministically from the project path. Index 10 projects simultaneously — queries from each directory hit the correct graph automatically. Containers persist across sessions and restart on demand.
+Synapse uses Memgraph as its graph database, managed via Docker. By default, all projects share a single container for simplicity. You can opt into per-project containers when isolation is needed.
+
+| Mode | When | Container | Config |
+|---|---|---|---|
+| **Shared** (default) | Most users | One `synapse-shared` container on port 7687 | `~/.synapse/config.json` |
+| **Dedicated** (opt-in) | Need per-project isolation | One container per project, dynamic port | `.synapse/config.json` in project root |
+| **External** | BYO Memgraph | No container — connects directly | `~/.synapse/config.json` |
 
 ## Supported Languages
 
@@ -124,20 +128,22 @@ All languages use the same tools, graph schema, and query patterns. Language det
 ## Prerequisites
 
 - **Python 3.11+**
-- **Docker** — Synapse automatically manages per-project Memgraph containers
+- **Docker** — Synapse auto-manages a shared Memgraph container (or per-project containers if opted in). Not required when connecting to an external Memgraph instance.
 - **.NET SDK** — required for C# projects (Roslyn Language Server is auto-downloaded on first index)
 - **Pyright** (`npm install -g pyright`) — required for Python projects
 - **typescript-language-server** (`npm install -g typescript-language-server typescript`) — required for TypeScript/JavaScript projects
+
+Run `synapse doctor` to check your environment.
 
 ## How it works
 
 When you run any Synapse command from a project directory, Synapse automatically:
 
-1. Creates a `.synapse/config.json` in the project root with a deterministic container name and port
-2. Starts a dedicated Memgraph Docker container for that project (or reuses an existing one)
-3. Connects to the container's Bolt port for all graph operations
+1. Connects to the shared Memgraph container (starting it if needed), or provisions a dedicated container if the project opts in
+2. Creates graph nodes scoped to the project path — multiple projects coexist in the same database, identified by their `Repository` node
+3. Indexes symbols via LSP and call sites via tree-sitter, writing nodes and edges to the graph
 
-Each project's graph is fully isolated — indexing project A has no effect on project B. Containers are named `synapse-<hash>` based on the absolute project path, so they persist across sessions.
+Global config lives at `~/.synapse/config.json`. Per-project config (`.synapse/config.json`) is only created when using dedicated containers or experimental features. Add `.synapse/` to your `.gitignore`.
 
 ## Installation
 
@@ -174,11 +180,18 @@ The MCP server resolves the project from the current working directory at startu
 synapse <command> [args]
 ```
 
+### Environment
+
+| Command | Description |
+|---|---|
+| `synapse doctor` | Check environment: Docker, Memgraph, and all language server dependencies |
+
 ### Project management
 
 | Command | Description |
 |---|---|
-| `synapse index <path> [--language csharp\|python\|typescript]` | Index a project into the graph (auto-detects language if omitted) |
+| `synapse index <path> [--language <lang>]` | Index a project (auto-detects language if omitted) |
+| `synapse sync <path>` | Sync the graph with the current filesystem — re-indexes only changed files |
 | `synapse watch <path>` | Watch a project for file changes and keep the graph updated (runs until Ctrl+C) |
 | `synapse delete <path>` | Remove a project and all its graph data |
 | `synapse status [path]` | Show index status for one project, or list all indexed projects |
@@ -189,14 +202,22 @@ synapse <command> [args]
 |---|---|
 | `synapse symbol <full_name>` | Get a symbol's node and its relationships |
 | `synapse source <full_name> [--include-class]` | Print the source code of a symbol |
-| `synapse callers <method_full_name>` | Find all methods that call a given method |
-| `synapse callees <method_full_name>` | Find all methods called by a given method |
-| `synapse implementations <interface_name>` | Find all concrete implementations of an interface |
-| `synapse hierarchy <class_name>` | Show the full inheritance chain for a class |
-| `synapse search <query> [--kind <kind>]` | Search symbols by name, optionally filtered by kind (e.g. `method`, `class`) |
-| `synapse type-refs <full_name>` | Find all symbols that reference a given type |
-| `synapse dependencies <full_name>` | Find all types referenced by a given symbol |
-| `synapse context <full_name>` | Get the full context needed to understand or modify a symbol |
+| `synapse search <query> [--kind <kind>] [--language/-l <lang>]` | Search symbols by name, optionally filtered by kind or language |
+| `synapse callers <method> [--include-tests] [--tree/-t]` | Find all methods that call a given method |
+| `synapse callees <method> [--tree/-t]` | Find all methods called by a given method |
+| `synapse call-depth <method> [--depth/-d <n>] [--tree/-t]` | Show all methods reachable from a method up to N levels |
+| `synapse implementations <interface>` | Find all concrete implementations of an interface or abstract class |
+| `synapse hierarchy <class> [--tree/-t]` | Show the full inheritance chain for a class |
+| `synapse contract <method>` | Find the interface contract and sibling implementations for a method |
+| `synapse usages <full_name> [--include-tests]` | Find all code that uses a symbol (callers + type references) |
+| `synapse type-refs <full_name> [--kind/-k <kind>]` | Find all symbols that reference a type (filter: `parameter`, `return_type`, `property_type`) |
+| `synapse dependencies <full_name> [--tree/-t]` | Find all types referenced by a symbol |
+| `synapse context <full_name> [--scope <scope>] [--max-lines <n>]` | Get context for understanding or modifying a symbol (scopes: `structure`, `method`, `edit`) |
+| `synapse trace <start> <end> [--depth/-d <n>] [--tree/-t]` | Trace call paths between two methods |
+| `synapse entry-points <method> [--depth/-d <n>] [--include-tests] [--tree/-t]` | Find all entry points (API/controller roots) that reach a method |
+| `synapse impact <method>` | Analyze the blast radius of changing a method |
+| `synapse type-impact <type_name>` | Find all code affected if a type changes shape |
+| `synapse audit <rule>` | Run an architectural audit rule (`layering_violations`, `untested_services`) |
 | `synapse query <cypher>` | Execute a raw read-only Cypher query against the graph |
 
 ### Summaries
@@ -228,7 +249,7 @@ synapse callers "MyNamespace.MyClass.DoWork"
 synapse implementations "IOrderService"
 
 # See the inheritance hierarchy of a class
-synapse hierarchy "MyNamespace.BaseController"
+synapse hierarchy "MyNamespace.BaseController" --tree
 
 # Search for all methods containing "Payment"
 synapse search "Payment" --kind method
@@ -236,50 +257,58 @@ synapse search "Payment" --kind method
 # Get the source code for a method
 synapse source "MyNamespace.MyClass.DoWork"
 
-# Get all context needed to understand a symbol
-synapse context "MyNamespace.MyClass"
+# Get all context needed to edit a symbol
+synapse context "MyNamespace.MyClass" --scope edit
+
+# Show methods reachable up to 4 levels deep
+synapse call-depth "MyNamespace.MyClass.DoWork" --depth 4 --tree
+
+# Trace how one method reaches another
+synapse trace "Controller.Handle" "Repository.Save" --tree
+
+# Analyze impact before making a change
+synapse impact "MyNamespace.MyClass.DoWork"
 
 # Watch for live updates while developing
 synapse watch /path/to/my/project
+
+# Check environment setup
+synapse doctor
 ```
 
 ---
 
 ## MCP Tools
 
-These tools are available to any MCP client connected to `synapse-mcp`.
+These tools are available to any MCP client connected to `synapse-mcp`. There are 19 tools organized into 6 categories.
 
 ### Project management
 
 | Tool | Parameters | Description |
 |---|---|---|
 | `index_project` | `path`, `language?` | Index a project (auto-detects language if omitted) |
+| `list_projects` | `path?` | List all indexed projects. When `path` is provided, returns detailed index status (file count, symbol count, per-label breakdown) instead |
 | `sync_project` | `path` | Incremental sync — re-indexes only changed files using git diff or mtime |
-| `list_projects` | — | List all indexed projects with metadata |
-| `delete_project` | `path` | Remove a project and all its graph data |
-| `get_index_status` | `path` | File count, symbol count, per-label breakdown |
 
 ### Symbol discovery
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `search_symbols` | `query`, `kind?`, `namespace?`, `file_path?`, `language?` | Find symbols by name with optional filters |
-| `get_symbol` | `full_name` | Get a symbol's node properties and relationships |
+| `search_symbols` | `query`, `kind?`, `namespace?`, `file_path?`, `language?`, `limit?` | Find symbols by name substring with optional filters |
+| `get_symbol` | `full_name` | Get a symbol's metadata (file path, line range, kind). Does not return source code |
 | `get_symbol_source` | `full_name`, `include_class_signature?` | Get the source code of a symbol from disk |
-| `find_implementations` | `interface_name` | Find all concrete implementations of an interface |
+| `find_implementations` | `interface_name`, `limit?` | Find all concrete implementations of an interface |
 | `get_hierarchy` | `class_name` | Full inheritance chain: parents, children, implemented interfaces |
 
 ### Call graph
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `find_callers` | `method`, `include_interface_dispatch?`, `exclude_test_callers?` | Find all callers of a method, including through interface dispatch |
-| `find_callees` | `method`, `include_interface_dispatch?` | Find all methods called by a given method |
-| `find_usages` | `full_name`, `exclude_test_callers?`, `limit?` | Unified usage lookup — auto-selects strategy by symbol kind |
+| `find_callers` | `method_full_name`, `include_interface_dispatch?`, `exclude_test_callers?`, `limit?` | Find all callers of a method, including through interface dispatch |
+| `find_callees` | `method_full_name`, `include_interface_dispatch?`, `limit?`, `depth?` | Find all methods called by a given method. When `depth` is set, returns all reachable methods up to N levels (call tree mode) |
+| `find_usages` | `full_name`, `exclude_test_callers?`, `limit?`, `kind?`, `include_test_breakdown?` | Unified usage lookup — auto-selects strategy by symbol kind. Use `kind` to filter type references (`parameter`, `return_type`, `property_type`). Use `include_test_breakdown` for prod/test categorized impact |
 | `trace_call_chain` | `start`, `end`, `max_depth?` | Find all call paths between two methods |
-| `find_entry_points` | `method`, `max_depth?`, `exclude_pattern?` | Find root callers (API/controller endpoints) that reach a method |
-| `get_call_depth` | `method`, `depth?` | Get all methods reachable from a starting point up to N levels deep |
-| `find_interface_contract` | `method` | Find the interface a method satisfies and all sibling implementations |
+| `find_entry_points` | `method`, `max_depth?`, `exclude_pattern?`, `exclude_test_callers?` | Find root callers (API/controller endpoints) that reach a method |
 
 ### Impact analysis
 
@@ -287,8 +316,6 @@ These tools are available to any MCP client connected to `synapse-mcp`.
 |---|---|---|
 | `get_context_for` | `full_name`, `scope?`, `max_lines?` | Context for understanding or editing a symbol (scopes: `structure`, `method`, `edit`) |
 | `analyze_change_impact` | `method` | What breaks if you change this? Direct callers, transitive callers, test coverage, callees |
-| `find_type_references` | `full_name`, `kind?` | Find all symbols that reference a type (as parameter, return type, or field) |
-| `find_type_impact` | `type_name`, `limit?` | All code referencing a type, categorized as prod or test |
 | `find_dependencies` | `full_name`, `depth?`, `limit?` | Field-type dependencies of a symbol, with optional transitive traversal |
 
 ### Summaries
@@ -303,7 +330,6 @@ These tools are available to any MCP client connected to `synapse-mcp`.
 |---|---|---|
 | `get_schema` | — | Return the full graph schema: labels, properties, relationships |
 | `execute_query` | `cypher` | Execute a read-only Cypher query (mutating statements are blocked) |
-| `audit_architecture` | `rule` | Run architectural audit rules (e.g. `layering_violations`, `untested_services`) |
 
 ---
 
@@ -354,28 +380,58 @@ Fully-qualified names (e.g. `MyNamespace.MyClass.DoWork`) are used as symbol ide
 
 ## Multi-project usage
 
-Synapse manages Docker containers automatically. Each project directory you work in gets its own isolated Memgraph instance:
+By default, all projects share a single Memgraph container (`synapse-shared` on port 7687). Each project's data is scoped by its `Repository` node in the graph — indexing project A has no effect on project B.
 
 ```bash
-# Index two different projects — each gets its own container
+# Index two different projects — both use the shared container
 cd /path/to/project-a && synapse index .
 cd /path/to/project-b && synapse index .
 
-# Queries from each directory hit the correct graph
+# Queries from each directory are scoped to that project's graph data
 cd /path/to/project-a && synapse search "Controller"  # searches project A's graph
 cd /path/to/project-b && synapse search "Controller"  # searches project B's graph
 ```
 
-Container and port configuration is stored in `.synapse/config.json` in each project root. Add `.synapse/` to your `.gitignore`.
+### Dedicated containers (opt-in)
 
-Containers persist across sessions. If a container was stopped, Synapse automatically restarts it on the next command. To clean up:
+If you need full container isolation (e.g. for resource management or data separation), add `"dedicated_instance": true` to the project's `.synapse/config.json`:
+
+```json
+{
+  "dedicated_instance": true
+}
+```
+
+Synapse will provision a per-project container (`synapse-<project-name>`) on a dynamically allocated port. Container and port details are stored in `.synapse/config.json` in the project root.
+
+### External Memgraph
+
+To connect to an existing Memgraph instance instead of using Docker, set the connection in `~/.synapse/config.json`:
+
+```json
+{
+  "external_host": "memgraph.example.com",
+  "external_port": 7687
+}
+```
+
+Docker is not required in external mode.
+
+### Managing containers
 
 ```bash
-# Containers can be managed with standard Docker commands
-docker ps --filter "name=synapse-"     # list Synapse containers
-docker stop synapse-abc123def456       # stop a specific container
-docker rm synapse-abc123def456         # remove a specific container
+# List Synapse containers
+docker ps --filter "name=synapse-"
+
+# Stop the shared container
+docker stop synapse-shared
+
+# Stop and remove a dedicated container
+docker stop synapse-myproject
+docker rm synapse-myproject
 ```
+
+Containers persist across sessions. If a container was stopped, Synapse automatically restarts it on the next command.
 
 ## Ignoring Files (`.synignore`)
 
@@ -425,7 +481,7 @@ This project is indexed by the Synapse MCP server. Use it instead of grep/read f
 
 - Before modifying a method, use `get_context_for` (scope="edit") to understand its callers, callees, dependencies, and test coverage
 - Use `find_callers` / `find_usages` to trace how a symbol is used across the codebase — prefer this over grep
-- Use `find_callees` or `get_call_depth` to understand what a method depends on downstream
+- Use `find_callees` (with `depth` for reachable call trees) to understand what a method depends on downstream
 - After making changes, use `analyze_change_impact` to verify no unexpected breakage
 - Use `get_hierarchy` to understand inheritance before modifying class structures
 - Use `search_symbols` to find symbols by name, kind, file, or namespace — faster and more precise than file search
@@ -461,14 +517,14 @@ Use Synapse MCP tools for all code navigation and understanding tasks. Do not us
 
 ## Understanding call relationships
 - find_callers to find who calls a method (includes interface dispatch automatically)
-- find_callees to find what a method calls
+- find_callees to find what a method calls (use depth param for full call tree)
 - find_usages for unified lookup (auto-selects strategy by symbol kind)
 - trace_call_chain to find paths between two methods
 - find_entry_points to find API/controller entry points that reach a method
 
 ## Impact analysis
 - analyze_change_impact before and after changes
-- find_type_impact to find code affected by type shape changes
+- find_usages with include_test_breakdown=True for prod/test categorized impact
 - find_dependencies for constructor/field type dependencies
 
 ## Reading code
@@ -494,7 +550,7 @@ Key tools by task:
 - Before editing: get_context_for(scope="edit") for callers, deps, tests
 - Find symbols: search_symbols (with kind/namespace/file_path filters)
 - Who calls a method: find_callers (includes interface dispatch)
-- What a method calls: find_callees
+- What a method calls: find_callees (use depth for call tree)
 - All usages: find_usages (auto-selects by symbol kind)
 - Implementations: find_implementations
 - Inheritance: get_hierarchy
@@ -525,7 +581,7 @@ This project has a Synapse MCP server providing code intelligence tools. Use the
 
 ## Tool selection
 - Callers of a method: `find_callers` (not raw Cypher)
-- Callees of a method: `find_callees`
+- Callees of a method: `find_callees` (use `depth` for call tree)
 - All usages of any symbol: `find_usages`
 - Interface implementations: `find_implementations`
 - Inheritance chain: `get_hierarchy`
@@ -543,7 +599,7 @@ This project has a Synapse MCP server providing code intelligence tools. Use the
 <summary><strong>Generic / Other MCP Clients</strong></summary>
 
 ```text
-Synapse MCP — Code Intelligence Tools
+Synapse MCP — Code Intelligence Tools (19 tools)
 
 Use Synapse tools instead of grep/file reads for code navigation.
 
@@ -555,7 +611,7 @@ Finding symbols:
 
 Call relationships:
   find_callers(method) — who calls this (includes interface dispatch)
-  find_callees(method) — what this calls
+  find_callees(method) — what this calls (use depth for call tree)
   find_usages(symbol) — unified lookup, auto-selects by kind
   trace_call_chain(start, end) — paths between two methods
   find_entry_points(method) — API/controller roots

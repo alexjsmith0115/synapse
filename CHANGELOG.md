@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-03-26
+
 ### Added
 - Multi-language indexing: C#, Python, TypeScript/JavaScript, Java
 - Graph-based code intelligence via Memgraph
