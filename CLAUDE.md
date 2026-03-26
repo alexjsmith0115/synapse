@@ -12,12 +12,15 @@ This project is indexed by the Synapse MCP server. Use it instead of grep/read f
 
 - Before modifying a method, use `get_context_for` (scope="edit") to understand its callers, callees, dependencies, and test coverage
 - Use `find_callers` / `find_usages` to trace how a symbol is used across the codebase — prefer this over grep
-- Use `find_callees` or `get_call_depth` to understand what a method depends on downstream
+- Use `find_callees` (with optional `depth` param for reachable call tree) to understand what a method depends on downstream
 - After making changes, use `analyze_change_impact` to verify no unexpected breakage
 - Use `get_hierarchy` to understand inheritance before modifying class structures
 - Use `search_symbols` to find symbols by name, kind, file, or namespace — faster and more precise than file search
 - Use `execute_query` for ad-hoc Cypher queries; call `get_schema` first to see available labels and relationships
-- If any issues with the MCP or inconsistencies in the graph vs filesystem are found, report this to the user as a side note. 
+- Use `summary` with action='set'/'get'/'list' to manage symbol summaries
+- Use `find_usages` with `kind` param to filter type references, or `include_test_breakdown=True` for prod/test split
+- CLI-only tools (not available via MCP): `synapse doctor`, `synapse delete <path>`, `synapse status <path>`
+- If any issues with the MCP or inconsistencies in the graph vs filesystem are found, report this to the user as a side note.
 
 ## Common Commands
 
