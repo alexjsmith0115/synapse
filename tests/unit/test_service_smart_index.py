@@ -60,7 +60,8 @@ def test_git_repo_with_stored_sha_runs_git_sync(mock_git, mock_get_sha, mock_dif
     conn.query.return_value = [["some/path"]]  # has Repository
     mock_diff.return_value = GitDiff(to_reindex={"/project/a.cs"}, to_delete=set(), renames=[])
     mock_sync.return_value = SyncResult(updated=2, deleted=0, unchanged=0)
-    result = svc.smart_index("/project", "csharp")
+    with patch.object(svc._indexing, "_run_http_rematch"):
+        result = svc.smart_index("/project", "csharp")
     assert result == "git-sync"
     mock_sync.assert_called_once()
     # Verify stored_sha was passed
@@ -76,7 +77,8 @@ def test_git_repo_no_stored_sha_uses_empty_tree(mock_git, mock_get_sha, mock_dif
     conn.query.return_value = [["some/path"]]  # has Repository
     mock_diff.return_value = GitDiff(to_reindex={"/project/a.cs"}, to_delete=set(), renames=[])
     mock_sync.return_value = SyncResult(updated=5, deleted=0, unchanged=0)
-    result = svc.smart_index("/project", "csharp")
+    with patch.object(svc._indexing, "_run_http_rematch"):
+        result = svc.smart_index("/project", "csharp")
     assert result == "git-sync"
     call_kwargs = mock_sync.call_args
     # Should use the empty tree SHA
@@ -103,7 +105,8 @@ def test_git_sync_shuts_down_lsp(mock_git, mock_get_sha, mock_diff, mock_sync, s
     conn.query.return_value = [["some/path"]]
     mock_diff.return_value = GitDiff(to_reindex={"/project/a.cs"}, to_delete=set(), renames=[])
     mock_sync.return_value = SyncResult(updated=0, deleted=0, unchanged=0)
-    svc.smart_index("/project", "csharp")
+    with patch.object(svc._indexing, "_run_http_rematch"):
+        svc.smart_index("/project", "csharp")
     plugin = registry.detect_with_files.return_value[0][0]
     lsp = plugin.create_lsp_adapter.return_value
     lsp.shutdown.assert_called_once()
@@ -143,7 +146,8 @@ def test_git_sync_skips_language_with_no_changes(mock_git, mock_get_sha, mock_di
     svc = SynapseService(conn, registry=registry)
     conn.query.return_value = [["some/path"]]
 
-    result = svc.smart_index("/project", "python")
+    with patch.object(svc._indexing, "_run_http_rematch"):
+        result = svc.smart_index("/project", "python")
 
     assert result == "git-sync"
     py_plugin.create_lsp_adapter.assert_called_once()

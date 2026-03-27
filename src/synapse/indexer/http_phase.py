@@ -80,7 +80,7 @@ class HttpPhase:
         batch_upsert_http_calls(self._conn, http_calls_batch)
 
         log.info(
-            "[EXPERIMENTAL] HTTP endpoints: %d server endpoints, %d client calls, %d matched",
+            "HTTP endpoints: %d server endpoints, %d client calls, %d matched",
             len(all_defs),
             len(all_calls),
             sum(1 for m in matched if m.endpoint_def is not None and m.client_calls),
