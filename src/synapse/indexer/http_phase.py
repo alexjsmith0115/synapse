@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 
 from synapse.graph.connection import GraphConnection
 from synapse.graph.edges import (
@@ -42,6 +43,8 @@ class HttpPhase:
             {"repo": self._repo_path},
         )
 
+        self._warn_route_conflicts(all_defs)
+
         matched = match_endpoints(all_defs, all_calls)
 
         serves_batch: list[dict] = []
@@ -82,6 +85,22 @@ class HttpPhase:
             len(all_calls),
             sum(1 for m in matched if m.endpoint_def is not None and m.client_calls),
         )
+
+    def _warn_route_conflicts(self, all_defs: list) -> None:
+        groups: dict[tuple[str, str], list] = defaultdict(list)
+        for ep in all_defs:
+            groups[(ep.http_method, ep.route)].append(ep)
+        for (http_method, route), handlers in groups.items():
+            if len(handlers) >= 2:
+                handler_list = ", ".join(
+                    f"{h.handler_full_name} (line {h.line})" for h in handlers
+                )
+                log.warning(
+                    "Route conflict: %s %s is served by multiple handlers: %s",
+                    http_method,
+                    route,
+                    handler_list,
+                )
 
     def rebuild_from_graph(self) -> tuple[list, list]:
         """Reconstruct endpoint defs and client calls from existing graph data.
