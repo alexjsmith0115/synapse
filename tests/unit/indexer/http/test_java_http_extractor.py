@@ -529,3 +529,56 @@ public class JaxrsResource {
     routes = {ep.route for ep in result.endpoint_defs}
     assert "/spring/hello" in routes
     assert "/jaxrs" in routes
+
+
+def test_jaxrs_constraint_route_normalized() -> None:
+    """JAX-RS path with constraint like {id: [0-9]+} is normalized to {id} -- PROD-03 round-trip."""
+    source = """
+@Path("/items/{id: [0-9]+}")
+public class ItemResource {
+    @GET
+    public Response getItem() { return null; }
+}
+"""
+    from synapse.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getItem", "ItemResource.getItem", 4, 5)]))
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items/{id}"
+    assert ep.http_method == "GET"
+
+
+# ---------------------------------------------------------------------------
+# _find_enclosing_symbol narrowest-range tests -- PROD-04 regression
+# ---------------------------------------------------------------------------
+
+from synapse.indexer.java.java_http_extractor import _find_enclosing_symbol
+
+
+def test_find_enclosing_symbol_nested_class_narrowest_range() -> None:
+    """PROD-04: when two sibling inner classes overlap at a call site, the narrower one wins.
+
+    Sibling scenario: Inner1 (5-15, span=10) starts before Inner2 (8-20, span=12).
+    Both contain line 12. Narrowest-range must return Inner1, not Inner2.
+    Last-match (current bug) returns Inner2 because it starts later in sorted order.
+    """
+    symbols = [
+        (1, 100, "OuterClass.outerMethod"),
+        (5, 15, "OuterClass.Inner1.inner1Method"),
+        (8, 20, "OuterClass.Inner2.inner2Method"),
+    ]
+    assert _find_enclosing_symbol(12, symbols) == "OuterClass.Inner1.inner1Method"
+
+
+def test_find_enclosing_symbol_outer_only_when_not_in_inner() -> None:
+    symbols = [
+        (1, 50, "OuterClass.outerMethod"),
+        (10, 20, "OuterClass.InnerClass.innerMethod"),
+    ]
+    assert _find_enclosing_symbol(5, symbols) == "OuterClass.outerMethod"
+
+
+def test_find_enclosing_symbol_single_symbol() -> None:
+    symbols = [(1, 50, "OuterClass.outerMethod")]
+    assert _find_enclosing_symbol(15, symbols) == "OuterClass.outerMethod"

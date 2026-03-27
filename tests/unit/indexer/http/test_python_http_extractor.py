@@ -414,3 +414,38 @@ def fetch_external():
     result = extractor.extract("test.py", _parse(source), syms)
     assert len(result.endpoint_defs) == 1
     assert len(result.client_calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# _find_enclosing_symbol narrowest-range tests -- PROD-04 regression
+# ---------------------------------------------------------------------------
+
+from synapse.indexer.python.python_http_extractor import _find_enclosing_symbol
+
+
+def test_find_enclosing_symbol_nested_class_narrowest_range() -> None:
+    """PROD-04: when two sibling inner classes overlap at a call site, the narrower one wins.
+
+    Sibling scenario: Inner1 (5-15, span=10) starts before Inner2 (8-20, span=12).
+    Both contain line 12. Narrowest-range must return Inner1, not Inner2.
+    Last-match (current bug) returns Inner2 because it starts later in sorted order.
+    """
+    symbols = [
+        (1, 100, "OuterClass.outerMethod"),
+        (5, 15, "OuterClass.Inner1.inner1Method"),
+        (8, 20, "OuterClass.Inner2.inner2Method"),
+    ]
+    assert _find_enclosing_symbol(12, symbols) == "OuterClass.Inner1.inner1Method"
+
+
+def test_find_enclosing_symbol_outer_only_when_not_in_inner() -> None:
+    symbols = [
+        (1, 50, "OuterClass.outerMethod"),
+        (10, 20, "OuterClass.InnerClass.innerMethod"),
+    ]
+    assert _find_enclosing_symbol(5, symbols) == "OuterClass.outerMethod"
+
+
+def test_find_enclosing_symbol_single_symbol() -> None:
+    symbols = [(1, 50, "OuterClass.outerMethod")]
+    assert _find_enclosing_symbol(15, symbols) == "OuterClass.outerMethod"

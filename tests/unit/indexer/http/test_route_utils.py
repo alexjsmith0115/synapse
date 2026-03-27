@@ -92,3 +92,20 @@ def test_strip_base_url_variable_with_backtick_style() -> None:
     """Variables with dots or special chars in the name should also be stripped."""
     from synapse.indexer.http.route_utils import strip_base_url_variable
     assert strip_base_url_variable("{config.apiUrl}/api/health") == "/api/health"
+
+
+# ---------------------------------------------------------------------------
+# JAX-RS constraint normalization -- PROD-03 regression tests
+# ---------------------------------------------------------------------------
+
+def test_strips_jaxrs_constraint_with_space() -> None:
+    """JAX-RS uses space after colon: {id: [0-9]+} -- PROD-03 regression."""
+    assert normalize_route("{id: [0-9]+}") == "/{id}"
+
+
+def test_strips_jaxrs_constraint_combined() -> None:
+    assert normalize_route("items/{slug: [a-z]+}") == "/items/{slug}"
+
+
+def test_strips_jaxrs_constraint_special_chars() -> None:
+    assert normalize_route("{name: [A-Za-z\\s]+}") == "/{name}"
