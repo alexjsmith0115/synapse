@@ -78,31 +78,43 @@ Synapse is designed for AI consumption. Outputs use shortened symbol references 
 
 C#, Python, TypeScript/JavaScript, and Java projects all use the same tools, the same graph schema, and the same query patterns. Each language has a plugin that handles LSP communication, call site extraction, import resolution, and type reference detection — but the agent doesn't need to know any of that. `find_callers` works the same whether the codebase is C# or Python.
 
-### HTTP Endpoint Tracing (Experimental)
+### HTTP Endpoint Tracing
+
+In full-stack projects with a backend API and a frontend client, Synapse traces HTTP dependencies across the language boundary. It detects server-side endpoint definitions and client-side HTTP calls, matches them by route pattern, and links them through shared `Endpoint` nodes in the graph.
 
 > **Opt-in.** Add `"experimental": { "http_endpoints": true }` to your `.synapse/config.json` to enable.
 
-In full-stack projects with a backend API and a frontend client, Synapse can trace HTTP dependencies across the language boundary. It detects server-side endpoint definitions (e.g., ASP.NET `[HttpGet]` controller methods) and client-side HTTP calls (e.g., `api.get('/items')` in TypeScript), matches them by route pattern, and links them through shared `Endpoint` nodes in the graph.
+**Supported Frameworks:**
 
-This means your agent can answer questions like *"what frontend code calls this controller action?"* or *"what backend handler does this service method hit?"* — without grepping for URL strings.
-
-```cypher
--- Frontend → Backend: what does this React service method call?
-MATCH (fe:Method)-[:HTTP_CALLS]->(ep:Endpoint)<-[:SERVES]-(be:Method)
-WHERE fe.full_name = 'itemService.getAll'
-RETURN be.full_name, ep.route
-
--- Backend → Frontend: what calls this controller action?
-MATCH (be:Method)-[:SERVES]->(ep:Endpoint)<-[:HTTP_CALLS]-(fe:Method)
-WHERE be.full_name = 'ItemsController.GetAll'
-RETURN fe.full_name, ep.route
-```
-
-**Currently supported:**
-- **Server-side:** C# / ASP.NET Core (`[ApiController]`, `[Route]`, `[HttpGet]`, etc.)
-- **Client-side:** TypeScript / JavaScript (axios, fetch, template literals, constant references)
+| Language | Server Frameworks | Client Libraries |
+|----------|------------------|-----------------|
+| C# | ASP.NET Core (`[ApiController]`, `[Route]`, `[HttpGet/Post/Put/Delete]`) | -- |
+| TypeScript / JavaScript | Express, NestJS | axios, fetch (template literals, constant references) |
+| Python | Flask, Django, FastAPI | requests, httpx, urllib |
+| Java | Spring Boot (`@RequestMapping`, `@GetMapping`, etc.), JAX-RS (`@Path`, `@GET`) | -- |
 
 Route matching handles parameterized paths (`{id}` on either side) and common base URL prefixes (`/api`, `/api/v1`).
+
+**MCP Tools:**
+
+Use `find_http_endpoints` to search for endpoints by route pattern, HTTP method, or language:
+
+```json
+{ "tool": "find_http_endpoints", "arguments": { "route": "items", "http_method": "GET" } }
+```
+
+Use `trace_http_dependency` to find the server handler and all client call sites for a specific endpoint:
+
+```json
+{ "tool": "trace_http_dependency", "arguments": { "route": "/api/items", "http_method": "GET" } }
+```
+
+Each result includes a `has_server_handler` field that is `false` for client calls to unindexed or external services.
+
+**Known Limitations:**
+
+- **Dynamic URL construction** -- URLs assembled at runtime (e.g., string concatenation, builder patterns) cannot be resolved by static analysis.
+- **API gateway / middleware rewrites** -- Route rewrites applied by API gateways, reverse proxies, or middleware are invisible to source-level analysis. The traced routes reflect what the source code declares, not what reaches the network.
 
 ### Container Management
 

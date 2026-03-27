@@ -25,6 +25,7 @@ EXPECTED_TOOLS = {
     "get_context_for", "trace_call_chain", "find_entry_points",
     "analyze_change_impact",
     "get_schema",
+    "find_http_endpoints", "trace_http_dependency",
 }
 
 
