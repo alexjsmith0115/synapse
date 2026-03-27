@@ -267,6 +267,46 @@ export abstract class Service {
     assert "abstract" in attrs
 
 
+def test_extract_async_arrow_function() -> None:
+    """Arrow function with async produces async marker."""
+    source = """\
+const fetchData = async () => {
+    return "data";
+};
+"""
+    extractor = _make()
+    results = extractor.extract("test.ts", _parse(source, "test.ts"))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "fetchData" in names_and_attrs
+    assert "async" in names_and_attrs["fetchData"]
+
+
+def test_extract_exported_async_arrow_function() -> None:
+    """Exported async arrow function produces both export and async markers."""
+    source = """\
+export const fetchData = async (url: string): Promise<string> => {
+    return "";
+};
+"""
+    extractor = _make()
+    results = extractor.extract("test.ts", _parse(source, "test.ts"))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "fetchData" in names_and_attrs
+    assert "async" in names_and_attrs["fetchData"]
+    assert "export" in names_and_attrs["fetchData"]
+
+
+def test_non_async_arrow_function_no_markers() -> None:
+    """Non-async arrow function without modifiers produces no markers."""
+    source = """\
+const double = (x: number) => x * 2;
+"""
+    extractor = _make()
+    results = extractor.extract("test.ts", _parse(source, "test.ts"))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "double" not in names_and_attrs
+
+
 def test_empty_source() -> None:
     """Empty source returns []."""
     extractor = _make()

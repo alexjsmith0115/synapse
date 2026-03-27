@@ -20,6 +20,11 @@ _DECL_TYPES = frozenset({
     "enum_declaration",
 })
 
+# C# keyword modifiers we extract as metadata markers for set_metadata_flags
+_MODIFIER_KEYWORDS = frozenset({
+    "abstract", "static", "async", "virtual", "override", "sealed", "readonly",
+})
+
 
 class CSharpAttributeExtractor:
     def __init__(self) -> None:
@@ -39,11 +44,23 @@ class CSharpAttributeExtractor:
 
     def _handle_decl(self, node, results: list[tuple[str, list[str]]]) -> None:
         attrs = self._collect_attributes(node)
-        if not attrs:
+        modifiers = self._collect_modifiers(node)
+        markers = attrs + modifiers
+        if not markers:
             return
         name = self._extract_name(node)
         if name:
-            results.append((name, attrs))
+            results.append((name, markers))
+
+    def _collect_modifiers(self, node) -> list[str]:
+        """Extract keyword modifiers (static, abstract, async, etc.) from a declaration node."""
+        modifiers: list[str] = []
+        for child in node.children:
+            if child.type == "modifier":
+                text = node_text(child).strip()
+                if text in _MODIFIER_KEYWORDS:
+                    modifiers.append(text)
+        return modifiers
 
     def _collect_attributes(self, node) -> list[str]:
         attrs: list[str] = []

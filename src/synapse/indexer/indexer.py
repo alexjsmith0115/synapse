@@ -465,7 +465,7 @@ class Indexer:
                     )
 
         # OVERRIDES detection (pure Cypher, no LSP needed)
-        if self._language in ("python", "typescript", "java"):
+        if self._language in ("python", "typescript", "java", "csharp"):
             OverridesIndexer(self._conn).index()
 
     def delete_file(self, file_path: str) -> None:
@@ -654,7 +654,7 @@ class Indexer:
             full_names = qualified_to_full.get(result_name) or name_to_full.get(result_name, [])
             for fn in full_names:
                 set_attributes(self._conn, fn, attrs)
-                if self._language in ("python", "typescript", "java"):
+                if self._language in ("python", "typescript", "java", "csharp"):
                     set_metadata_flags(self._conn, fn, _attrs_to_flags(attrs))
 
     def _index_attributes_from_results(
@@ -677,7 +677,7 @@ class Indexer:
             full_names = qualified_to_full.get(result_name) or name_to_full.get(result_name, [])
             for fn in full_names:
                 set_attributes(self._conn, fn, attrs)
-                if self._language in ("python", "typescript", "java"):
+                if self._language in ("python", "typescript", "java", "csharp"):
                     set_metadata_flags(self._conn, fn, _attrs_to_flags(attrs))
 
     def _index_base_types(
@@ -728,7 +728,7 @@ _ATTR_TO_FLAG: dict[str, str] = {
     "async": "is_async",
     "ABC": "is_abstract",
     "Protocol": "is_abstract",
-    # TypeScript markers (bare keyword names, no collision with Python decorated names)
+    # Bare keyword modifiers shared by TypeScript, C#, and Java
     "abstract": "is_abstract",
     "static": "is_static",
     # Java markers (annotations and modifiers)

@@ -97,6 +97,94 @@ def test_empty_source_returns_empty() -> None:
     assert extractor.extract("test.cs", _parse("   ")) == []
 
 
+def test_extracts_static_method_modifier() -> None:
+    source = """
+public class MyService {
+    public static string GetName() { return ""; }
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    assert "GetName" in attrs
+    assert "static" in attrs["GetName"]
+
+
+def test_extracts_async_method_modifier() -> None:
+    source = """
+public class MyService {
+    public async Task<string> FetchDataAsync() { return ""; }
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    assert "FetchDataAsync" in attrs
+    assert "async" in attrs["FetchDataAsync"]
+
+
+def test_extracts_abstract_method_modifier() -> None:
+    source = """
+public abstract class Base {
+    public abstract void DoWork();
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    assert "DoWork" in attrs
+    assert "abstract" in attrs["DoWork"]
+    assert "Base" in attrs
+    assert "abstract" in attrs["Base"]
+
+
+def test_extracts_combined_modifiers() -> None:
+    source = """
+public class MyController {
+    public static async Task<bool> ValidateAsync() { return true; }
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    assert "ValidateAsync" in attrs
+    assert "static" in attrs["ValidateAsync"]
+    assert "async" in attrs["ValidateAsync"]
+
+
+def test_extracts_virtual_override_modifiers() -> None:
+    source = """
+public class Base {
+    public virtual void Speak() { }
+}
+public class Derived : Base {
+    public override void Speak() { }
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    base_speak = [attrs for name, attrs in results if name == "Speak"]
+    assert any("virtual" in a for a in base_speak)
+    assert any("override" in a for a in base_speak)
+
+
+def test_modifiers_combined_with_attributes() -> None:
+    source = """
+public class MyController {
+    [HttpGet]
+    public static async Task<string> GetAsync() { return ""; }
+}
+"""
+    extractor = CSharpAttributeExtractor()
+    results = extractor.extract("test.cs", _parse(source))
+    attrs = dict(results)
+    assert "GetAsync" in attrs
+    assert "HttpGet" in attrs["GetAsync"]
+    assert "static" in attrs["GetAsync"]
+    assert "async" in attrs["GetAsync"]
+
+
 def test_no_attributes_returns_empty() -> None:
     source = "public class Plain { }"
     extractor = CSharpAttributeExtractor()

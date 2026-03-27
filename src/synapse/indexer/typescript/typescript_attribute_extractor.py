@@ -59,6 +59,9 @@ class TypeScriptAttributeExtractor:
         elif ntype == "public_field_definition":
             self._handle_field(node, results, pending_decorators)
 
+        elif ntype in ("lexical_declaration", "variable_declaration"):
+            self._handle_variable_declaration(node, results, pending_decorators)
+
         else:
             for child in node.children:
                 self._walk(child, results, [])
@@ -74,6 +77,8 @@ class TypeScriptAttributeExtractor:
                 if name:
                     decorators.append(name)
             elif child.type in _DECLARATION_TYPES:
+                declaration = child
+            elif child.type in ("lexical_declaration", "variable_declaration"):
                 declaration = child
 
         if declaration is None:
@@ -101,6 +106,8 @@ class TypeScriptAttributeExtractor:
             self._handle_method(declaration, results, export_decorators, auto_abstract=True)
         elif dtype == "public_field_definition":
             self._handle_field(declaration, results, export_decorators)
+        elif dtype in ("lexical_declaration", "variable_declaration"):
+            self._handle_variable_declaration(declaration, results, export_decorators)
 
     def _handle_class(
         self,
@@ -206,6 +213,27 @@ class TypeScriptAttributeExtractor:
 
         if markers:
             results.append((name, markers))
+
+    def _handle_variable_declaration(
+        self,
+        node,
+        results: list[tuple[str, list[str]]],
+        inherited_markers: list[str],
+    ) -> None:
+        """Handle lexical_declaration/variable_declaration for arrow functions with modifiers."""
+        for child in node.children:
+            if child.type == "variable_declarator":
+                name = self._identifier(child)
+                if not name:
+                    continue
+                # Check the value (right side of =) for arrow_function or function modifiers
+                for vc in child.children:
+                    if vc.type in ("arrow_function", "function"):
+                        modifiers = self._scan_modifiers(vc)
+                        markers = list(inherited_markers) + modifiers
+                        if markers:
+                            results.append((name, markers))
+                        break
 
     def _walk_class_body(self, body_node, results: list[tuple[str, list[str]]]) -> None:
         """Walk class_body children, grouping decorators with their following member."""
