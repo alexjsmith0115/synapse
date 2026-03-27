@@ -46,13 +46,8 @@ CLI-ONLY TOOLS (not available via MCP):
 - synapse delete <path> -- delete a project and all its graph data
 - synapse status <path> -- detailed index status (also available via list_projects(path=...))
 
-HTTP ENDPOINTS (experimental):
-- If a project has experimental.http_endpoints enabled in .synapse/config.json, \
-the graph includes Endpoint nodes with SERVES and HTTP_CALLS edges for tracing \
-frontend-to-backend HTTP dependencies.
-- To find what frontend code calls a backend method: \
-MATCH (m:Method)-[:SERVES]->(ep:Endpoint)<-[:HTTP_CALLS]-(caller) RETURN caller, ep
-- To find what backend handler a frontend method hits: \
-MATCH (m:Method)-[:HTTP_CALLS]->(ep:Endpoint)<-[:SERVES]-(handler) RETURN handler, ep
-- Note: HTTP endpoint data is experimental and may be incomplete.\
+HTTP ENDPOINTS:
+- Search endpoints by route, HTTP method, or language: find_http_endpoints (substring match on route)
+- Trace server handler + all client call sites for a specific endpoint: trace_http_dependency (exact route match)
+- Use find_http_endpoints first to discover routes, then trace_http_dependency for the full dependency picture.\
 """

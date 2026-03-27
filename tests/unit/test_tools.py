@@ -272,6 +272,61 @@ def test_list_projects_without_path_returns_all() -> None:
     assert len(result) == 2
 
 
+# --- HTTP endpoint tool tests ---
+
+def test_find_http_endpoints_delegates_to_service() -> None:
+    service = MagicMock()
+    service.find_http_endpoints.return_value = [
+        {"route": "/api/items", "http_method": "GET", "handler_full_name": "ItemsController.GetAll",
+         "file_path": "src/Controllers/Items.cs", "line": 15, "language": "csharp", "has_server_handler": True}
+    ]
+    fns = _register(service)
+    result = fns["find_http_endpoints"](route="items")
+    service.find_http_endpoints.assert_called_once_with("items", None, None, limit=50)
+    assert result[0]["has_server_handler"] is True
+    assert result[0]["route"] == "/api/items"
+
+
+def test_find_http_endpoints_passes_all_params() -> None:
+    service = MagicMock()
+    service.find_http_endpoints.return_value = []
+    fns = _register(service)
+    fns["find_http_endpoints"](route="/api", http_method="POST", language="python", limit=10)
+    service.find_http_endpoints.assert_called_once_with("/api", "POST", "python", limit=10)
+
+
+def test_trace_http_dependency_delegates_to_service() -> None:
+    service = MagicMock()
+    service.trace_http_dependency.return_value = {
+        "route": "/api/items", "http_method": "GET", "has_server_handler": True,
+        "server_handler": {"full_name": "ItemsController.GetAll", "file_path": "src/Controllers/Items.cs", "line": 15, "language": "csharp"},
+        "client_callers": [],
+    }
+    fns = _register(service)
+    result = fns["trace_http_dependency"](route="/api/items", http_method="GET")
+    service.trace_http_dependency.assert_called_once_with("/api/items", "GET")
+    assert result["has_server_handler"] is True
+    assert result["server_handler"]["full_name"] == "ItemsController.GetAll"
+
+
+def test_trace_http_dependency_no_server_handler() -> None:
+    service = MagicMock()
+    service.trace_http_dependency.return_value = {
+        "route": "/api/external", "http_method": "GET", "has_server_handler": False,
+        "server_handler": None, "client_callers": [{"full_name": "MyService.fetchData", "file_path": "src/service.ts", "line": 42, "language": "typescript"}],
+    }
+    fns = _register(service)
+    result = fns["trace_http_dependency"](route="/api/external", http_method="GET")
+    assert result["has_server_handler"] is False
+    assert result["server_handler"] is None
+    assert len(result["client_callers"]) == 1
+
+
+def test_graph_schema_no_experimental_note() -> None:
+    for note in _GRAPH_SCHEMA["notes"]:
+        assert "experimental" not in note.lower(), f"Experimental language still in schema note: {note}"
+
+
 # --- removed tools absence test ---
 
 def test_removed_tools_not_registered() -> None:

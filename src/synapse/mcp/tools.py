@@ -89,7 +89,7 @@ _GRAPH_SCHEMA = {
         "Nodes may have an 'attributes' property (JSON list of decorator/attribute names, e.g. '[\"staticmethod\",\"ApiController\"]').",
         "All symbol nodes (Class, Interface, Method, Property, Field) carry a 'language' property ('csharp', 'python', or 'typescript').",
         "Method nodes may carry boolean flags: is_abstract, is_static, is_classmethod, is_async.",
-        "Endpoint nodes and SERVES/HTTP_CALLS edges are experimental (requires experimental.http_endpoints in config).",
+        "Endpoint nodes and SERVES/HTTP_CALLS edges are populated during indexing when HTTP frameworks are detected. Use find_http_endpoints and trace_http_dependency tools to query them.",
     ],
 }
 
@@ -463,5 +463,36 @@ def register_tools(mcp: object, service: SynapseService, project_path: str = "")
         """
         _auto_sync_check()
         return service.analyze_change_impact(method)
+
+    @mcp.tool()
+    def find_http_endpoints(
+        route: str | None = None,
+        http_method: str | None = None,
+        language: str | None = None,
+        limit: int = 50,
+    ) -> list[dict] | dict:
+        """Search for HTTP endpoints by route pattern, HTTP method, or language.
+
+        route: substring match on endpoint route (e.g. 'items' matches '/api/items', '/api/items/{id}').
+        http_method: filter by HTTP method (GET, POST, PUT, DELETE, etc.).
+        language: filter to endpoints served by handlers in this language (e.g. 'csharp', 'python').
+        Endpoints without a server handler are excluded when language is specified.
+        Returns list of dicts: route, http_method, handler_full_name, file_path, line, language, has_server_handler.
+        Use find_http_endpoints to discover routes, then trace_http_dependency for full dependency trace.
+        """
+        _auto_sync_check()
+        return service.find_http_endpoints(route, http_method, language, limit=limit)
+
+    @mcp.tool()
+    def trace_http_dependency(route: str, http_method: str) -> dict:
+        """Find the server handler and all client call sites for a specific HTTP endpoint.
+
+        route: exact endpoint route (use find_http_endpoints first to discover routes).
+        http_method: exact HTTP method (GET, POST, PUT, DELETE, etc.).
+        Returns {route, http_method, has_server_handler, server_handler, client_callers}.
+        server_handler is null when no server handler is indexed (e.g. external or unindexed service).
+        """
+        _auto_sync_check()
+        return service.trace_http_dependency(route, http_method)
 
 
