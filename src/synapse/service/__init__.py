@@ -13,6 +13,8 @@ from synapse.graph.lookups import (
     resolve_full_name, resolve_full_name_with_labels,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
+    find_http_endpoints as query_find_http_endpoints,
+    find_http_dependency as query_find_http_dependency,
     _TEST_PATH_PATTERN,
 )
 from synapse.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
@@ -319,6 +321,62 @@ class SynapseService:
             for r in query_find_dependencies(self._conn, full_name, depth)
         ]
         return _apply_limit(result, limit)
+
+    def find_http_endpoints(
+        self,
+        route: str | None = None,
+        http_method: str | None = None,
+        language: str | None = None,
+        limit: int = 50,
+    ) -> list[dict] | dict:
+        rows = query_find_http_endpoints(
+            self._conn, route=route, http_method=http_method, language=language,
+        )
+        result = []
+        for ep_node, has_server, handler_node in rows:
+            ep_props = _p(ep_node)
+            handler_props = _p(handler_node) if handler_node is not None else None
+            result.append({
+                "route": ep_props.get("route"),
+                "http_method": ep_props.get("http_method"),
+                "handler_full_name": handler_props.get("full_name") if handler_props else None,
+                "file_path": self._rel_path(handler_props["file_path"]) if handler_props and handler_props.get("file_path") else None,
+                "line": handler_props.get("line") if handler_props else None,
+                "language": handler_props.get("language") if handler_props else None,
+                "has_server_handler": has_server,
+            })
+        return _apply_limit(result, limit)
+
+    def trace_http_dependency(self, route: str, http_method: str) -> dict:
+        data = query_find_http_dependency(self._conn, route, http_method)
+        handler_node = data.get("handler")
+        callers = data.get("callers", [])
+        handler_props = _p(handler_node) if handler_node is not None else None
+        server_handler = (
+            {
+                "full_name": handler_props.get("full_name"),
+                "file_path": self._rel_path(handler_props["file_path"]) if handler_props.get("file_path") else None,
+                "line": handler_props.get("line"),
+                "language": handler_props.get("language"),
+            }
+            if handler_props else None
+        )
+        client_callers = []
+        for c in callers:
+            cp = _p(c)
+            client_callers.append({
+                "full_name": cp.get("full_name"),
+                "file_path": self._rel_path(cp["file_path"]) if cp.get("file_path") else None,
+                "line": cp.get("line"),
+                "language": cp.get("language"),
+            })
+        return {
+            "route": route,
+            "http_method": http_method,
+            "has_server_handler": handler_node is not None,
+            "server_handler": server_handler,
+            "client_callers": client_callers,
+        }
 
     # --- Summaries ---
 

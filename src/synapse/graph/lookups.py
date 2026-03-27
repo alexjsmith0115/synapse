@@ -524,6 +524,81 @@ def find_all_deps(
     return [r[0] for r in rows]
 
 
+def find_http_endpoints(
+    conn: GraphConnection,
+    route: str | None = None,
+    http_method: str | None = None,
+    language: str | None = None,
+) -> list:
+    """Return (ep, has_server_handler, handler_or_None) tuples for HTTP endpoints.
+
+    When language is set, only endpoints with a SERVES handler in that language
+    are returned (client-only endpoints are excluded).
+    """
+    conditions = []
+    params: dict = {}
+    if route is not None:
+        conditions.append("ep.route CONTAINS $route")
+        params["route"] = route
+    if http_method is not None:
+        conditions.append("ep.http_method = $http_method")
+        params["http_method"] = http_method
+
+    where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    if language is not None:
+        # Enforce language filter: endpoints without a matching handler are excluded
+        params["language"] = language
+        cypher = (
+            f"MATCH (ep:Endpoint){where_clause} "
+            "MATCH (handler:Method)-[:SERVES]->(ep) "
+            "WHERE handler.language = $language "
+            "WITH ep, handler, true AS has_server "
+            "RETURN ep, has_server, handler "
+            "ORDER BY ep.route, ep.http_method"
+        )
+    else:
+        cypher = (
+            f"MATCH (ep:Endpoint){where_clause} "
+            "OPTIONAL MATCH (handler:Method)-[:SERVES]->(ep) "
+            "WITH ep, handler, count(handler) > 0 AS has_server "
+            "RETURN ep, has_server, handler "
+            "ORDER BY ep.route, ep.http_method"
+        )
+
+    rows = conn.query(cypher, params)
+    return [[r[0], r[1], r[2]] for r in rows]
+
+
+def find_http_dependency(conn: GraphConnection, route: str, http_method: str) -> dict:
+    """Return handler and callers for an exact route+http_method match.
+
+    Uses exact match (per D-05) on both route and http_method.
+    Returns dict with keys: ep, handler, callers.
+    """
+    handler_rows = conn.query(
+        "MATCH (ep:Endpoint {route: $route, http_method: $http_method}) "
+        "OPTIONAL MATCH (handler:Method)-[:SERVES]->(ep) "
+        "RETURN ep, handler",
+        {"route": route, "http_method": http_method},
+    )
+    if not handler_rows:
+        return {"ep": None, "handler": None, "callers": []}
+
+    ep = handler_rows[0][0]
+    handler = handler_rows[0][1]
+
+    caller_rows = conn.query(
+        "MATCH (ep:Endpoint {route: $route, http_method: $http_method}) "
+        "OPTIONAL MATCH (caller:Method)-[:HTTP_CALLS]->(ep) "
+        "RETURN caller",
+        {"route": route, "http_method": http_method},
+    )
+    callers = [r[0] for r in caller_rows if r[0] is not None]
+
+    return {"ep": ep, "handler": handler, "callers": callers}
+
+
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
     if _MUTATING_PATTERN.search(cypher.upper()):
