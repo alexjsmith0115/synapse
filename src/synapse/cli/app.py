@@ -148,6 +148,17 @@ def doctor() -> None:
 
 
 @app.command()
+def init(
+    path: str = typer.Argument(default=".", help="Project path to initialise"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
+) -> None:
+    """Walk me through setting up Synapse for this project."""
+    from synapse.onboarding.init_wizard import run_init
+    abs_path = str(Path(path).resolve())
+    run_init(abs_path, verbose=verbose)
+
+
+@app.command()
 def index(path: str, language: str = "csharp") -> None:
     """Index a project. Smart: full index if new, git sync if git project, mtime sync otherwise."""
     abs_path = str(Path(path).resolve())

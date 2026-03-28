@@ -264,3 +264,9 @@ def test_sync_shows_original_error_when_project_indexed():
     assert result.exit_code != 0
     assert "Something else went wrong" in result.output
     assert "synapse index" not in result.output
+
+
+def test_init_command_calls_run_init():
+    with patch("synapse.onboarding.init_wizard.run_init") as mock_run:
+        result = runner.invoke(app, ["init", "/tmp/test-project"])
+    mock_run.assert_called_once()
