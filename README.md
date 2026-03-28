@@ -155,7 +155,29 @@ When you run any Synapse command from a project directory, Synapse automatically
 
 Global config lives at `~/.synapse/config.json`. Per-project config (`.synapse/config.json`) is only created when using dedicated containers. Add `.synapse/` to your `.gitignore`.
 
+## Quick Start
+
+```bash
+pip install synapse-mcp
+synapse init
+```
+
+`synapse init` walks you through setup:
+1. **Detects languages** in your project (C#, Python, TypeScript, Java)
+2. **Checks prerequisites** — Docker, Memgraph, and language servers for detected languages only
+3. **Shows fix commands** for anything missing (platform-specific: `brew` on macOS, `apt` on Linux)
+4. **Indexes your project** — builds the code graph automatically
+5. **Configures your MCP client** — detects Claude Desktop, Claude Code, Cursor, or Copilot and offers to write the config
+
+After init completes, your AI agent can use Synapse tools immediately.
+
 ## Installation
+
+```bash
+pip install synapse-mcp
+```
+
+Or for development from source:
 
 ```bash
 pip install -e .
@@ -163,16 +185,32 @@ pip install -e .
 
 This installs two entry points:
 
-- `synapse` — CLI
+- `synapse` — CLI (includes `synapse init`, `synapse doctor`, `synapse index`, etc.)
 - `synapse-mcp` — MCP server
 
 ## MCP Server Setup
 
-Add Synapse to your MCP client config (e.g. Claude Desktop's `claude_desktop_config.json`):
+The easiest way to configure MCP is through `synapse init`, which auto-detects your MCP client and writes the config for you.
+
+To configure manually, add Synapse to your MCP client config:
+
+**Claude Desktop** (`claude_desktop_config.json`) / **Claude Code** (`.mcp.json`) / **Cursor** (`~/.cursor/mcp.json`):
 
 ```json
 {
   "mcpServers": {
+    "synapse": {
+      "command": "synapse-mcp"
+    }
+  }
+}
+```
+
+**VS Code / GitHub Copilot** (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
     "synapse": {
       "command": "synapse-mcp"
     }
@@ -190,10 +228,11 @@ The MCP server resolves the project from the current working directory at startu
 synapse <command> [args]
 ```
 
-### Environment
+### Setup
 
 | Command | Description |
 |---|---|
+| `synapse init [path]` | Interactive setup wizard — detects languages, checks prerequisites, indexes project, configures MCP clients |
 | `synapse doctor` | Check environment: Docker, Memgraph, and all language server dependencies |
 
 ### Project management

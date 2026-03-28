@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-03-28
+
+### Added
+- **PyPI distribution** — install via `pip install synapse-mcp` (package renamed from `synapse` to `synapse-mcp`)
+- **`synapse init` command** — interactive setup wizard that detects project languages, checks prerequisites, indexes the project, and configures MCP clients (Claude Desktop, Claude Code, Cursor, Copilot)
+- **`__version__` attribute** — `synapse.__version__` returns the installed version at runtime via `importlib.metadata`
+- **CI/CD publish workflow** — `.github/workflows/publish.yml` builds, smoke-tests, and publishes to PyPI on `v*` tags via OIDC trusted publishing
+- **Wheel smoke test** — CI verifies `solidlsp` and all 4 tree-sitter grammars are included in the published wheel
+- **Platform-aware doctor fix strings** — every failed check shows exact install commands for macOS (`brew`) or Linux (`apt-get`)
+- **Actionable error messages** — Docker-not-running, Memgraph connection lost, project-not-indexed, and language server timeout errors all show recovery commands
+- **MCP client auto-detection** — `synapse init` finds installed MCP clients and offers to write config with atomic merge (preserves existing server entries)
+
+### Changed
+- Package distribution name changed from `synapse` to `synapse-mcp` (Python import paths unchanged)
+- `synapse doctor` now exits with code 1 when any check fails (enables use in scripts and CI)
+- SYNAPSE logo banner moved from `synapse index` (first run) to `synapse init`
+- Version bumped from 1.0.0 to 1.2.0
+
+### Fixed
+- Language server timeout no longer aborts the entire indexing pass — timed-out files are skipped with a warning naming the file
+
 ## [1.1.0] - 2026-03-28
 
 ### Added
