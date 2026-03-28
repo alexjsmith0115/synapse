@@ -82,8 +82,6 @@ C#, Python, TypeScript/JavaScript, and Java projects all use the same tools, the
 
 In full-stack projects with a backend API and a frontend client, Synapse traces HTTP dependencies across the language boundary. It detects server-side endpoint definitions and client-side HTTP calls, matches them by route pattern, and links them through shared `Endpoint` nodes in the graph.
 
-> **Opt-in.** Add `"experimental": { "http_endpoints": true }` to your `.synapse/config.json` to enable.
-
 **Supported Frameworks:**
 
 | Language | Server Frameworks | Client Libraries |
@@ -155,7 +153,7 @@ When you run any Synapse command from a project directory, Synapse automatically
 2. Creates graph nodes scoped to the project path — multiple projects coexist in the same database, identified by their `Repository` node
 3. Indexes symbols via LSP and call sites via tree-sitter, writing nodes and edges to the graph
 
-Global config lives at `~/.synapse/config.json`. Per-project config (`.synapse/config.json`) is only created when using dedicated containers or experimental features. Add `.synapse/` to your `.gitignore`.
+Global config lives at `~/.synapse/config.json`. Per-project config (`.synapse/config.json`) is only created when using dedicated containers. Add `.synapse/` to your `.gitignore`.
 
 ## Installation
 
