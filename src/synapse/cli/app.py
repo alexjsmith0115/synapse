@@ -154,6 +154,7 @@ def init(
 ) -> None:
     """Walk me through setting up Synapse for this project."""
     from synapse.onboarding.init_wizard import run_init
+    print_banner()
     abs_path = str(Path(path).resolve())
     run_init(abs_path, verbose=verbose)
 
@@ -163,8 +164,6 @@ def index(path: str, language: str = "csharp") -> None:
     """Index a project. Smart: full index if new, git sync if git project, mtime sync otherwise."""
     abs_path = str(Path(path).resolve())
     svc = _get_service(abs_path)
-    if svc.get_index_status(abs_path) is None:
-        print_banner()
     try:
         result = svc.smart_index(abs_path, language, on_progress=typer.echo)
     except ModuleNotFoundError as e:
