@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import platform
 import shutil
 
 from synapse.doctor.base import CheckResult
 
-_FIX = "Install npm: https://nodejs.org/ (typescript-language-server is auto-installed by Synapse)"
+
+def _fix() -> str:
+    if platform.system() == "Darwin":
+        return "Install npm (bundled with Node.js): brew install node\nOr download: https://nodejs.org/"
+    return "Install npm: sudo apt-get install npm\nOr download: https://nodejs.org/"
 
 
 class TypeScriptLSCheck:
@@ -30,7 +35,7 @@ class TypeScriptLSCheck:
                 name="npm",
                 status="fail",
                 detail="npm not found on PATH (required for Synapse to install typescript-language-server)",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         return CheckResult(

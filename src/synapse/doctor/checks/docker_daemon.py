@@ -37,5 +37,5 @@ class DockerDaemonCheck:
 
 def _docker_fix_instructions() -> str:
     if platform.system() == "Darwin":
-        return "Install Docker Desktop: https://docs.docker.com/desktop/install/mac-install/ then start it."
-    return "Install Docker: sudo apt-get install docker.io && sudo systemctl start docker"
+        return "Start Docker: open -a Docker\nInstall (if needed): https://docs.docker.com/desktop/install/mac-install/"
+    return "Start Docker: sudo systemctl start docker\nInstall (if needed): sudo apt-get install docker.io"

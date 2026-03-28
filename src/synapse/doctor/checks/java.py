@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import platform
 import shutil
 import subprocess
 
 from synapse.doctor.base import CheckResult
 
-_FIX = "Install Java: https://adoptium.net/"
+
+def _fix() -> str:
+    if platform.system() == "Darwin":
+        return "Install Java: brew install --cask temurin\nOr download: https://adoptium.net/"
+    return "Install Java: sudo apt-get install default-jdk\nOr download: https://adoptium.net/"
 
 
 class JavaCheck:
@@ -18,7 +23,7 @@ class JavaCheck:
                 name="Java",
                 status="fail",
                 detail="java not found on PATH",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         try:
@@ -29,7 +34,7 @@ class JavaCheck:
                 name="Java",
                 status="fail",
                 detail="java -version timed out",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         if result.returncode == 0:
@@ -44,6 +49,6 @@ class JavaCheck:
             name="Java",
             status="fail",
             detail="java -version exited with non-zero status",
-            fix=_FIX,
+            fix=_fix(),
             group=self.group,
         )

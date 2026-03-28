@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import glob
 import os
+import platform
 import shutil
 from pathlib import Path
 
 from synapse.doctor.base import CheckResult
 
-_FIX = "See: https://github.com/eclipse-jdtls/eclipse.jdt.ls"
+
+def _fix() -> str:
+    if platform.system() == "Darwin":
+        return "Install Eclipse JDT LS: brew install jdtls\nOr download: https://github.com/eclipse-jdtls/eclipse.jdt.ls"
+    return (
+        "Install Eclipse JDT LS:\n"
+        "  1. Download from https://github.com/eclipse-jdtls/eclipse.jdt.ls\n"
+        "  2. Extract to ~/.solidlsp/language_servers/static/EclipseJDTLS/jdtls/"
+    )
 
 
 class JdtlsCheck:
@@ -29,7 +38,7 @@ class JdtlsCheck:
                 name="Eclipse JDT LS",
                 status="fail",
                 detail="Eclipse JDT LS not installed (equinox launcher jar not found)",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         return CheckResult(

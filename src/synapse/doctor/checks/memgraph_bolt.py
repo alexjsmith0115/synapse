@@ -58,6 +58,6 @@ class MemgraphBoltCheck:
             name="Memgraph",
             status="fail",
             detail=f"Memgraph not reachable at {host}:{port}",
-            fix="Start Memgraph: docker compose up -d",
+            fix="Check container: docker ps | grep synapse\nStart Memgraph: docker compose up -d",
             group=self.group,
         )

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import platform
 import re
 import shutil
 import subprocess
 
 from synapse.doctor.base import CheckResult
 
-_FIX = "Install .NET SDK: https://dotnet.microsoft.com/download"
+
+def _fix() -> str:
+    if platform.system() == "Darwin":
+        return "Install .NET SDK: brew install dotnet\nOr download: https://dotnet.microsoft.com/download"
+    return "Install .NET SDK: sudo apt-get install dotnet-sdk-9.0\nOr download: https://dotnet.microsoft.com/download"
 
 
 class DotNetCheck:
@@ -19,7 +24,7 @@ class DotNetCheck:
                 name=".NET SDK",
                 status="fail",
                 detail="dotnet not found on PATH",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         try:
@@ -34,7 +39,7 @@ class DotNetCheck:
                 name=".NET SDK",
                 status="fail",
                 detail=f"dotnet invocation failed: {exc}",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         if result.returncode == 0 and re.search(r"Microsoft\.NETCore\.App", result.stdout):
@@ -49,6 +54,6 @@ class DotNetCheck:
             name=".NET SDK",
             status="fail",
             detail="dotnet runtime not installed (no Microsoft.NETCore.App in --list-runtimes)",
-            fix=_FIX,
+            fix=_fix(),
             group=self.group,
         )

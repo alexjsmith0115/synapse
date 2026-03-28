@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 import shutil
 import subprocess
 
@@ -8,7 +9,11 @@ from synapse.doctor.base import CheckResult
 
 log = logging.getLogger(__name__)
 
-_FIX = "Install Python 3: https://python.org/downloads/"
+
+def _fix() -> str:
+    if platform.system() == "Darwin":
+        return "Install Python 3: brew install python3\nOr download: https://python.org/downloads/"
+    return "Install Python 3: sudo apt-get install python3\nOr download: https://python.org/downloads/"
 
 
 class PythonCheck:
@@ -21,7 +26,7 @@ class PythonCheck:
                 name="Python 3",
                 status="fail",
                 detail="python3 not found on PATH",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         try:
@@ -35,7 +40,7 @@ class PythonCheck:
                 name="Python 3",
                 status="fail",
                 detail=f"python3 invocation failed: {exc}",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         if result.returncode != 0:
@@ -43,7 +48,7 @@ class PythonCheck:
                 name="Python 3",
                 status="fail",
                 detail=f"python3 exited with code {result.returncode}",
-                fix=_FIX,
+                fix=_fix(),
                 group=self.group,
             )
         return CheckResult(
