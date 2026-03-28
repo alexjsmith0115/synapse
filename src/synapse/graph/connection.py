@@ -4,6 +4,7 @@ import concurrent.futures
 from typing import Literal
 
 from neo4j import GraphDatabase
+from neo4j.exceptions import DriverError
 
 
 class GraphConnection:
@@ -34,16 +35,28 @@ class GraphConnection:
         driver = GraphDatabase.driver(f"bolt://{host}:{port}", auth=("", ""))
         return cls(driver, database=database, dialect=dialect)
 
+    _MEMGRAPH_LOST_CONNECTION_MSG = (
+        "Lost connection to Memgraph.\n"
+        "  Check container:  docker ps | grep synapse\n"
+        "  Restart:          docker compose up -d"
+    )
+
     def query(self, cypher: str, params: dict | None = None) -> list:
-        records, _, _ = self._driver.execute_query(
-            cypher, params or {}, database_=self._database
-        )
-        return records
+        try:
+            records, _, _ = self._driver.execute_query(
+                cypher, params or {}, database_=self._database
+            )
+            return records
+        except DriverError as exc:
+            raise RuntimeError(self._MEMGRAPH_LOST_CONNECTION_MSG) from exc
 
     def execute(self, cypher: str, params: dict | None = None) -> None:
-        self._driver.execute_query(
-            cypher, params or {}, database_=self._database
-        )
+        try:
+            self._driver.execute_query(
+                cypher, params or {}, database_=self._database
+            )
+        except DriverError as exc:
+            raise RuntimeError(self._MEMGRAPH_LOST_CONNECTION_MSG) from exc
 
     def execute_implicit(self, cypher: str, params: dict | None = None) -> None:
         """Run a statement in an implicit (auto-commit) transaction.
@@ -52,7 +65,10 @@ class GraphConnection:
         rejects index manipulation inside explicit multi-command transactions.
         """
         with self._driver.session(database=self._database) as session:
-            session.run(cypher, params or {})
+            try:
+                session.run(cypher, params or {})
+            except DriverError as exc:
+                raise RuntimeError(self._MEMGRAPH_LOST_CONNECTION_MSG) from exc
 
     def query_with_timeout(self, cypher: str, params: dict | None = None, timeout_s: float = 10.0) -> list:
         """Run a read query with a client-side timeout.

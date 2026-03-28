@@ -115,3 +115,46 @@ def test_query_with_timeout_shuts_down_executor_with_no_wait_on_timeout():
             conn.query_with_timeout("MATCH (n) RETURN n", timeout_s=0.001)
 
     mock_executor.shutdown.assert_called_once_with(wait=False)
+
+
+# --- ERR-04: Lost Memgraph connection wrapping ---
+
+
+def test_query_wraps_service_unavailable():
+    """ERR-04: ServiceUnavailable -> RuntimeError with recovery instructions."""
+    from neo4j.exceptions import ServiceUnavailable
+    mock_driver = MagicMock()
+    mock_driver.execute_query.side_effect = ServiceUnavailable("gone")
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    with pytest.raises(RuntimeError, match="docker ps"):
+        conn.query("MATCH (n) RETURN n")
+
+
+def test_execute_wraps_service_unavailable():
+    """ERR-04: execute() also wraps ServiceUnavailable."""
+    from neo4j.exceptions import ServiceUnavailable
+    mock_driver = MagicMock()
+    mock_driver.execute_query.side_effect = ServiceUnavailable("gone")
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    with pytest.raises(RuntimeError, match="docker ps"):
+        conn.execute("MERGE (n:Foo {id: 1})")
+
+
+def test_execute_implicit_wraps_session_expired():
+    """ERR-04: execute_implicit() wraps SessionExpired."""
+    from neo4j.exceptions import SessionExpired
+    mock_driver = MagicMock()
+    mock_driver.session.return_value.__enter__.return_value.run.side_effect = SessionExpired("gone")
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    with pytest.raises(RuntimeError, match="docker ps"):
+        conn.execute_implicit("CREATE INDEX")
+
+
+def test_query_wraps_driver_error_base():
+    """ERR-04: Any DriverError subclass is wrapped."""
+    from neo4j.exceptions import DriverError
+    mock_driver = MagicMock()
+    mock_driver.execute_query.side_effect = DriverError("gone")
+    conn = GraphConnection(mock_driver, database="memgraph", dialect="memgraph")
+    with pytest.raises(RuntimeError, match="docker compose up"):
+        conn.query("MATCH (n) RETURN n")
