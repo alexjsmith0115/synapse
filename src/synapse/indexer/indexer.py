@@ -154,9 +154,15 @@ class Indexer:
         # Structural pass
         symbols_by_file: dict[str, list[IndexSymbol]] = {}
         total_symbols = 0
+        timed_out_files: list[str] = []
         t_structural = time.monotonic()
         for file_path, pf in parsed_cache.items():
-            symbols = self._lsp.get_document_symbols(file_path)
+            try:
+                symbols = self._lsp.get_document_symbols(file_path)
+            except TimeoutError:
+                timed_out_files.append(file_path)
+                log.warning("Language server timed out on %s -- skipping", file_path)
+                continue
             # Promote ABC/Protocol classes to INTERFACE kind
             for sym in symbols:
                 if sym.kind == SymbolKind.CLASS and (file_path, sym.name) in interface_classes:
@@ -168,6 +174,14 @@ class Indexer:
             "Structural pass: %d files, %d symbols in %.1fs",
             len(parsed_cache), total_symbols, time.monotonic() - t_structural,
         )
+        if timed_out_files:
+            names = ", ".join(timed_out_files[:3])
+            more = f" and {len(timed_out_files) - 3} more" if len(timed_out_files) > 3 else ""
+            log.warning(
+                "Language server timed out on %d file(s): %s%s. "
+                "Re-run with --verbose for details.",
+                len(timed_out_files), names, more,
+            )
 
         upsert_repository(self._conn, root_path, language)
         upsert_repo_contains_dir(self._conn, root_path, root_path)

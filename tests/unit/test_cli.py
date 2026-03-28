@@ -238,3 +238,29 @@ def test_index_still_works_end_to_end():
     assert result.exit_code == 0
     svc.smart_index.assert_called_once()
     assert "Done" in result.output
+
+
+# --- ERR-05: Not-indexed suggestion in sync command ---
+
+
+def test_sync_suggests_index_when_project_not_indexed():
+    """ERR-05: sync on unindexed project suggests 'synapse index'."""
+    svc = _svc()
+    svc.sync_project.side_effect = ValueError("No language plugin found")
+    svc.get_index_status.return_value = None  # project not indexed
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["sync", "/tmp/myproject"])
+    assert result.exit_code != 0
+    assert "synapse index" in result.output
+
+
+def test_sync_shows_original_error_when_project_indexed():
+    """ERR-05: sync error on indexed project shows original error, not index suggestion."""
+    svc = _svc()
+    svc.sync_project.side_effect = ValueError("Something else went wrong")
+    svc.get_index_status.return_value = {"path": "/tmp/myproject", "commit": "abc123"}
+    with patch("synapse.cli.app._get_service", return_value=svc):
+        result = runner.invoke(app, ["sync", "/tmp/myproject"])
+    assert result.exit_code != 0
+    assert "Something else went wrong" in result.output
+    assert "synapse index" not in result.output

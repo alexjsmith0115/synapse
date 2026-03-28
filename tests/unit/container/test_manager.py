@@ -315,6 +315,49 @@ def test_external_mode_no_docker_needed(tmp_path):
     mock_gc.create.assert_called_once_with(host="db.example.com", port=7688)
 
 
+# --- Platform-aware Docker error (ERR-03) ---
+
+
+def test_docker_not_running_error_macos(tmp_path):
+    """ERR-03: macOS Docker error shows 'open -a Docker'."""
+    import docker.errors
+    from synapse.container.manager import ConnectionManager
+
+    with patch(f"{_MODULE}.is_dedicated_instance", return_value=False), \
+         patch(f"{_MODULE}.load_global_config", return_value={
+             "shared_container_name": "synapse-shared",
+             "shared_port": 7687,
+             "external_host": None,
+             "external_port": None,
+         }), \
+         patch(f"{_MODULE}.docker.from_env", side_effect=docker.errors.DockerException("nope")), \
+         patch(f"{_MODULE}.platform") as mock_plat:
+        mock_plat.system.return_value = "Darwin"
+        mgr = ConnectionManager(str(tmp_path))
+        with pytest.raises(RuntimeError, match="open -a Docker"):
+            mgr.get_connection()
+
+
+def test_docker_not_running_error_linux(tmp_path):
+    """ERR-03: Linux Docker error shows 'sudo systemctl start docker'."""
+    import docker.errors
+    from synapse.container.manager import ConnectionManager
+
+    with patch(f"{_MODULE}.is_dedicated_instance", return_value=False), \
+         patch(f"{_MODULE}.load_global_config", return_value={
+             "shared_container_name": "synapse-shared",
+             "shared_port": 7687,
+             "external_host": None,
+             "external_port": None,
+         }), \
+         patch(f"{_MODULE}.docker.from_env", side_effect=docker.errors.DockerException("nope")), \
+         patch(f"{_MODULE}.platform") as mock_plat:
+        mock_plat.system.return_value = "Linux"
+        mgr = ConnectionManager(str(tmp_path))
+        with pytest.raises(RuntimeError, match="systemctl start docker"):
+            mgr.get_connection()
+
+
 # --- Bolt readiness ---
 
 

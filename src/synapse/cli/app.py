@@ -200,6 +200,14 @@ def sync(path: str) -> None:
         )
         raise typer.Exit(1)
     except ValueError as e:
+        svc = _get_service(abs_path)
+        if svc.get_index_status(abs_path) is None:
+            typer.echo(
+                f"Project not indexed: {abs_path}\n"
+                f"  Index it first: synapse index {abs_path}",
+                err=True,
+            )
+            raise typer.Exit(1)
         typer.echo(str(e), err=True)
         raise typer.Exit(1)
     typer.echo(f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged")

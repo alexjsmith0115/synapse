@@ -374,3 +374,81 @@ def test_is_minified_source_returns_false_for_blank_first_line():
     """A source whose first line is whitespace-only is not minified."""
     source = "   \nshort line"
     assert _is_minified_source(source) is False
+
+
+# --- ERR-06: LSP timeout recovery ---
+
+
+def _make_two_file_indexer(tmp_path):
+    """Create a Python indexer with two test files for timeout testing."""
+    conn = MagicMock()
+    conn.query.return_value = []
+
+    plugin = _make_python_plugin()
+    plugin.create_attribute_extractor = MagicMock(return_value=None)
+
+    indexer, lsp, _ = _make_python_indexer(conn, plugin)
+
+    file_a = tmp_path / "file_a.py"
+    file_a.write_text("class A:\n    pass\n")
+    file_b = tmp_path / "file_b.py"
+    file_b.write_text("class B:\n    pass\n")
+
+    lsp.get_workspace_files.return_value = [str(file_a), str(file_b)]
+
+    sym_b = IndexSymbol(
+        name="B", full_name="mod.B", kind=SymbolKind.CLASS,
+        file_path=str(file_b), line=0, parent_full_name=None,
+    )
+
+    # file_a times out; file_b succeeds
+    def _symbols_side_effect(file_path):
+        if "file_a" in file_path:
+            raise TimeoutError("LSP timed out")
+        return [sym_b]
+
+    lsp.get_document_symbols.side_effect = _symbols_side_effect
+
+    return indexer, lsp, conn, file_a, file_b
+
+
+def test_index_project_catches_lsp_timeout_and_continues(tmp_path):
+    """ERR-06: TimeoutError on one file doesn't abort entire indexing."""
+    indexer, lsp, conn, file_a, file_b = _make_two_file_indexer(tmp_path)
+
+    with patch("synapse.indexer.indexer.SymbolResolver") as MockResolver:
+        MockResolver.return_value = MagicMock()
+        indexer.index_project(str(tmp_path), "python")
+
+    # file_b was processed — upsert_file was called at least for file_b
+    calls = [str(c) for c in conn.execute.call_args_list]
+    assert any(str(file_b) in c for c in calls)
+
+
+def test_index_project_logs_timed_out_file_name(tmp_path):
+    """ERR-06: Timed-out file name appears in log warning."""
+    import logging
+    indexer, lsp, conn, file_a, file_b = _make_two_file_indexer(tmp_path)
+
+    with patch("synapse.indexer.indexer.SymbolResolver") as MockResolver:
+        MockResolver.return_value = MagicMock()
+        with patch("synapse.indexer.indexer.log") as mock_log:
+            indexer.index_project(str(tmp_path), "python")
+
+    # Check that a warning was emitted mentioning file_a
+    warning_calls = [str(c) for c in mock_log.warning.call_args_list]
+    assert any("file_a" in c for c in warning_calls)
+
+
+def test_index_project_logs_verbose_suggestion_on_timeout(tmp_path):
+    """ERR-06: End-of-index summary suggests --verbose."""
+    indexer, lsp, conn, file_a, file_b = _make_two_file_indexer(tmp_path)
+
+    with patch("synapse.indexer.indexer.SymbolResolver") as MockResolver:
+        MockResolver.return_value = MagicMock()
+        with patch("synapse.indexer.indexer.log") as mock_log:
+            indexer.index_project(str(tmp_path), "python")
+
+    # Check that a warning containing --verbose was emitted
+    warning_calls = [str(c) for c in mock_log.warning.call_args_list]
+    assert any("--verbose" in c for c in warning_calls)

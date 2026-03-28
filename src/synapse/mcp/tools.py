@@ -190,6 +190,11 @@ def register_tools(mcp: object, service: SynapseService, project_path: str = "")
         try:
             result = service.sync_project(path)
         except ValueError as e:
+            if service.get_index_status(path) is None:
+                return (
+                    f"Error: Project not indexed: {path}\n"
+                    f"Index it first: run index_project(path='{path}')"
+                )
             return f"Error: {e}"
         return f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged"
 

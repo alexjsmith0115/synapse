@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import platform
 import socket
 import time
 from pathlib import Path
@@ -16,6 +17,12 @@ _MEMGRAPH_IMAGE = "memgraph/memgraph"
 _BOLT_CONTAINER_PORT = 7687
 _CONFIG_DIR = ".synapse"
 _CONFIG_FILE = "config.json"
+
+
+def _docker_start_command() -> str:
+    if platform.system() == "Darwin":
+        return "open -a Docker"
+    return "sudo systemctl start docker"
 
 
 class ConnectionManager:
@@ -40,7 +47,7 @@ class ConnectionManager:
                 self._docker = self._docker_client_override or docker.from_env()
             except docker.errors.DockerException as exc:
                 raise RuntimeError(
-                    "Docker daemon not running. Start Docker Desktop and retry."
+                    f"Docker is not running.\n  Start it: {_docker_start_command()}"
                 ) from exc
         return self._docker
 
