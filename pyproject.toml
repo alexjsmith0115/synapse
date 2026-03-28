@@ -3,8 +3,9 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [project]
-name = "synapse"
-version = "1.0.0"
+name = "synapse-mcp"
+version = "1.2.0"
+readme = "PYPI_README.md"
 description = "Code intelligence MCP server — indexes codebases into a queryable graph of symbols, call chains, and relationships"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -52,6 +53,12 @@ dev = [
 [project.scripts]
 synapse = "synapse.cli:app"
 synapse-mcp = "synapse.mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/alexjsmith0115/synapse"
+Source = "https://github.com/alexjsmith0115/synapse"
+Issues = "https://github.com/alexjsmith0115/synapse/issues"
+Changelog = "https://github.com/alexjsmith0115/synapse/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/synapse", "src/solidlsp"]
