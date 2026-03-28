@@ -55,7 +55,6 @@ def test_wheel_packages_include_solidlsp() -> None:
     assert "src/solidlsp" in packages
 
 
-@pytest.mark.xfail(reason="Created in plan 12-02", strict=False)
 def test_publish_workflow_exists() -> None:
     workflow = _ROOT / ".github" / "workflows" / "publish.yml"
     assert workflow.exists(), f"Expected {workflow} to exist"

@@ -1,0 +1,63 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build and smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Smoke test
+        run: |
+          python3 -m venv /tmp/smoke-venv
+          /tmp/smoke-venv/bin/python -m pip install --quiet dist/*.whl
+          /tmp/smoke-venv/bin/python -c "
+          import synapse
+          import solidlsp
+          import tree_sitter_python
+          import tree_sitter_c_sharp
+          import tree_sitter_typescript
+          import tree_sitter_java
+          print(f'synapse.__version__ = {synapse.__version__!r}')
+          assert synapse.__version__ != 'dev', 'version must not be dev in wheel'
+          print('All imports OK')
+          "
+          /tmp/smoke-venv/bin/synapse --help
+          /tmp/smoke-venv/bin/synapse-mcp --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/project/synapse-mcp/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Publish to PyPI
+        run: uv publish --trusted-publishing always
