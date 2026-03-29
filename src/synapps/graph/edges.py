@@ -200,7 +200,7 @@ def delete_outgoing_edges_for_file(conn: GraphConnection, file_path: str) -> Non
     # CALLS + REFERENCES + INHERITS + IMPLEMENTS + DISPATCHES_TO + OVERRIDES from file's symbols
     conn.execute(
         "MATCH (f:File {path: $path})-[:CONTAINS*]->(n)-[r]->() "
-        "WHERE type(r) IN ['CALLS', 'REFERENCES', 'INHERITS', 'IMPLEMENTS', 'DISPATCHES_TO', 'OVERRIDES', 'SERVES', 'HTTP_CALLS'] "
+        "WHERE type(r) IN ['CALLS', 'REFERENCES', 'INHERITS', 'IMPLEMENTS', 'DISPATCHES_TO', 'OVERRIDES', 'SERVES', 'HTTP_CALLS', 'TESTS'] "
         "DELETE r",
         {"path": file_path},
     )

@@ -28,7 +28,8 @@ def test_gradle_src_test_resources_matches_pattern():
 
 
 def test_existing_csharp_test_path_still_matches():
-    assert re.fullmatch(_TEST_PATH_PATTERN, "MyApp.Tests/Foo.cs")
+    # Pattern requires a directory separator before Tests/ — use a realistic absolute path
+    assert re.fullmatch(_TEST_PATH_PATTERN, "/repo/MyApp.Tests/Foo.cs")
 
 
 def test_existing_jest_test_path_still_matches():
@@ -36,7 +37,8 @@ def test_existing_jest_test_path_still_matches():
 
 
 def test_existing_python_test_path_still_matches():
-    assert re.fullmatch(_TEST_PATH_PATTERN, "tests/test_foo.py")
+    # Pattern requires a directory separator before tests/ — use a realistic absolute path
+    assert re.fullmatch(_TEST_PATH_PATTERN, "/repo/tests/test_foo.py")
 
 
 def test_production_path_does_not_match():

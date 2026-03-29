@@ -17,6 +17,7 @@ _TEST_PATH_PATTERN = (
     r"|.*[/\\]__tests__[/\\].*"
     r"|.*\.(?:test|spec)\.[jt]sx?$"
     r"|.*_test\.[a-z]+$"
+    r"|.*[/\\]src[/\\]test[/\\].*"
     r")"
 )
 
