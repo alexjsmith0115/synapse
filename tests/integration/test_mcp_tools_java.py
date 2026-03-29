@@ -70,32 +70,6 @@ def test_index_project(java_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_symbol(java_mcp: FastMCP) -> None:
-    """get_symbol returns a node for a known Java interface."""
-    result = run(java_mcp.call_tool("get_symbol", {
-        "full_name": "com.synappstest.IAnimal"
-    }))
-    symbol = result_json(result)
-    assert symbol is not None
-    assert "IAnimal" in symbol["full_name"]
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_symbol_is_abstract(java_mcp: FastMCP) -> None:
-    """get_symbol on an abstract class returns is_abstract=True."""
-    result = run(java_mcp.call_tool("get_symbol", {
-        "full_name": "com.synappstest.Animal"
-    }))
-    symbol = result_json(result)
-    assert symbol is not None
-    assert symbol.get("is_abstract") is True, (
-        f"Expected is_abstract=True for Animal, got: {symbol.get('is_abstract')}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_get_symbol_source(java_mcp: FastMCP) -> None:
     """get_symbol_source returns Java source code for a known class."""
     result = run(java_mcp.call_tool("get_symbol_source", {

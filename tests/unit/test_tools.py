@@ -124,9 +124,6 @@ def test_tool_docstrings_contain_disambiguation_cues():
     # execute_query should indicate it's a last resort
     assert "last resort" in fns["execute_query"].__doc__.lower()
 
-    # get_symbol should point to get_context_for
-    assert "get_context_for" in fns["get_symbol"].__doc__
-
     # find_usages should describe what it does
     assert "find all code that uses a symbol" in fns["find_usages"].__doc__.lower()
 

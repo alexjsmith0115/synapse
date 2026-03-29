@@ -199,17 +199,6 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged"
 
     @mcp.tool()
-    def get_symbol(full_name: str) -> dict | None:
-        """Get a symbol's metadata (file path, line range, kind, full name) by full name or short name. Does not return source code — use get_symbol_source for that. For source code + relationships in one call, use get_context_for."""
-        _auto_sync_check()
-        result = service.get_symbol(full_name)
-        if result:
-            warning = service._staleness_warning(full_name)
-            if warning:
-                result["_staleness_warning"] = warning
-        return result
-
-    @mcp.tool()
     def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
         """Fetch the source code of a specific symbol by full name. Reads from the file on disk using the line range recorded at index time. Use include_class_signature=True to include the enclosing class declaration."""
         _auto_sync_check()

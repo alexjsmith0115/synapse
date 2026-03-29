@@ -67,32 +67,6 @@ def test_index_project(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_symbol(typescript_mcp: FastMCP) -> None:
-    """get_symbol returns a node for a known TypeScript interface."""
-    result = run(typescript_mcp.call_tool("get_symbol", {
-        "full_name": "src/animals.IAnimal"
-    }))
-    symbol = result_json(result)
-    assert symbol is not None
-    assert "IAnimal" in symbol["full_name"]
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_symbol_is_abstract(typescript_mcp: FastMCP) -> None:
-    """get_symbol on an abstract class returns is_abstract=True."""
-    result = run(typescript_mcp.call_tool("get_symbol", {
-        "full_name": "src/animals.Animal"
-    }))
-    symbol = result_json(result)
-    assert symbol is not None
-    assert symbol.get("is_abstract") is True, (
-        f"Expected is_abstract=True for Animal, got: {symbol.get('is_abstract')}"
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_get_symbol_source(typescript_mcp: FastMCP) -> None:
     """get_symbol_source returns source or not-found message for a TypeScript class."""
     result = run(typescript_mcp.call_tool("get_symbol_source", {
