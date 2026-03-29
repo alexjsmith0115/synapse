@@ -470,4 +470,42 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         _auto_sync_check()
         return service.find_dead_code(exclude_pattern=exclude_pattern)
 
+    @mcp.tool()
+    def find_tests_for(
+        path: str,
+        method_full_name: str,
+    ) -> list[dict]:
+        """Find test methods that directly cover a production method via TESTS edges.
+
+        Returns test methods that have a direct TESTS relationship to the target method.
+        TESTS edges are derived from CALLS edges where the caller is a test method
+        and the callee is a production method.
+
+        path: project root path (must be indexed)
+        method_full_name: fully qualified name of the production method (short names supported via resolution)
+        Returns [{full_name, file_path, line}] — one entry per test method covering the target.
+        """
+        _auto_sync_check()
+        return service.find_tests_for(method_full_name=method_full_name)
+
+    @mcp.tool()
+    def find_untested(
+        path: str,
+        exclude_pattern: str = "",
+    ) -> dict:
+        """Find production methods with no inbound TESTS edges (not directly covered by any test).
+
+        Excludes test methods, HTTP handlers, interface implementations,
+        interface dispatch targets, constructor methods, and overriding methods.
+
+        path: project root path (must be indexed)
+        exclude_pattern: optional regex applied to full_name to filter additional methods
+          (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
+          Use alternation for multiple patterns: 'pattern1|pattern2'.
+          Empty string means no additional filtering.
+        Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio}}.
+        """
+        _auto_sync_check()
+        return service.find_untested(exclude_pattern=exclude_pattern)
+
 
