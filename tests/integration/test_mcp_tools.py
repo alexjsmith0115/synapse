@@ -19,7 +19,7 @@ from tests.integration.conftest import run, text, result_json, FIXTURE_PATH
 
 EXPECTED_TOOLS = {
     "index_project", "list_projects", "sync_project",
-    "get_symbol_source", "find_implementations", "find_callers",
+    "find_implementations", "find_callers",
     "find_callees", "get_hierarchy", "search_symbols", "summary",
     "execute_query", "find_usages", "find_dependencies",
     "get_context_for", "trace_call_chain", "find_entry_points",
@@ -122,17 +122,6 @@ def test_get_schema(mcp_server: FastMCP) -> None:
 # ---------------------------------------------------------------------------
 # Symbol query tools
 # ---------------------------------------------------------------------------
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_symbol_source(mcp_server: FastMCP) -> None:
-    result = run(mcp_server.call_tool("get_symbol_source", {
-        "full_name": "SynappsTest.Controllers.TaskController"
-    }))
-    source = text(result)
-    assert "TaskController" in source
-    assert "_taskService" in source
-
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)

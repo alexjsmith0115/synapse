@@ -199,17 +199,6 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged"
 
     @mcp.tool()
-    def get_symbol_source(full_name: str, include_class_signature: bool = False) -> str:
-        """Fetch the source code of a specific symbol by full name. Reads from the file on disk using the line range recorded at index time. Use include_class_signature=True to include the enclosing class declaration."""
-        _auto_sync_check()
-        result = service.get_symbol_source(full_name, include_class_signature)
-        if result is not None:
-            return result
-        if service.get_symbol(full_name) is not None:
-            return f"Source not available for {full_name} — re-index required"
-        return f"Symbol not found: {full_name}"
-
-    @mcp.tool()
     def find_implementations(interface_name: str, limit: int = 50) -> list[dict] | dict:
         """Find all classes that implement the given interface.
 

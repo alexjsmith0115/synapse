@@ -70,18 +70,6 @@ def test_index_project(java_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_symbol_source(java_mcp: FastMCP) -> None:
-    """get_symbol_source returns Java source code for a known class."""
-    result = run(java_mcp.call_tool("get_symbol_source", {
-        "full_name": "com.synappstest.Dog"
-    }))
-    source = text(result)
-    assert isinstance(source, str)
-    assert len(source) > 0
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_search_symbols_finds_classes(java_mcp: FastMCP) -> None:
     """search_symbols for 'Animal' returns Animal and IAnimal."""
     result = run(java_mcp.call_tool("search_symbols", {"query": "Animal"}))

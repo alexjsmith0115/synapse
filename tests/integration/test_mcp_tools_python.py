@@ -55,18 +55,6 @@ def test_get_schema(python_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_symbol_source(python_mcp: FastMCP) -> None:
-    """get_symbol_source returns Python source code for a known method."""
-    result = run(python_mcp.call_tool("get_symbol_source", {
-        "full_name": "synappspytest.animals.Dog.speak"
-    }))
-    source = text(result)
-    assert source is not None
-    assert len(source) > 0
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_search_symbols(python_mcp: FastMCP) -> None:
     """search_symbols returns matching Python symbols."""
     result = run(python_mcp.call_tool("search_symbols", {"query": "Animal"}))

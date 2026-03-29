@@ -67,19 +67,6 @@ def test_index_project(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_symbol_source(typescript_mcp: FastMCP) -> None:
-    """get_symbol_source returns source or not-found message for a TypeScript class."""
-    result = run(typescript_mcp.call_tool("get_symbol_source", {
-        "full_name": "src/animals.Dog"
-    }))
-    source = text(result)
-    # Source retrieval depends on LSP; assert it's a non-empty string (source or message)
-    assert isinstance(source, str)
-    assert len(source) > 0
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_search_symbols(typescript_mcp: FastMCP) -> None:
     """search_symbols returns matching TypeScript symbols."""
     result = run(typescript_mcp.call_tool("search_symbols", {"query": "Dog"}))
