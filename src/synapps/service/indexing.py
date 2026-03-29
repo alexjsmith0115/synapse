@@ -62,6 +62,15 @@ class IndexingService:
             http_phase.cleanup_orphans()
             log.info("HTTP endpoint matching: %.1fs", time.monotonic() - t_http)
 
+        # TESTS edge derivation -- runs after all languages indexed + HTTP phase
+        # so all CALLS edges exist for test->prod derivation (D-04)
+        import time
+        t_tests = time.monotonic()
+        from synapps.indexer.tests_phase import TestsPhase
+        tests_phase = TestsPhase(self._conn, path)
+        tests_phase.run()
+        log.info("TESTS edge derivation: %.1fs", time.monotonic() - t_tests)
+
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""
         plugins = self._registry.detect(path)
@@ -169,6 +178,7 @@ class IndexingService:
 
         # Post-sync HTTP re-matching
         self._run_http_rematch(path)
+        self._run_tests_phase(path)
 
         return total
 
@@ -240,6 +250,7 @@ class IndexingService:
 
             # Post-sync HTTP re-matching
             self._run_http_rematch(path)
+            self._run_tests_phase(path)
 
             return "git-sync"
 
@@ -268,6 +279,16 @@ class IndexingService:
         )
         http_phase.run([HttpExtractionResult(endpoint_defs=existing_defs, client_calls=existing_calls)])
         http_phase.cleanup_orphans()
+
+    def _run_tests_phase(self, path: str) -> None:
+        """Post-sync TESTS edge re-derivation.
+
+        Unlike HttpPhase, TestsPhase is fully derivable from the live graph --
+        no rebuild_from_graph() needed since CALLS edges are already present.
+        """
+        from synapps.indexer.tests_phase import TestsPhase
+        tests_phase = TestsPhase(self._conn, path)
+        tests_phase.run()
 
     @staticmethod
     def _git_empty_tree_sha() -> str:
