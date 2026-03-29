@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-_DARK = "#2D6A4F"
-_LIGHT = "#74C69D"
+_SYN_COLOR = "#2D6A4F"
+_APPS_COLOR = "#74C69D"
 
+# Each tuple is (SYN portion, APPS portion) — split between the N and A letters
 _BANNER_LINES: list[tuple[str, str]] = [
-    ("   ███████╗██╗   ██╗███╗   ██╗ █████╗ ██████╗ ██████╗ ███████╗", _DARK),
-    ("   ██╔════╝╚██╗ ██╔╝████╗  ██║██╔══██╗██╔══██╗██╔══██╗██╔════╝", _DARK),
-    ("   ███████╗ ╚████╔╝ ██╔██╗ ██║███████║██████╔╝██████╔╝███████╗", _LIGHT),
-    ("   ╚════██║  ╚██╔╝  ██║╚██╗██║██╔══██║██╔═══╝ ██╔═══╝ ╚════██║", _LIGHT),
-    ("   ███████║   ██║   ██║ ╚████║██║  ██║██║     ██║     ███████║", _DARK),
-    ("   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚═╝     ╚══════╝", _DARK),
+    ("   ███████╗██╗   ██╗███╗   ██╗", " █████╗ ██████╗ ██████╗ ███████╗"),
+    ("   ██╔════╝╚██╗ ██╔╝████╗  ██║", "██╔══██╗██╔══██╗██╔══██╗██╔════╝"),
+    ("   ███████╗ ╚████╔╝ ██╔██╗ ██║", "███████║██████╔╝██████╔╝███████╗"),
+    ("   ╚════██║  ╚██╔╝  ██║╚██╗██║", "██╔══██║██╔═══╝ ██╔═══╝ ╚════██║"),
+    ("   ███████║   ██║   ██║ ╚████║", "██║  ██║██║     ██║     ███████║"),
+    ("   ╚══════╝   ╚═╝   ╚═╝  ╚═══╝", "╚═╝  ╚═╝╚═╝     ╚═╝     ╚══════╝"),
 ]
 
-_ACCENT = f"[{_LIGHT}]   ○─────────────────────────────────────────────────────────○[/{_LIGHT}]"
+_ACCENT = f"[{_APPS_COLOR}]   ○─────────────────────────────────────────────────────────○[/{_APPS_COLOR}]"
 
 
 def print_banner(console: "Console | None" = None) -> None:
@@ -22,7 +23,7 @@ def print_banner(console: "Console | None" = None) -> None:
         console = Console()
 
     console.print()
-    for text, color in _BANNER_LINES:
-        console.print(f"[{color}]{text}[/{color}]")
+    for syn, apps in _BANNER_LINES:
+        console.print(f"[{_SYN_COLOR}]{syn}[/{_SYN_COLOR}][{_APPS_COLOR}]{apps}[/{_APPS_COLOR}]")
     console.print(_ACCENT)
     console.print()
