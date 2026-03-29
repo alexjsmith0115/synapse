@@ -18,7 +18,7 @@ from synapps.graph.lookups import (
     _TEST_PATH_PATTERN,
 )
 from synapps.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
-from synapps.graph.analysis import analyze_change_impact, find_type_impact, get_architecture_overview
+from synapps.graph.analysis import analyze_change_impact, find_dead_code, find_type_impact, get_architecture_overview
 from synapps.plugin import LanguageRegistry, default_registry
 from synapps.service.formatting import _p, _slim, _apply_limit, _short_ref, _member_line
 from synapps.service.indexing import IndexingService
@@ -471,4 +471,7 @@ class SynappsService:
 
     def get_architecture_overview(self, limit: int = 10) -> dict:
         return get_architecture_overview(self._conn, limit=limit)
+
+    def find_dead_code(self, exclude_pattern: str = "") -> dict:
+        return find_dead_code(self._conn, exclude_pattern=exclude_pattern)
 
