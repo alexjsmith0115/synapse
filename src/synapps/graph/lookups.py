@@ -525,6 +525,16 @@ def find_all_deps(
     return [r[0] for r in rows]
 
 
+def find_tests_for(conn: GraphConnection, method_full_name: str) -> list[dict]:
+    """Find test methods that directly cover a production method via TESTS edges."""
+    rows = conn.query(
+        "MATCH (t:Method)-[:TESTS]->(m:Method {full_name: $fn}) "
+        "RETURN t.full_name, t.file_path, t.line",
+        {"fn": method_full_name},
+    )
+    return [{"full_name": r[0], "file_path": r[1], "line": r[2]} for r in rows]
+
+
 def find_http_endpoints(
     conn: GraphConnection,
     route: str | None = None,
