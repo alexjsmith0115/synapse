@@ -185,3 +185,98 @@ def audit_architecture(conn: GraphConnection, rule: str) -> dict:
         "violations": violations,
         "count": len(violations),
     }
+
+
+def get_architecture_overview(conn: GraphConnection, limit: int = 10) -> dict:
+    """Single-call project architecture overview for agent orientation.
+
+    Returns a dict with four sections:
+    - packages: list of {name, file_count, symbol_count} per package.
+      Most meaningful for C# projects — Python/TypeScript projects may return [].
+    - hotspots: top N methods by inbound caller count, excluding test methods
+    - http_service_map: flat list of {route, method, handler, file_path, direction} entries
+    - stats: {total_files, total_symbols, total_packages, total_endpoints, files_by_language}
+    """
+    # Query 1: Package breakdown
+    pkg_rows = conn.query(
+        "MATCH (p:Package) "
+        "OPTIONAL MATCH (f:File)-[:IMPORTS]->(p) "
+        "WITH p, count(DISTINCT f) AS file_count "
+        "OPTIONAL MATCH (s) "
+        "WHERE (s:Class OR s:Interface OR s:Method OR s:Property OR s:Field) "
+        "  AND s.full_name STARTS WITH (p.full_name + '.') "
+        "WITH p, file_count, count(DISTINCT s) AS symbol_count "
+        "RETURN p.name, file_count, symbol_count "
+        "ORDER BY symbol_count DESC"
+    )
+    packages = [{"name": r[0], "file_count": r[1], "symbol_count": r[2]} for r in pkg_rows]
+
+    # Query 2: Hotspot methods (most inbound callers, excluding test methods)
+    hotspot_rows = conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(m:Method) "
+        "WHERE NOT m.file_path =~ $test_pattern "
+        "WITH m, count(DISTINCT caller) AS inbound_callers "
+        "ORDER BY inbound_callers DESC "
+        "LIMIT $limit "
+        "RETURN m.full_name, m.file_path, m.line, inbound_callers",
+        {"test_pattern": _TEST_PATH_PATTERN, "limit": limit},
+    )
+    hotspots = [
+        {"full_name": r[0], "file_path": r[1], "line": r[2], "inbound_callers": r[3]}
+        for r in hotspot_rows
+    ]
+
+    # Query 3: HTTP endpoints served by this codebase
+    serves_rows = conn.query(
+        "MATCH (handler:Method)-[:SERVES]->(ep:Endpoint) "
+        "RETURN ep.route, ep.http_method, handler.full_name, handler.file_path"
+    )
+    serves = [
+        {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "serves"}
+        for r in serves_rows
+    ]
+
+    # Query 4: Client-only HTTP calls (orphan endpoints with no SERVES handler)
+    calls_rows = conn.query(
+        "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
+        "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
+        "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path"
+    )
+    calls = [
+        {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
+        for r in calls_rows
+    ]
+
+    # Query 5: File count by language
+    lang_rows = conn.query(
+        "MATCH (f:File) WHERE f.language IS NOT NULL "
+        "RETURN f.language, count(f)"
+    )
+    files_by_language = {r[0]: r[1] for r in lang_rows}
+    total_files = sum(files_by_language.values())
+
+    # Query 6: Total symbol count
+    symbol_count_rows = conn.query(
+        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field "
+        "RETURN count(s)"
+    )
+    total_symbols = symbol_count_rows[0][0] if symbol_count_rows else 0
+
+    # Query 7: Total endpoint count
+    endpoint_count_rows = conn.query(
+        "MATCH (ep:Endpoint) RETURN count(ep)"
+    )
+    total_endpoints = endpoint_count_rows[0][0] if endpoint_count_rows else 0
+
+    return {
+        "packages": packages,
+        "hotspots": hotspots,
+        "http_service_map": serves + calls,
+        "stats": {
+            "total_files": total_files,
+            "total_symbols": total_symbols,
+            "total_packages": len(packages),
+            "total_endpoints": total_endpoints,
+            "files_by_language": files_by_language,
+        },
+    }
