@@ -48,6 +48,7 @@ class _ResolveStats:
     """Accumulates timing and count stats for resolution logging."""
     __slots__ = (
         "calls_resolved", "calls_unresolved", "calls_resolved_via_assignment",
+        "calls_resolved_via_import",
         "type_refs_resolved",
         "lsp_definition_time", "lsp_containing_time", "callee_name_time",
         "extraction_calls_time", "extraction_typerefs_time",
@@ -57,6 +58,7 @@ class _ResolveStats:
         self.calls_resolved = 0
         self.calls_unresolved = 0
         self.calls_resolved_via_assignment = 0
+        self.calls_resolved_via_import = 0
         self.type_refs_resolved = 0
         self.lsp_definition_time = 0.0
         self.lsp_containing_time = 0.0
@@ -83,12 +85,14 @@ class SymbolResolver:
         assignment_position_map: dict[tuple[str, int], AssignmentRef] | None = None,
         parsed_cache: dict[str, ParsedFile] | None = None,
         class_lines_per_file: dict[str, list[tuple[int, str]]] | None = None,
+        import_map: dict[str, dict[str, str]] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
         self._call_extractor = call_extractor or CSharpCallExtractor()
         self._type_ref_extractor = type_ref_extractor
         self._name_to_full_names = name_to_full_names or {}
+        self._import_map = import_map or {}
         self._file_extensions = file_extensions or frozenset({".cs"})
         self._module_full_names = module_full_names or set()
         self._assignment_position_map = assignment_position_map or {}
@@ -151,13 +155,13 @@ class SymbolResolver:
         cache_hits = len(self._callee_name_cache)
         log.info(
             "Resolution complete in %.1fs — %d files, %d call sites (%d resolved, %d unresolved, "
-            "%d via assignment fallback), "
+            "%d via assignment fallback, %d via import fallback), "
             "%d type refs resolved, %d callee name cache entries. "
             "LSP: %.1fs definition, %.1fs containing_symbol, "
             "%.1fs callee_name. Extraction: %.1fs calls, %.1fs type_refs",
             elapsed, total_files,
             s.calls_resolved + s.calls_unresolved, s.calls_resolved, s.calls_unresolved,
-            s.calls_resolved_via_assignment,
+            s.calls_resolved_via_assignment, s.calls_resolved_via_import,
             s.type_refs_resolved, cache_hits,
             s.lsp_definition_time, s.lsp_containing_time,
             s.callee_name_time, s.extraction_calls_time, s.extraction_typerefs_time,
@@ -266,6 +270,12 @@ class SymbolResolver:
             stats.lsp_definition_time += time.monotonic() - t0
 
         if not definitions:
+            caller_abs = os.path.join(self._ls.repository_root_path, rel_path)
+            if self._try_import_fallback(
+                caller_full_name, callee_simple_name or "",
+                caller_abs, call_line_1, call_col_0,
+            ):
+                return
             self._unresolved_sites.append(
                 f"Unresolved (no definitions): {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
             )
@@ -332,6 +342,15 @@ class SymbolResolver:
                             if stats:
                                 stats.calls_unresolved += 1
                             return
+
+        # Import-based fallback: use tree-sitter import data when LSP
+        # returned a same-file location (import line) that symbol_map couldn't match.
+        caller_abs = os.path.join(self._ls.repository_root_path, rel_path)
+        if self._try_import_fallback(
+            caller_full_name, callee_simple_name or "",
+            caller_abs, call_line_1, call_col_0,
+        ):
+            return
 
         # Fallback: resolve via containing symbol (may fail for single-line declarations)
         t_cs = time.monotonic()
@@ -435,6 +454,55 @@ class SymbolResolver:
         result = rows[0][0] if len(rows) == 1 else full_name
         self._callee_name_cache[full_name] = result
         return result
+
+    def _try_import_fallback(
+        self, caller_full_name: str, callee_simple_name: str,
+        caller_abs_path: str,
+        call_line_1: int | None, call_col_0: int | None,
+    ) -> bool:
+        """Attempt to resolve a call using import extraction data.
+
+        Returns True if a CALLS edge was created, False otherwise.
+        """
+        if not self._import_map or not callee_simple_name:
+            return False
+        file_imports = self._import_map.get(caller_abs_path)
+        if not file_imports:
+            return False
+        module_path = file_imports.get(callee_simple_name)
+        if not module_path:
+            return False
+
+        # Construct candidate full_name: module_path.symbol_name
+        # This matches the TS full_name convention: "src/animals.Dog"
+        candidate = f"{module_path}.{callee_simple_name}"
+        rows = self._conn.query(
+            "MATCH (m:Method {full_name: $name}) RETURN m.full_name LIMIT 1",
+            {"name": candidate},
+        )
+        if rows:
+            callee_full_name = rows[0][0]
+        else:
+            # Fall back to name_to_full_names for unambiguous match
+            candidates = self._name_to_full_names.get(callee_simple_name, [])
+            if len(candidates) == 1:
+                callee_full_name = candidates[0]
+            else:
+                return False
+
+        t_name = time.monotonic()
+        callee_full_name = self._resolve_callee_name(callee_full_name)
+        stats = getattr(self, "_stats", None)
+        if stats:
+            stats.callee_name_time += time.monotonic() - t_name
+
+        if callee_full_name and callee_full_name != caller_full_name:
+            self._upsert_call(caller_full_name, callee_full_name, call_line_1, call_col_0)
+            if stats:
+                stats.calls_resolved += 1
+                stats.calls_resolved_via_import += 1
+            return True
+        return False
 
     def _resolve_type_ref(self, ref: TypeRef, rel_path: str) -> None:
         if not ref.owner_full_name:
