@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-03-30
+
+### Fixed
+- **C# generic HTTP method extraction** — `GetFromJsonAsync<T>`, `PostAsJsonAsync<T>`, and other generic `System.Net.Http.Json` methods now correctly produce HTTP_CALLS edges; previously the `generic_name` AST node caused the method name to be missed
+- **False-positive IMPLEMENTS edges across projects** — structural protocol dispatch (matching classes to interfaces by method names) is now restricted to Python only; C#, Java, and TypeScript use nominal typing where IMPLEMENTS edges come from LSP declarations
+
 ## [1.4.0] - 2026-03-30
 
 ### Added

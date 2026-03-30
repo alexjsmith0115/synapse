@@ -199,9 +199,9 @@ def test_protocol_dispatch_creates_edges() -> None:
         [],
         # _get_abstract_inherits_pairs — empty
         [],
-        # _get_protocol_dispatch_candidates — interface methods query
-        [["pkg.LanguagePlugin", "create_lsp_adapter", "pkg.LanguagePlugin.create_lsp_adapter"],
-         ["pkg.LanguagePlugin", "name", "pkg.LanguagePlugin.name"]],
+        # _get_protocol_dispatch_candidates — interface methods query (Python only)
+        [["pkg.LanguagePlugin", "create_lsp_adapter", "pkg.LanguagePlugin.create_lsp_adapter", "python"],
+         ["pkg.LanguagePlugin", "name", "pkg.LanguagePlugin.name", "python"]],
         # candidate query for LanguagePlugin (2 methods)
         [[
             [{"name": "create_lsp_adapter", "full_name": "pkg.CSharpPlugin.create_lsp_adapter"},
@@ -213,3 +213,44 @@ def test_protocol_dispatch_creates_edges() -> None:
     for call_args in conn.execute.call_args_list:
         cypher = call_args[0][0]
         assert "DISPATCHES_TO" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: nominally-typed languages must NOT get protocol dispatch edges
+# ---------------------------------------------------------------------------
+
+
+def test_protocol_dispatch_skips_csharp_interfaces() -> None:
+    """C# interfaces must not produce structural dispatch edges — C# uses nominal typing."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # _materialize_transitive_implements — none
+        [],
+        # _get_impl_pairs — empty
+        [],
+        # _get_abstract_inherits_pairs — empty
+        [],
+        # _get_protocol_dispatch_candidates — returns C# interfaces
+        [["ProjectA.IUserService", "CreateAsync", "ProjectA.IUserService.CreateAsync", "csharp"],
+         ["ProjectA.IUserService", "GetAsync", "ProjectA.IUserService.GetAsync", "csharp"]],
+    ]
+    MethodImplementsIndexer(conn).index()
+    # No execute calls — C# interfaces should be skipped entirely
+    conn.execute.assert_not_called()
+
+
+def test_protocol_dispatch_skips_java_interfaces() -> None:
+    """Java interfaces must not produce structural dispatch edges."""
+    conn = MagicMock()
+    conn.query.side_effect = [
+        # _materialize_transitive_implements — none
+        [],
+        # _get_impl_pairs — empty
+        [],
+        # _get_abstract_inherits_pairs — empty
+        [],
+        # _get_protocol_dispatch_candidates — returns Java interfaces
+        [["com.app.UserService", "create", "com.app.UserService.create", "java"]],
+    ]
+    MethodImplementsIndexer(conn).index()
+    conn.execute.assert_not_called()

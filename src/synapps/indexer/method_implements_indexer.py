@@ -94,16 +94,23 @@ class MethodImplementsIndexer:
         Only creates edges where the concrete class implements ALL methods of
         the interface (structural typing: the class satisfies the full protocol).
         Skips pairs that already have IMPLEMENTS or DISPATCHES_TO edges.
+
+        Restricted to Python interfaces only — Python uses structural typing
+        (Protocols) where a class satisfies an interface by having matching
+        methods. C#, Java, and TypeScript use nominal typing where IMPLEMENTS
+        edges come from explicit declarations resolved by the LSP.
         """
-        # Step 1: Get all Interface classes and their method sets
+        # Step 1: Get all Interface classes and their method sets (Python only)
         iface_rows = self._conn.query(
             "MATCH (iface:Interface)-[:CONTAINS]->(im:Method) "
-            "RETURN iface.full_name, im.name, im.full_name"
+            "RETURN iface.full_name, im.name, im.full_name, iface.language"
         )
         # Group methods by interface: {iface_full_name: {method_name: method_full_name}}
         iface_methods: dict[str, dict[str, str]] = {}
-        for iface_fn, m_name, m_fn in iface_rows:
+        for iface_fn, m_name, m_fn, lang in iface_rows:
             if not iface_fn or not m_name or not m_fn:
+                continue
+            if lang != "python":
                 continue
             iface_methods.setdefault(iface_fn, {})[m_name] = m_fn
 
