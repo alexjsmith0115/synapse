@@ -397,7 +397,7 @@ def test_python_base_types_class_to_class_produce_inherits(mock_conn):
     kind_map = {"mymod.Dog": SymbolKind.CLASS, "mymod.Animal": SymbolKind.CLASS}
 
     mock_extractor = indexer._base_type_extractor
-    mock_extractor.extract.return_value = [("Dog", "Animal", True)]
+    mock_extractor.extract.return_value = [("Dog", "Animal", True, 0, 10)]
 
     indexer._index_base_types("/proj/mymod.py", "class Dog(Animal): pass", name_to_full_names, kind_map)
 
@@ -413,7 +413,7 @@ def test_python_base_type_abc_produces_implements(mock_conn):
     kind_map = {"mymod.Animal": SymbolKind.CLASS, "mymod.IAnimal": SymbolKind.INTERFACE}
 
     mock_extractor = indexer._base_type_extractor
-    mock_extractor.extract.return_value = [("Animal", "IAnimal", True)]
+    mock_extractor.extract.return_value = [("Animal", "IAnimal", True, 0, 10)]
 
     indexer._index_base_types("/proj/mymod.py", "class Animal(IAnimal): pass", name_to_full_names, kind_map)
 
@@ -429,7 +429,7 @@ def test_python_interface_extends_interface_produces_interface_inherits(mock_con
     kind_map = {"mymod.ISpecial": SymbolKind.INTERFACE, "mymod.IAnimal": SymbolKind.INTERFACE}
 
     mock_extractor = indexer._base_type_extractor
-    mock_extractor.extract.return_value = [("ISpecial", "IAnimal", True)]
+    mock_extractor.extract.return_value = [("ISpecial", "IAnimal", True, 0, 10)]
 
     indexer._index_base_types("/proj/mymod.py", "class ISpecial(IAnimal): pass", name_to_full_names, kind_map)
 
