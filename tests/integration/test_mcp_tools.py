@@ -25,6 +25,8 @@ EXPECTED_TOOLS = {
     "get_context_for", "find_entry_points",
     "get_schema",
     "find_http_endpoints",
+    "get_architecture",
+    "find_dead_code", "find_tests_for", "find_untested",
 }
 
 

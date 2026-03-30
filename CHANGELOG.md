@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-30
+
+### Added
+- **Pre-tool hooks for agent nudging** — gate scripts that remind AI agents (Claude Code, Cursor, Copilot) to query the Synapps graph before reading or editing files; installed via `synapps init`
+- **`find_dead_code` MCP tool** *(experimental)* — find methods with zero callers, excluding tests, HTTP handlers, interface implementations, dispatch targets, constructors, and overrides
+- **`find_tests_for` MCP tool** *(experimental)* — find which tests cover a given method via direct TESTS edge lookup
+- **`find_untested` MCP tool** *(experimental)* — find production methods with no test coverage (same exclusions as `find_dead_code`)
+- **`get_architecture` MCP tool** — single-call architecture overview returning packages, hotspots, HTTP endpoint map, and project stats
+- **Import-based call resolution fallback** — tree-sitter-based `build_import_map` provides call resolution when the language server misses untyped symbols (TypeScript)
+- **`@/` path alias resolution** — `tsconfig.json` path aliases (e.g., `@/*`) are resolved during TypeScript import mapping
+- **Hook installer framework** — agent detector, per-agent config upsert/removal, gate script content constants, and force/skip logic
+- **Shared vs dedicated database prompt** — `synapps init` now asks whether to use a shared or dedicated Memgraph instance
+- **CI integration test job** — GitHub Actions workflow with Memgraph, .NET SDK, Node.js, and Java
+
+### Changed
+- **MCP tools consolidated from 21 to 15** — removed `get_symbol`, `get_symbol_source`, `find_callers`, `trace_call_chain`; merged `analyze_change_impact` into `get_context_for(scope='impact')` and `trace_http_dependency` into `find_http_endpoints(trace=True)`
+- Removed standalone `synapps install` / `synapps uninstall` CLI commands — hooks are now offered during `synapps init`
+- Removed CLI commands redundant with MCP tools
+- Two-tone ASCII banner — SYN in dark green, APPS in light green
+- Removed obsolete docs (demo, HTTP strategy, distribution, MCP consolidation)
+
+### Fixed
+- Strip JSONC comments from `tsconfig.json` before parsing path aliases
+- `get_context_for` now resolves impact scope before symbol lookup
+- `synapps init` auto-starts Memgraph instead of failing when the container is not running
+- CI per-test timeout no longer bounds fixture setup (`timeout_func_only`)
+
+## [1.3.0] - 2026-03-28
+
+### Changed
+- **Renamed project from Synapse to Synapps** — repository moved to SynappsCodeComprehension org
+- Streamlined README from 777 to 449 lines
+- Fixed HTTP client libraries table — added C#/Java, removed unsupported Python libs
+
 ## [1.2.0] - 2026-03-28
 
 ### Added
