@@ -118,6 +118,29 @@ def _load_tsconfig_paths(source_root: str) -> list[tuple[str, str]]:
     return []
 
 
+def build_import_map(
+    extractor: TypeScriptImportExtractor,
+    file_trees: dict[str, Tree],
+) -> dict[str, dict[str, str]]:
+    """Build {file_path: {imported_symbol_name: module_path}} from import extraction.
+
+    Only includes named imports (where imported_name is not None).
+    Package imports (no leading dot, no alias match) are included — the
+    module_path won't match any graph node, so they're harmlessly ignored
+    during fallback resolution.
+    """
+    result: dict[str, dict[str, str]] = {}
+    for file_path, tree in file_trees.items():
+        imports = extractor.extract(file_path, tree)
+        file_map: dict[str, str] = {}
+        for module_path, imported_name in imports:
+            if imported_name is not None:
+                file_map[imported_name] = module_path
+        if file_map:
+            result[file_path] = file_map
+    return result
+
+
 class TypeScriptImportExtractor:
     def __init__(self, source_root: str = "") -> None:
         self._source_root = source_root

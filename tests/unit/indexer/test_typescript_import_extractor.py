@@ -4,7 +4,10 @@ import pytest
 import tree_sitter_typescript
 from tree_sitter import Language, Parser
 
-from synapps.indexer.typescript.typescript_import_extractor import TypeScriptImportExtractor
+from synapps.indexer.typescript.typescript_import_extractor import (
+    TypeScriptImportExtractor,
+    build_import_map,
+)
 
 _ts_lang = Language(tree_sitter_typescript.language_typescript())
 _tsx_lang = Language(tree_sitter_typescript.language_tsx())
@@ -378,6 +381,55 @@ def test_path_alias_with_trailing_commas(tmp_path) -> None:
     result = ext.extract(file_path, _parse(source, file_path))
     modules = [m for m, _ in result]
     assert "src/components/Nav" in modules
+
+
+# ---------------------------------------------------------------------------
+# build_import_map
+# ---------------------------------------------------------------------------
+
+
+def test_build_import_map_named_imports(tmp_path) -> None:
+    """build_import_map creates {file: {symbol: module_path}} from extract results."""
+    tsconfig = tmp_path / "tsconfig.json"
+    tsconfig.write_text('{"compilerOptions": {"paths": {"@/*": ["./src/*"]}}}')
+
+    ext = TypeScriptImportExtractor(source_root=str(tmp_path))
+    source = (
+        "import { AppRoutes } from '@/routes/AppRoutes';\n"
+        "import { AppProviders } from './providers/AppProviders';\n"
+        "import React from 'react';\n"
+    )
+    file_path = str(tmp_path / "src" / "App.tsx")
+    tree = _parse(source, file_path)
+    import_map = build_import_map(ext, {file_path: tree})
+
+    assert import_map[file_path]["AppRoutes"] == "src/routes/AppRoutes"
+    assert import_map[file_path]["AppProviders"] == "src/providers/AppProviders"
+    # Default import (None symbol) and package imports should be excluded
+    assert "React" not in import_map[file_path]
+    assert "react" not in import_map[file_path]
+
+
+def test_build_import_map_excludes_default_imports(tmp_path) -> None:
+    """Default imports (symbol=None) are excluded from the import map."""
+    ext = TypeScriptImportExtractor(source_root=str(tmp_path))
+    source = "import App from './App';\n"
+    file_path = str(tmp_path / "src" / "index.tsx")
+    tree = _parse(source, file_path)
+    import_map = build_import_map(ext, {file_path: tree})
+
+    assert import_map.get(file_path, {}) == {}
+
+
+def test_build_import_map_empty_when_no_imports(tmp_path) -> None:
+    """Files with no imports produce empty maps."""
+    ext = TypeScriptImportExtractor(source_root=str(tmp_path))
+    source = "export function hello() { return 'hi'; }\n"
+    file_path = str(tmp_path / "src" / "util.ts")
+    tree = _parse(source, file_path)
+    import_map = build_import_map(ext, {file_path: tree})
+
+    assert import_map.get(file_path) is None or import_map.get(file_path) == {}
 
 
 def test_jsonc_comments_inside_strings_preserved(tmp_path) -> None:
