@@ -27,7 +27,8 @@ public class Dog extends Animal {
 }
 """
     results = extractor.extract("/proj/Dog.java", _parse(source))
-    assert results == [("Dog", "Animal", True)]
+    assert len(results) == 1
+    assert results[0][:3] == ("Dog", "Animal", True)
 
 
 def test_implements_interface(extractor):
@@ -36,7 +37,8 @@ public class Dog implements IAnimal {
 }
 """
     results = extractor.extract("/proj/Dog.java", _parse(source))
-    assert results == [("Dog", "IAnimal", True)]
+    assert len(results) == 1
+    assert results[0][:3] == ("Dog", "IAnimal", True)
 
 
 def test_extends_and_implements(extractor):
@@ -46,9 +48,9 @@ public class Dog extends Animal implements IAnimal, Comparable {
 }
 """
     results = extractor.extract("/proj/Dog.java", _parse(source))
-    assert ("Dog", "Animal", True) in results
-    assert ("Dog", "IAnimal", True) in results
-    assert ("Dog", "Comparable", False) in results
+    assert any(r[:3] == ("Dog", "Animal", True) for r in results)
+    assert any(r[:3] == ("Dog", "IAnimal", True) for r in results)
+    assert any(r[:3] == ("Dog", "Comparable", False) for r in results)
     assert len(results) == 3
 
 
@@ -58,9 +60,9 @@ public class Service implements Serializable, Cloneable, Comparable {
 }
 """
     results = extractor.extract("/proj/Service.java", _parse(source))
-    assert ("Service", "Serializable", True) in results
-    assert ("Service", "Cloneable", False) in results
-    assert ("Service", "Comparable", False) in results
+    assert any(r[:3] == ("Service", "Serializable", True) for r in results)
+    assert any(r[:3] == ("Service", "Cloneable", False) for r in results)
+    assert any(r[:3] == ("Service", "Comparable", False) for r in results)
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +76,8 @@ public interface IAdvanced extends IBasic {
 }
 """
     results = extractor.extract("/proj/IAdvanced.java", _parse(source))
-    assert results == [("IAdvanced", "IBasic", True)]
+    assert len(results) == 1
+    assert results[0][:3] == ("IAdvanced", "IBasic", True)
 
 
 def test_interface_extends_multiple(extractor):
@@ -83,8 +86,8 @@ public interface IAdvanced extends IBasic, ISerializable {
 }
 """
     results = extractor.extract("/proj/IAdvanced.java", _parse(source))
-    assert ("IAdvanced", "IBasic", True) in results
-    assert ("IAdvanced", "ISerializable", False) in results
+    assert any(r[:3] == ("IAdvanced", "IBasic", True) for r in results)
+    assert any(r[:3] == ("IAdvanced", "ISerializable", False) for r in results)
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +101,8 @@ public class MyList extends ArrayList<String> {
 }
 """
     results = extractor.extract("/proj/MyList.java", _parse(source))
-    assert results == [("MyList", "ArrayList", True)]
+    assert len(results) == 1
+    assert results[0][:3] == ("MyList", "ArrayList", True)
 
 
 def test_implements_generic(extractor):
@@ -107,7 +111,8 @@ public class Foo implements Comparable<String> {
 }
 """
     results = extractor.extract("/proj/Foo.java", _parse(source))
-    assert results == [("Foo", "Comparable", True)]
+    assert len(results) == 1
+    assert results[0][:3] == ("Foo", "Comparable", True)
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +154,8 @@ class Cat implements IAnimal {
 }
 """
     results = extractor.extract("/proj/Animals.java", _parse(source))
-    assert ("Dog", "Animal", True) in results
-    assert ("Cat", "IAnimal", True) in results
+    assert any(r[:3] == ("Dog", "Animal", True) for r in results)
+    assert any(r[:3] == ("Cat", "IAnimal", True) for r in results)
 
 
 # ---------------------------------------------------------------------------
@@ -171,8 +176,23 @@ public class Dog extends Animal implements IAnimal, Comparable {
 """
     results = extractor.extract("/proj/Dog.java", _parse(source))
     # extends target always is_first=True
-    assert ("Dog", "Animal", True) in results
+    assert any(r[:3] == ("Dog", "Animal", True) for r in results)
     # first implements is_first=True
-    assert ("Dog", "IAnimal", True) in results
+    assert any(r[:3] == ("Dog", "IAnimal", True) for r in results)
     # subsequent implements is_first=False
-    assert ("Dog", "Comparable", False) in results
+    assert any(r[:3] == ("Dog", "Comparable", False) for r in results)
+
+
+# ---------------------------------------------------------------------------
+# Position tests
+# ---------------------------------------------------------------------------
+
+
+def test_positions_are_integers(extractor):
+    """Positions (line, col) must be non-negative integers from tree-sitter start_point."""
+    source = "public class Dog extends Animal {}\n"
+    results = extractor.extract("/proj/Dog.java", _parse(source))
+    assert len(results) == 1
+    _, _, _, line, col = results[0]
+    assert isinstance(line, int) and line >= 0
+    assert isinstance(col, int) and col >= 0
