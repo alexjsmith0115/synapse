@@ -10,6 +10,7 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 
 from synapps.service import SynappsService
+from synapps.graph.connection import GraphConnection
 from tests.integration.conftest import run, text, result_json, FIXTURE_PATH
 
 
@@ -397,4 +398,182 @@ def test_execute_mutating_query_blocked(mcp_server: FastMCP) -> None:
         run(mcp_server.call_tool("execute_query", {
             "cypher": "CREATE (n:Fake) RETURN n"
         }))
+
+
+# ---------------------------------------------------------------------------
+# Cross-file CALLS edge verification
+# ---------------------------------------------------------------------------
+
+# Each entry: (caller_full_name, callee_full_name) — both MUST be in different files.
+CROSS_FILE_CALLS = [
+    (
+        "SynappsTest.Controllers.TaskController.Create",
+        "SynappsTest.Services.ITaskService.CreateTaskAsync",
+    ),
+    (
+        "SynappsTest.Controllers.TaskController.Get",
+        "SynappsTest.Services.ITaskService.GetTaskAsync",
+    ),
+    (
+        "SynappsTest.Controllers.TaskController.Delete",
+        "SynappsTest.Services.ITaskService.DeleteTaskAsync",
+    ),
+    (
+        "SynappsTest.Services.TaskService.CreateTaskAsync",
+        "SynappsTest.Services.IProjectService.ValidateProjectAsync",
+    ),
+]
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+@pytest.mark.parametrize("caller,callee", CROSS_FILE_CALLS)
+def test_cross_file_calls_edge_exists(
+    service: SynappsService, caller: str, callee: str
+) -> None:
+    """Verify that CALLS edges are created for method invocations across files."""
+    rows = service._conn.query(
+        "MATCH (src:Method {full_name: $caller})-[r:CALLS]->"
+        "(dst:Method {full_name: $callee}) "
+        "RETURN src.full_name, dst.full_name",
+        {"caller": caller, "callee": callee},
+    )
+    assert rows, (
+        f"Expected CALLS edge from {caller} to {callee}, but none found. "
+        f"This is a cross-file call that should be resolved by the LSP."
+    )
+
+
+# ---------------------------------------------------------------------------
+# DISPATCHES_TO edge verification
+# ---------------------------------------------------------------------------
+
+# Each entry: (interface_method, concrete_method) — interface dispatches to impl.
+DISPATCHES_TO_EDGES = [
+    (
+        "SynappsTest.Services.ITaskService.CreateTaskAsync",
+        "SynappsTest.Services.TaskService.CreateTaskAsync",
+    ),
+    (
+        "SynappsTest.Services.ITaskService.GetTaskAsync",
+        "SynappsTest.Services.TaskService.GetTaskAsync",
+    ),
+    (
+        "SynappsTest.Services.ITaskService.DeleteTaskAsync",
+        "SynappsTest.Services.TaskService.DeleteTaskAsync",
+    ),
+    (
+        "SynappsTest.Services.IProjectService.ValidateProjectAsync",
+        "SynappsTest.Services.ProjectService.ValidateProjectAsync",
+    ),
+]
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+@pytest.mark.parametrize("iface_method,impl_method", DISPATCHES_TO_EDGES)
+def test_dispatches_to_edge_exists(
+    service: SynappsService, iface_method: str, impl_method: str
+) -> None:
+    """Verify that DISPATCHES_TO edges connect interface methods to implementations."""
+    rows = service._conn.query(
+        "MATCH (iface:Method {full_name: $iface})-[r:DISPATCHES_TO]->"
+        "(impl:Method {full_name: $impl}) "
+        "RETURN iface.full_name, impl.full_name",
+        {"iface": iface_method, "impl": impl_method},
+    )
+    assert rows, (
+        f"Expected DISPATCHES_TO edge from {iface_method} to {impl_method}, "
+        f"but none found."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Reindex (sync) path: cross-file edges must survive single-file reindex
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_reindex_preserves_cross_file_calls(service: SynappsService) -> None:
+    """After reindexing TaskController.cs, cross-file CALLS edges must still exist.
+
+    reindex_file deletes outgoing edges for the file and re-resolves them.
+    This test verifies that cross-file call resolution works with the
+    single-file symbol_map used by reindex_file.
+    """
+    import os
+    from synapps.indexer.indexer import Indexer
+    from synapps.plugin.csharp import CSharpPlugin
+
+    controller_path = os.path.join(FIXTURE_PATH, "Controllers", "TaskController.cs")
+    plugin = CSharpPlugin()
+    lsp = plugin.create_lsp_adapter(FIXTURE_PATH)
+    try:
+        indexer = Indexer(service._conn, lsp, plugin=plugin)
+        indexer.reindex_file(controller_path, FIXTURE_PATH)
+    finally:
+        lsp.shutdown()
+
+    # Verify cross-file CALLS edges still exist after reindex
+    rows = service._conn.query(
+        "MATCH (src:Method {full_name: $caller})-[r:CALLS]->"
+        "(dst:Method {full_name: $callee}) "
+        "RETURN src.full_name, dst.full_name",
+        {
+            "caller": "SynappsTest.Controllers.TaskController.Create",
+            "callee": "SynappsTest.Services.ITaskService.CreateTaskAsync",
+        },
+    )
+    assert rows, (
+        "Cross-file CALLS edge from TaskController.Create to "
+        "ITaskService.CreateTaskAsync was lost after reindex_file"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_reindex_preserves_dispatches_to(service: SynappsService) -> None:
+    """After reindexing TaskService.cs, DISPATCHES_TO edges must still exist.
+
+    reindex_file deletes outgoing edges including DISPATCHES_TO.
+    MethodImplementsIndexer must run to recreate them.
+    """
+    import os
+    from synapps.indexer.indexer import Indexer
+    from synapps.plugin.csharp import CSharpPlugin
+
+    service_path = os.path.join(FIXTURE_PATH, "Services", "TaskService.cs")
+    plugin = CSharpPlugin()
+    lsp = plugin.create_lsp_adapter(FIXTURE_PATH)
+    try:
+        indexer = Indexer(service._conn, lsp, plugin=plugin)
+        indexer.reindex_file(service_path, FIXTURE_PATH)
+    finally:
+        lsp.shutdown()
+
+    # Check IMPLEMENTS edge (prerequisite for DISPATCHES_TO)
+    impl_rows = service._conn.query(
+        "MATCH (c:Class {full_name: $cls})-[r:IMPLEMENTS]->(i) "
+        "RETURN type(r), i.full_name",
+        {"cls": "SynappsTest.Services.TaskService"},
+    )
+    assert impl_rows, (
+        "IMPLEMENTS edge from TaskService to ITaskService was lost after reindex_file. "
+        "DISPATCHES_TO depends on this edge."
+    )
+
+    # Verify DISPATCHES_TO edges still exist after reindex
+    rows = service._conn.query(
+        "MATCH (iface:Method {full_name: $iface})-[r:DISPATCHES_TO]->"
+        "(impl:Method {full_name: $impl}) "
+        "RETURN iface.full_name, impl.full_name",
+        {
+            "iface": "SynappsTest.Services.ITaskService.CreateTaskAsync",
+            "impl": "SynappsTest.Services.TaskService.CreateTaskAsync",
+        },
+    )
+    assert rows, (
+        "DISPATCHES_TO edge from ITaskService.CreateTaskAsync to "
+        "TaskService.CreateTaskAsync was lost after reindex_file"
+    )
 

@@ -22,7 +22,7 @@ def test_pyproject_name() -> None:
 
 def test_pyproject_version() -> None:
     data = _load_pyproject()
-    assert data["project"]["version"] == "1.4.3"
+    assert data["project"]["version"] == "1.4.4"
 
 
 def test_pyproject_readme() -> None:

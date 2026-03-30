@@ -224,9 +224,14 @@ def get_file_symbol_names(conn: GraphConnection, file_path: str) -> set[str]:
 def delete_orphaned_symbols(
     conn: GraphConnection, file_path: str, current_full_names: set[str]
 ) -> int:
+    # Scope to nodes whose file_path matches this file.  Without the
+    # file_path guard, the CONTAINS* traversal walks through shared
+    # Namespace/Package nodes and reaches symbols in OTHER files, deleting
+    # them when they're not in this file's keep-list.
     rows = conn.query(
         "MATCH (f:File {path: $path})-[:CONTAINS*]->(n) "
         "WHERE n.full_name IS NOT NULL AND NOT n.full_name IN $keep "
+        "AND n.file_path = $path "
         "RETURN n.full_name",
         {"path": file_path, "keep": list(current_full_names)},
     )

@@ -322,11 +322,20 @@ class Indexer:
             kind_map[sym.full_name] = sym.kind
 
         _TYPE_KINDS = {SymbolKind.CLASS, SymbolKind.INTERFACE, SymbolKind.ABSTRACT_CLASS, SymbolKind.ENUM, SymbolKind.RECORD}
-        base_type_symbol_map: dict[tuple[str, int], str] = {
-            (sym.file_path, sym.line): sym.full_name
-            for sym in symbols
-            if sym.kind in _TYPE_KINDS
-        }
+
+        # Delete outgoing resolution edges BEFORE re-resolving so that
+        # newly created IMPLEMENTS/INHERITS edges aren't immediately removed.
+        delete_outgoing_edges_for_file(self._conn, file_path)
+
+        # Build cross-file symbol maps from the graph so that LSP-resolved
+        # definitions in OTHER files can be matched.  Overlay the current
+        # file's fresh symbols so the map reflects the latest on-disk state.
+        base_type_symbol_map = self._build_graph_symbol_map(
+            "Class", "Interface", extra_labels=("Enum",),
+        )
+        for sym in symbols:
+            if sym.kind in _TYPE_KINDS:
+                base_type_symbol_map[(sym.file_path, sym.line)] = sym.full_name
 
         self._index_base_types(
             file_path, pf.tree, base_type_symbol_map, kind_map,
@@ -342,15 +351,20 @@ class Indexer:
                 attr_extractor = CSharpAttributeExtractor()
             self._index_attributes(file_path, pf.tree, symbols, attr_extractor)
 
-        # D-11: delete outgoing resolution edges before re-resolving
-        delete_outgoing_edges_for_file(self._conn, file_path)
+        # Build a cross-file method symbol_map from the graph, overlaying
+        # fresh symbols from the current file so CALLS resolution can match
+        # callee definitions in any file.
+        all_symbols_for_resolver = self._build_all_symbols_for_resolver(symbols)
 
         parsed_cache = {file_path: pf}
         self._resolve_calls_and_refs(
-            root_path, symbols, [file_path], name_to_full_names,
+            root_path, all_symbols_for_resolver, [file_path], name_to_full_names,
             single_file=file_path,
             parsed_cache=parsed_cache,
         )
+
+        # Recreate DISPATCHES_TO edges (graph-only, no LSP needed).
+        MethodImplementsIndexer(self._conn).index()
 
     def _resolve_calls_and_refs(
         self,
@@ -506,6 +520,49 @@ class Indexer:
         # OVERRIDES detection (pure Cypher, no LSP needed)
         if self._language in ("python", "typescript", "java", "csharp"):
             OverridesIndexer(self._conn).index()
+
+    def _build_graph_symbol_map(
+        self, *labels: str, extra_labels: tuple[str, ...] = (),
+    ) -> dict[tuple[str, int], str]:
+        """Query the graph for all nodes of the given labels and return a symbol map.
+
+        Returns a dict of ``{(file_path, line): full_name}`` for use as a
+        cross-file lookup when reindexing a single file.
+        """
+        all_labels = list(labels) + list(extra_labels)
+        label_clause = " OR ".join(f"n:{lbl}" for lbl in all_labels)
+        rows = self._conn.query(
+            f"MATCH (n) WHERE ({label_clause}) AND n.file_path IS NOT NULL "
+            f"RETURN n.file_path, n.line, n.full_name",
+        )
+        return {(r[0], r[1]): r[2] for r in rows if r[0] is not None and r[1] is not None}
+
+    def _build_all_symbols_for_resolver(
+        self, local_symbols: list[IndexSymbol],
+    ) -> list[IndexSymbol]:
+        """Build a symbol list for SymbolResolver that includes all Method nodes
+        from the graph plus fresh local symbols.
+
+        This ensures the ``symbol_map`` inside ``_resolve_calls_and_refs`` can
+        resolve callee definitions in ANY file, not just the file being reindexed.
+        """
+        rows = self._conn.query(
+            "MATCH (m:Method) WHERE m.file_path IS NOT NULL "
+            "RETURN m.file_path, m.line, m.full_name"
+        )
+        # Start with graph data, overlay local symbols (which may be fresher)
+        local_keys = {(sym.file_path, sym.line) for sym in local_symbols if sym.kind == SymbolKind.METHOD}
+        result = list(local_symbols)
+        for file_path, line, full_name in rows:
+            if file_path is not None and line is not None and (file_path, line) not in local_keys:
+                result.append(IndexSymbol(
+                    name=full_name.rsplit(".", 1)[-1],
+                    full_name=full_name,
+                    kind=SymbolKind.METHOD,
+                    file_path=file_path,
+                    line=line,
+                ))
+        return result
 
     def delete_file(self, file_path: str) -> None:
         delete_file_nodes(self._conn, file_path)
