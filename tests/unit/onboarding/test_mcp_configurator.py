@@ -58,6 +58,35 @@ class TestDetectMCPClients:
         assert "Cursor" in names
 
 
+    def test_cursor_entry_has_needs_project_path_true(self) -> None:
+        from synapps.onboarding.mcp_configurator import _CLIENT_DEFS
+
+        cursor_entry = next((e for e in _CLIENT_DEFS if e[1] == "cursor"), None)
+        assert cursor_entry is not None, "Cursor entry not found in _CLIENT_DEFS"
+        assert cursor_entry[3] is True, "Cursor needs_project_path must be True"
+
+    def test_cursor_get_config_path_receives_project_path(self, tmp_path: Path) -> None:
+        calls: list[tuple[tuple, dict]] = []
+
+        def tracking_get_config_path(key: str, **kwargs: object) -> str:
+            calls.append((key, kwargs))
+            return str(tmp_path / f"{key}_config.json")
+
+        with patch(
+            "synapps.onboarding.mcp_configurator.get_config_path",
+            side_effect=tracking_get_config_path,
+        ):
+            from synapps.onboarding.mcp_configurator import detect_mcp_clients
+
+            detect_mcp_clients(str(tmp_path))
+
+        cursor_calls = [(k, kw) for k, kw in calls if k == "cursor"]
+        assert cursor_calls, "get_config_path was never called with 'cursor'"
+        assert cursor_calls[0][1].get("path") == str(tmp_path), (
+            f"Cursor's get_config_path call missing path kwarg; got kwargs={cursor_calls[0][1]}"
+        )
+
+
 class TestWriteMCPConfig:
     def test_write_creates_new_file(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"

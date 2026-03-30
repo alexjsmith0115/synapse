@@ -17,7 +17,7 @@ _SYNAPPS_ENTRY = {"command": "synapps-mcp", "args": []}
 _CLIENT_DEFS: list[tuple[str, str, str, bool]] = [
     ("Claude Desktop", "claude_desktop", "mcpServers", False),
     ("Claude Code", "claude_code", "mcpServers", True),
-    ("Cursor", "cursor", "mcpServers", False),
+    ("Cursor", "cursor", "mcpServers", True),
     ("VS Code / Copilot", "vscode", "servers", True),
 ]
 
