@@ -119,6 +119,43 @@ def _prompt_db_mode(console, project_path: str) -> None:
         console.print("[dim]This project will share the global Memgraph instance.[/dim]")
 
 
+def _offer_hooks(console, project_path: str) -> list[str]:
+    """Detect agents and offer to install hooks for each."""
+    from synapps.hooks.detector import detect_agents
+    from synapps.hooks.installer import install_scripts
+    from synapps.hooks.config_upsert import (
+        upsert_claude_hook,
+        upsert_cursor_hook,
+        upsert_copilot_hook,
+    )
+
+    hooks_dir = Path.home() / ".synapps" / "hooks"
+    agents = detect_agents(project_path=Path(project_path))
+
+    if not agents:
+        return []
+
+    _UPSERT = {
+        "claude": upsert_claude_hook,
+        "cursor": upsert_cursor_hook,
+        "copilot": upsert_copilot_hook,
+    }
+    _SCRIPT_NAME = {
+        "claude": "claude-gate.sh",
+        "cursor": "cursor-gate.sh",
+        "copilot": "copilot-gate.sh",
+    }
+
+    installed: list[str] = []
+    for a in agents:
+        if typer.confirm(f"Install pre-tool hooks for {a.display_name}?", default=True):
+            install_scripts(hooks_dir)
+            script_path = f"~/.synapps/hooks/{_SCRIPT_NAME[a.name]}"
+            _UPSERT[a.name](a.config_path, script_path)
+            installed.append(a.display_name)
+    return installed
+
+
 def _offer_mcp_config(console, project_path: str) -> list[str]:
     """Detect MCP clients and offer to write config for each. Returns configured client names."""
     clients = detect_mcp_clients(project_path)
@@ -130,7 +167,7 @@ def _offer_mcp_config(console, project_path: str) -> list[str]:
     return configured
 
 
-def _print_summary(console, languages: list[str], report, mcp_clients: list[str], project_path: str) -> None:
+def _print_summary(console, languages: list[str], report, mcp_clients: list[str], project_path: str, hook_agents: list[str] | None = None) -> None:
     """Print a Rich table summarizing all wizard actions."""
     from rich.table import Table
 
@@ -162,6 +199,9 @@ def _print_summary(console, languages: list[str], report, mcp_clients: list[str]
         table.add_row("MCP clients configured", ", ".join(mcp_clients))
     else:
         table.add_row("MCP clients configured", "(none)")
+
+    if hook_agents:
+        table.add_row("Agent hooks installed", ", ".join(hook_agents))
 
     console.print(table)
 
@@ -250,5 +290,9 @@ def run_init(project_path: str, verbose: bool = False) -> None:
     console.print("\n[bold]MCP client configuration:[/bold]")
     configured_clients = _offer_mcp_config(console, project_path)
 
+    # Step 5b: Offer hook installation
+    console.print("\n[bold]Agent hook configuration:[/bold]")
+    hook_agents = _offer_hooks(console, project_path)
+
     # Step 6: Summary
-    _print_summary(console, confirmed_languages, report, configured_clients, project_path)
+    _print_summary(console, confirmed_languages, report, configured_clients, project_path, hook_agents)

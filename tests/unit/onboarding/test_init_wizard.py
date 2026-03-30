@@ -142,6 +142,7 @@ def _run_with_patches(project_path: str, opts: dict, *, has_existing_db_config: 
         patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod,
         patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=has_existing_db_config),
         patch("synapps.onboarding.init_wizard._write_db_config"),
+        patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
         patch("typer.confirm", side_effect=opts["confirm_side_effect"]),
         patch("sys.stdin") as mock_stdin,
     ):
@@ -200,6 +201,7 @@ def test_wizard_shows_fix_on_failure(capsys):
         patch("synapps.onboarding.init_wizard.SynappsService", mock_svc),
         patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod,
         patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True),
+        patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
         patch("typer.confirm", side_effect=[True, True]),
         patch("sys.stdin") as mock_stdin,
         patch("rich.console.Console.print", side_effect=capture_print) as mock_console_print,
@@ -262,6 +264,7 @@ def test_summary_printed():
         patch("synapps.onboarding.init_wizard.SynappsService", mock_svc),
         patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod,
         patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True),
+        patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
         patch("typer.confirm", return_value=True),
         patch("sys.stdin") as mock_stdin,
         patch("rich.console.Console.print", side_effect=capture),
@@ -385,3 +388,32 @@ def test_write_db_config_preserves_existing_keys(tmp_path):
     config = json.loads((config_dir / "config.json").read_text())
     assert config["dedicated_instance"] is False
     assert config["existing_key"] == "value"
+
+
+class TestInitWizardHookOffer:
+    def test_init_offers_hook_installation(self, tmp_path: Path) -> None:
+        """Verify the wizard calls _offer_hooks after MCP config."""
+        from unittest.mock import patch, MagicMock
+
+        with patch("synapps.onboarding.init_wizard._offer_hooks") as mock_hooks, \
+             patch("synapps.onboarding.init_wizard._offer_mcp_config", return_value=[]), \
+             patch("synapps.onboarding.init_wizard.detect_languages", return_value=[("python", 10)]), \
+             patch("synapps.onboarding.init_wizard._prompt_language_confirmation", return_value=["python"]), \
+             patch("synapps.onboarding.init_wizard._checks_for_languages", return_value=[]), \
+             patch("synapps.onboarding.init_wizard.DoctorService") as mock_doctor, \
+             patch("synapps.onboarding.init_wizard.ConnectionManager") as mock_conn, \
+             patch("synapps.onboarding.init_wizard.ensure_schema"), \
+             patch("synapps.onboarding.init_wizard.SynappsService") as mock_svc, \
+             patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True), \
+             patch("sys.stdin") as mock_stdin:
+            mock_stdin.isatty.return_value = True
+            mock_report = MagicMock()
+            mock_report.checks = []
+            mock_report.has_failures = False
+            mock_doctor.return_value.run.return_value = mock_report
+            mock_svc.return_value.smart_index.return_value = "42 symbols"
+
+            from synapps.onboarding.init_wizard import run_init
+            run_init(str(tmp_path))
+
+        mock_hooks.assert_called_once()

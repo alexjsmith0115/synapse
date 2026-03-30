@@ -39,6 +39,7 @@ synapps init
 3. **Shows fix commands** for anything missing (platform-specific: `brew` on macOS, `apt` on Linux)
 4. **Indexes your project** — builds the code graph automatically
 5. **Configures your MCP client** — detects Claude Desktop, Claude Code, Cursor, or Copilot and offers to write the config
+6. **Installs pre-tool hooks** — optional advisory hooks that remind agents to use graph tools before falling back to grep/file search (Claude Code, Cursor, GitHub Copilot)
 
 After init completes, your AI agent can use Synapps tools immediately.
 
@@ -102,7 +103,7 @@ This means your agent can follow a method call through 6 levels of indirection a
 
 In dependency-injected codebases, `service.Process()` could mean any of 5 concrete implementations. Grep finds the interface method. Synapps finds the interface method *and* every concrete implementation, automatically.
 
-**Tools:** `find_usages` (with `include_interface_dispatch`), `find_implementations` | **CLI:** `contract`
+**Tools:** `find_usages`, `find_implementations`
 
 ### Impact Analysis
 
@@ -191,19 +192,13 @@ synapps <command> [args]
 | `synapps search <query> [--kind <kind>] [-l <lang>]` | Search symbols by name |
 | `synapps callers <method> [--include-tests] [--tree]` | Find all callers of a method |
 | `synapps callees <method> [--tree]` | Find all methods called by a method |
-| `synapps call-depth <method> [-d <n>] [--tree]` | Show reachable methods up to N levels |
 | `synapps implementations <interface>` | Find concrete implementations |
 | `synapps hierarchy <class> [--tree]` | Show inheritance chain |
-| `synapps contract <method>` | Find interface contract and sibling implementations |
 | `synapps usages <full_name> [--include-tests]` | Find all code that uses a symbol |
-| `synapps type-refs <full_name> [-k <kind>]` | Find type references (`parameter`, `return_type`, `property_type`) |
 | `synapps dependencies <full_name> [--tree]` | Find all types referenced by a symbol |
 | `synapps context <full_name> [--scope <scope>] [--max-lines <n>]` | Get context for understanding/modifying a symbol |
 | `synapps trace <start> <end> [-d <n>] [--tree]` | Trace call paths between two methods |
 | `synapps entry-points <method> [-d <n>] [--include-tests] [--tree]` | Find API/controller entry points reaching a method |
-| `synapps impact <method>` | Analyze blast radius of a change |
-| `synapps type-impact <type_name>` | Find all code affected by a type change |
-| `synapps audit <rule>` | Run architectural audit (`layering_violations`, `untested_services`) |
 | `synapps query <cypher>` | Execute a read-only Cypher query |
 
 ### Summaries
@@ -220,7 +215,7 @@ Attach non-derivable context to symbols — design rationale, constraints, owner
 
 ## MCP Tools
 
-15 tools available to any MCP client connected to `synapps-mcp`, organized into 7 categories.
+19 tools available to any MCP client connected to `synapps-mcp`, organized into 9 categories.
 
 ### Project Management
 
@@ -258,6 +253,20 @@ Attach non-derivable context to symbols — design rationale, constraints, owner
 | Tool | Parameters | Description |
 |---|---|---|
 | `find_http_endpoints` | `route?`, `http_method?`, `language?`, `trace?` | Search endpoints by route, method, or language. Use `trace=True` for full server+client dependency picture |
+
+### Architecture
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `get_architecture` | `path`, `limit?` | Project overview: packages, hotspots, HTTP map, stats |
+
+### Code Quality
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `find_dead_code` | `path`, `limit?` | Methods with zero callers (excludes tests, HTTP handlers, interface impls, constructors, overrides) |
+| `find_tests_for` | `method_full_name` | Find which tests cover a method via TESTS edges |
+| `find_untested` | `path`, `limit?` | Production methods with no test coverage |
 
 ### Summaries
 
@@ -368,6 +377,34 @@ vendor/
 ```
 
 Without `.synignore`, Synapps uses built-in exclusions (`.git`, `node_modules`, `__pycache__`, `dist`, `build`, etc.).
+
+---
+
+## Pre-Tool Hooks
+
+Synapps can install advisory pre-tool hooks that remind AI agents to use graph tools before falling back to grep and file search. Hooks are non-blocking — they emit a reminder to stderr but never prevent the tool call.
+
+Hooks are installed during `synapps init` for any detected agents. They are index-aware: the reminder only appears when the current project has a `.synapps/config.json` (i.e., has been indexed).
+
+### Supported Agents
+
+| Agent | Hook Event | Matcher | Config File |
+|---|---|---|---|
+| Claude Code | `PreToolUse` | `Grep\|Glob` | `~/.claude/settings.json` |
+| Cursor | `preToolUse` | `Read` | `~/.cursor/hooks.json` |
+| GitHub Copilot | `preToolUse` | Internal (filters `toolName` in script) | `.github/hooks/hooks.json` |
+
+### How It Works
+
+Gate scripts are installed at `~/.synapps/hooks/`:
+
+- **`common.sh`** — shared helper: walks from `$PWD` upward looking for `.synapps/config.json`; emits a reminder to stderr if found
+- **`claude-gate.sh`** / **`cursor-gate.sh`** — source `common.sh`, check for index, emit reminder, exit 0
+- **`copilot-gate.sh`** — same, but also reads `toolName` from stdin JSON to filter for search-related tools, and emits `{"permissionDecision":"allow"}` on stdout (required by Copilot protocol)
+
+### Manual Hook Removal
+
+To remove hooks, delete `~/.synapps/hooks/` and remove the Synapps entries from each agent's config file. Synapps entries are identifiable by script paths containing `~/.synapps/hooks/`.
 
 ---
 
