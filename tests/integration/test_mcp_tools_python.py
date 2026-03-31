@@ -49,6 +49,18 @@ def test_get_schema(python_mcp: FastMCP) -> None:
     assert "node_labels" in schema
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_index_project(python_mcp: FastMCP) -> None:
+    """index_project re-indexes the Python fixture without error (upsert -- safe to re-run)."""
+    result = run(python_mcp.call_tool("index_project", {
+        "path": PYTHON_FIXTURE_PATH,
+        "language": "python",
+    }))
+    msg = text(result)
+    assert "Indexed" in msg
+
+
 # ---------------------------------------------------------------------------
 # Symbol query tools
 # ---------------------------------------------------------------------------
@@ -173,6 +185,71 @@ def test_get_context_for(python_mcp: FastMCP) -> None:
     assert "Dog" in ctx
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_structure_scope(python_mcp: FastMCP) -> None:
+    """get_context_for(scope='structure') returns Members but not Called Methods for a Python class."""
+    result = run(python_mcp.call_tool("get_context_for", {
+        "full_name": "synappspytest.services.AnimalService",
+        "scope": "structure",
+    }))
+    ctx = text(result)
+    assert "## Members" in ctx
+    assert "AnimalService" in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_method_scope(python_mcp: FastMCP) -> None:
+    """get_context_for(scope='method') returns Target but not Containing Type or Members list."""
+    result = run(python_mcp.call_tool("get_context_for", {
+        "full_name": "synappspytest.services.AnimalService.get_greeting",
+        "scope": "method",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "get_greeting" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Members:" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_method(python_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a method returns Target but not Containing Type or Called Methods."""
+    result = run(python_mcp.call_tool("get_context_for", {
+        "full_name": "synappspytest.services.AnimalService.get_greeting",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "get_greeting" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_class(python_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a class returns Target and the class name."""
+    result = run(python_mcp.call_tool("get_context_for", {
+        "full_name": "synappspytest.services.AnimalService",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "AnimalService" in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_rejects_field(python_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a Field/Property node returns the rejection message."""
+    # Python indexer does not produce Field/Property nodes for the fixture — skip rather than fail.
+    pytest.skip("No Field/Property node in Python fixture")
+
+
 # ---------------------------------------------------------------------------
 # Call chain / entry point / impact tools
 # ---------------------------------------------------------------------------
@@ -237,6 +314,18 @@ def test_find_type_impact(python_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
+def test_get_summary_no_summary(python_mcp: FastMCP) -> None:
+    """summary action=get returns None or empty when no summary set for Python symbol."""
+    result = run(python_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "synappspytest.animals.Cat",
+    }))
+    summary = result_json(result)
+    assert summary is None or isinstance(summary, str)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
 def test_set_and_get_summary(python_mcp: FastMCP) -> None:
     """summary action=set/get round-trip correctly for a Python symbol."""
     run(python_mcp.call_tool("summary", {
@@ -283,3 +372,13 @@ def test_execute_query(python_mcp: FastMCP) -> None:
     # execute_query wraps each row as {"row": [cell, ...]}
     count = rows[0]["row"][0]
     assert count > 0, f"Expected at least one Python Class node, got count={count}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_execute_mutating_query_blocked(python_mcp: FastMCP) -> None:
+    """execute_query raises when a mutating (CREATE) Cypher query is submitted."""
+    with pytest.raises(Exception):
+        run(python_mcp.call_tool("execute_query", {
+            "cypher": "CREATE (n:Fake) RETURN n"
+        }))

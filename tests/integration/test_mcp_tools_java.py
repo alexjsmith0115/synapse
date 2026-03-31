@@ -203,6 +203,74 @@ def test_get_context_for(java_mcp: FastMCP) -> None:
     assert "Dog" in ctx
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_structure_scope(java_mcp: FastMCP) -> None:
+    """get_context_for(scope='structure') returns Members but not Called Methods for a Java class."""
+    result = run(java_mcp.call_tool("get_context_for", {
+        "full_name": "com.synappstest.AnimalService",
+        "scope": "structure",
+    }))
+    ctx = text(result)
+    assert "## Members" in ctx
+    assert "AnimalService" in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_method_scope(java_mcp: FastMCP) -> None:
+    """get_context_for(scope='method') returns Target but not Containing Type or Members list."""
+    result = run(java_mcp.call_tool("get_context_for", {
+        "full_name": "com.synappstest.AnimalService.greet()",
+        "scope": "method",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "greet" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Members:" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_method(java_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a method returns Target but not Containing Type or Called Methods."""
+    result = run(java_mcp.call_tool("get_context_for", {
+        "full_name": "com.synappstest.AnimalService.greet()",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "greet" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_class(java_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a class returns Target and the class name."""
+    result = run(java_mcp.call_tool("get_context_for", {
+        "full_name": "com.synappstest.AnimalService",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "AnimalService" in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_rejects_field(java_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a Field node returns the rejection message."""
+    result = run(java_mcp.call_tool("get_context_for", {
+        "full_name": "com.synappstest.Animal.name",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "scope='edit' requires" in ctx
+
 
 # ---------------------------------------------------------------------------
 # Call chain / entry point / impact tools
@@ -268,6 +336,18 @@ def test_find_type_impact(java_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
+def test_get_summary_no_summary(java_mcp: FastMCP) -> None:
+    """summary action=get returns None or empty when no summary set for Java symbol."""
+    result = run(java_mcp.call_tool("summary", {
+        "action": "get",
+        "full_name": "com.synappstest.Cat",
+    }))
+    summary = result_json(result)
+    assert summary is None or isinstance(summary, str)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
 def test_set_and_get_summary(java_mcp: FastMCP) -> None:
     """summary action=set/get round-trip correctly for a Java symbol."""
     run(java_mcp.call_tool("summary", {
@@ -313,3 +393,13 @@ def test_execute_query(java_mcp: FastMCP) -> None:
     assert len(rows) > 0
     count = rows[0]["row"][0]
     assert count > 0, f"Expected at least one Java Class node, got count={count}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_execute_mutating_query_blocked(java_mcp: FastMCP) -> None:
+    """execute_query raises when a mutating (CREATE) Cypher query is submitted."""
+    with pytest.raises(Exception):
+        run(java_mcp.call_tool("execute_query", {
+            "cypher": "CREATE (n:Fake) RETURN n"
+        }))

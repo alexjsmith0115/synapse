@@ -238,6 +238,75 @@ def test_get_context_for(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
+def test_get_context_for_structure_scope(typescript_mcp: FastMCP) -> None:
+    """get_context_for(scope='structure') returns Members but not Called Methods for a TypeScript class."""
+    result = run(typescript_mcp.call_tool("get_context_for", {
+        "full_name": "src/services.AnimalService",
+        "scope": "structure",
+    }))
+    ctx = text(result)
+    assert "## Members" in ctx
+    assert "AnimalService" in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_method_scope(typescript_mcp: FastMCP) -> None:
+    """get_context_for(scope='method') returns Target but not Containing Type or Members list."""
+    result = run(typescript_mcp.call_tool("get_context_for", {
+        "full_name": "src/services.AnimalService.getGreeting",
+        "scope": "method",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "getGreeting" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Members:" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_method(typescript_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a method returns Target but not Containing Type or Called Methods."""
+    result = run(typescript_mcp.call_tool("get_context_for", {
+        "full_name": "src/services.AnimalService.getGreeting",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "getGreeting" in ctx
+    assert "## Containing Type:" not in ctx
+    assert "## Called Methods" not in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_class(typescript_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a class returns Target and the class name."""
+    result = run(typescript_mcp.call_tool("get_context_for", {
+        "full_name": "src/services.AnimalService",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "## Target:" in ctx
+    assert "AnimalService" in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_context_for_edit_scope_rejects_field(typescript_mcp: FastMCP) -> None:
+    """get_context_for(scope='edit') on a Field node returns the rejection message."""
+    result = run(typescript_mcp.call_tool("get_context_for", {
+        "full_name": "src/animals.Animal._name",
+        "scope": "edit",
+    }))
+    ctx = text(result)
+    assert "scope='edit' requires" in ctx
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
 def test_find_entry_points(typescript_mcp: FastMCP) -> None:
     """find_entry_points returns dict with entry_points key without error."""
     result = run(typescript_mcp.call_tool("find_entry_points", {
@@ -355,3 +424,13 @@ def test_execute_query(typescript_mcp: FastMCP) -> None:
     # execute_query wraps each row as {"row": [cell, ...]}
     count = rows[0]["row"][0]
     assert count > 0, f"Expected at least one TypeScript Class node, got count={count}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_execute_mutating_query_blocked(typescript_mcp: FastMCP) -> None:
+    """execute_query raises when a mutating (CREATE) Cypher query is submitted."""
+    with pytest.raises(Exception):
+        run(typescript_mcp.call_tool("execute_query", {
+            "cypher": "CREATE (n:Fake) RETURN n"
+        }))
