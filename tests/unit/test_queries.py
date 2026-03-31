@@ -71,10 +71,11 @@ def test_find_callers_includes_interface_dispatch_by_default():
     direct_caller_node = _node(["Method"], {"full_name": "A.Direct"})
     iface_caller_node = _node(["Method"], {"full_name": "A.ViaInterface"})
     conn = MagicMock()
-    conn.query.side_effect = [[[direct_caller_node]], [[iface_caller_node]]]
+    # Three queries: direct, via_iface (IMPLEMENTS), via_dispatch (DISPATCHES_TO)
+    conn.query.side_effect = [[[direct_caller_node]], [[iface_caller_node]], []]
     result = find_callers(conn, "Svc.DoWork")
     assert len(result) == 2
-    assert conn.query.call_count == 2
+    assert conn.query.call_count == 3
 
 
 def test_find_callers_deduplicates_across_both_queries():
@@ -83,7 +84,8 @@ def test_find_callers_deduplicates_across_both_queries():
     shared_node_a = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
     shared_node_b = _node(["Method"], {"full_name": "A.Both"}, element_id=shared_id)
     conn = MagicMock()
-    conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]]]
+    # Three queries: direct, via_iface, via_dispatch
+    conn.query.side_effect = [[[shared_node_a]], [[shared_node_b]], []]
     result = find_callers(conn, "Svc.DoWork")
     assert len(result) == 1
 
@@ -116,13 +118,13 @@ def test_find_callers_exclude_direct_early_return():
 
 def test_find_callers_exclude_via_iface():
     """exclude_test_callers=True with interface dispatch on:
-    both queries (direct + via-iface) must include WHERE and bind test_pattern.
+    all three queries (direct, via-iface, via-dispatch) must include WHERE and bind test_pattern.
     """
     caller_node = _node(["Method"], {"full_name": "A.Caller"})
     conn = MagicMock()
-    conn.query.side_effect = [[[caller_node]], []]
+    conn.query.side_effect = [[[caller_node]], [], []]
     find_callers(conn, "Svc.DoWork", include_interface_dispatch=True, exclude_test_callers=True)
-    assert conn.query.call_count == 2
+    assert conn.query.call_count == 3
     for call in conn.query.call_args_list:
         query_str, params = call[0]
         assert "WHERE NOT caller.file_path =~ $test_pattern" in query_str
@@ -251,8 +253,9 @@ def test_find_callers_with_sites_returns_caller_and_sites():
 def test_find_callers_with_sites_deduplicates_across_direct_and_dispatch():
     caller = _node(["Method"], {"full_name": "A.Caller", "file_path": "/src/A.cs"}, element_id="c1")
     conn = MagicMock()
-    # Both direct and dispatch queries return the same caller
+    # All three queries (direct, via_iface, via_dispatch) return the same caller
     conn.query.side_effect = [
+        [[caller, [[10, 5]]]],
         [[caller, [[10, 5]]]],
         [[caller, [[10, 5]]]],
     ]
@@ -345,3 +348,108 @@ def test_find_all_deps_returns_empty_for_no_references():
     conn = _conn([])
     result = find_all_deps(conn, "Ns.MyClass")
     assert result == []
+
+
+# --- regression: DISPATCHES_TO callers missing from find_callers ---
+
+
+def test_find_callers_includes_abstract_dispatch_callers():
+    """Callers of an abstract base method that reach the concrete override via
+    DISPATCHES_TO must be returned.  Before the fix, only IMPLEMENTS paths were
+    followed and these callers were silently dropped."""
+    direct_caller = _node(["Method"], {"full_name": "A.Direct"}, element_id="d1")
+    dispatch_caller = _node(["Method"], {"full_name": "B.ViaDispatch"}, element_id="d2")
+    conn = MagicMock()
+    # direct, via_iface (IMPLEMENTS path), via_dispatch (DISPATCHES_TO path)
+    conn.query.side_effect = [[[direct_caller]], [], [[dispatch_caller]]]
+    result = find_callers(conn, "Concrete.Execute")
+    assert len(result) == 2
+    full_names = {n["full_name"] for n in result}
+    assert "B.ViaDispatch" in full_names
+
+
+def test_find_callers_via_dispatch_exclude_test_callers_passes_test_pattern():
+    """The DISPATCHES_TO query must honour exclude_test_callers, i.e. bind
+    $test_pattern in its WHERE clause."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers(conn, "Concrete.Execute", include_interface_dispatch=True, exclude_test_callers=True)
+    # Three queries fired when dispatch is enabled and tests are excluded
+    assert conn.query.call_count == 3
+    dispatch_query_str, dispatch_params = conn.query.call_args_list[2][0]
+    assert "DISPATCHES_TO" in dispatch_query_str
+    assert "$test_pattern" in dispatch_query_str
+    assert dispatch_params["test_pattern"] == _TEST_PATH_PATTERN
+
+
+def test_find_callers_via_dispatch_without_exclude_tests():
+    """When exclude_test_callers=False the DISPATCHES_TO query must not filter
+    by test path (no WHERE clause for test_pattern)."""
+    dispatch_caller = _node(["Method"], {"full_name": "T.TestCaller"}, element_id="t1")
+    conn = MagicMock()
+    conn.query.side_effect = [[], [], [[dispatch_caller]]]
+    result = find_callers(
+        conn, "Concrete.Execute",
+        include_interface_dispatch=True,
+        exclude_test_callers=False,
+    )
+    assert conn.query.call_count == 3
+    dispatch_query_str, dispatch_params = conn.query.call_args_list[2][0]
+    assert "DISPATCHES_TO" in dispatch_query_str
+    assert "test_pattern" not in dispatch_params
+    assert len(result) == 1
+
+
+def test_find_callers_deduplicates_across_all_three_queries():
+    """A caller that appears in both the IMPLEMENTS path and the DISPATCHES_TO
+    path must not be duplicated in the final result."""
+    shared_id = "shared-99"
+    node_a = _node(["Method"], {"full_name": "A.Caller"}, element_id=shared_id)
+    node_b = _node(["Method"], {"full_name": "A.Caller"}, element_id=shared_id)
+    conn = MagicMock()
+    conn.query.side_effect = [[], [[node_a]], [[node_b]]]
+    result = find_callers(conn, "Concrete.Execute")
+    assert len(result) == 1
+
+
+# --- regression: DISPATCHES_TO callers missing from find_callers_with_sites ---
+
+
+def test_find_callers_with_sites_includes_abstract_dispatch_callers():
+    """find_callers_with_sites must return callers reached via DISPATCHES_TO,
+    not only via IMPLEMENTS."""
+    dispatch_caller = _node(
+        ["Method"], {"full_name": "B.ViaDispatch", "file_path": "/src/B.cs"}, element_id="d2"
+    )
+    conn = MagicMock()
+    # direct, via_iface, via_dispatch
+    conn.query.side_effect = [[], [], [[dispatch_caller, [[15, 4]]]]]
+    result = find_callers_with_sites(conn, "Concrete.Execute")
+    assert len(result) == 1
+    assert result[0]["caller"]["full_name"] == "B.ViaDispatch"
+    assert result[0]["call_sites"] == [[15, 4]]
+
+
+def test_find_callers_with_sites_dispatch_query_uses_test_pattern():
+    """The third (DISPATCHES_TO) query in find_callers_with_sites must filter
+    test callers using the same $test_pattern as the other two queries."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    find_callers_with_sites(conn, "Concrete.Execute")
+    assert conn.query.call_count == 3
+    dispatch_query_str, dispatch_params = conn.query.call_args_list[2][0]
+    assert "DISPATCHES_TO" in dispatch_query_str
+    assert "$test_pattern" in dispatch_query_str
+    assert dispatch_params["test_pattern"] == _TEST_PATH_PATTERN
+
+
+def test_find_callers_with_sites_deduplicates_dispatch_and_iface():
+    """Same caller returned by both IMPLEMENTS and DISPATCHES_TO paths must
+    appear exactly once in find_callers_with_sites output."""
+    shared_id = "shared-42"
+    node_a = _node(["Method"], {"full_name": "A.Caller", "file_path": "/src/A.cs"}, element_id=shared_id)
+    node_b = _node(["Method"], {"full_name": "A.Caller", "file_path": "/src/A.cs"}, element_id=shared_id)
+    conn = MagicMock()
+    conn.query.side_effect = [[], [[node_a, []]], [[node_b, []]]]
+    result = find_callers_with_sites(conn, "Concrete.Execute")
+    assert len(result) == 1

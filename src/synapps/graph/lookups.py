@@ -82,15 +82,29 @@ def find_callers(
             "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
             {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
         )
+        # Abstract/virtual override dispatch: parent method has DISPATCHES_TO to concrete override.
+        # upsert_abstract_dispatches_to creates only DISPATCHES_TO (no IMPLEMENTS), so we
+        # need a separate traversal to find callers of the abstract parent that reach this method.
+        via_dispatch = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(parent:Method)"
+            "-[:DISPATCHES_TO]->(m:Method {full_name: $full_name}) "
+            "WHERE NOT caller.file_path =~ $test_pattern RETURN caller",
+            {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
+        )
     else:
         via_iface = conn.query(
             "MATCH (caller:Method)-[:CALLS]->(im:Method)"
             "<-[:IMPLEMENTS]-(m:Method {full_name: $full_name}) RETURN caller",
             {"full_name": method_full_name},
         )
+        via_dispatch = conn.query(
+            "MATCH (caller:Method)-[:CALLS]->(parent:Method)"
+            "-[:DISPATCHES_TO]->(m:Method {full_name: $full_name}) RETURN caller",
+            {"full_name": method_full_name},
+        )
     seen = set()
     result = []
-    for row in direct + via_iface:
+    for row in direct + via_iface + via_dispatch:
         node = row[0]
         key = node.element_id
         if key not in seen:
@@ -458,9 +472,19 @@ def find_callers_with_sites(
         "RETURN caller, coalesce(r.call_sites, []) AS call_sites",
         {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
     )
+    # Abstract/virtual override dispatch: parent method has DISPATCHES_TO to concrete override.
+    # upsert_abstract_dispatches_to creates only DISPATCHES_TO (no IMPLEMENTS), so callers of
+    # the abstract parent are missed without this traversal.
+    via_dispatch = conn.query(
+        "MATCH (caller:Method)-[r:CALLS]->(parent:Method)"
+        "-[:DISPATCHES_TO]->(m:Method {full_name: $full_name}) "
+        "WHERE NOT caller.file_path =~ $test_pattern "
+        "RETURN caller, coalesce(r.call_sites, []) AS call_sites",
+        {"full_name": method_full_name, "test_pattern": _TEST_PATH_PATTERN},
+    )
     seen: set[str] = set()
     result: list[dict] = []
-    for row in direct + via_iface:
+    for row in direct + via_iface + via_dispatch:
         node = row[0]
         key = node.element_id
         if key not in seen:
