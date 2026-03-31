@@ -46,6 +46,15 @@ def test_query(python_service: SynappsService) -> None:
     assert result.exit_code == 0
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_delete(python_service: SynappsService) -> None:
+    """delete command returns exit code 0 for a nonexistent project."""
+    result = _invoke(python_service, ["delete", "/tmp/nonexistent-project"])
+    assert result.exit_code == 0
+    assert "Deleted" in result.output
+
+
 # ---------------------------------------------------------------------------
 # Symbol query commands
 # ---------------------------------------------------------------------------

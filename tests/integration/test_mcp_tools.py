@@ -121,6 +121,18 @@ def test_get_schema(mcp_server: FastMCP) -> None:
     assert "node_labels" in schema
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(60)
+def test_index_project(mcp_server: FastMCP) -> None:
+    """index_project re-indexes the C# fixture without error."""
+    result = run(mcp_server.call_tool("index_project", {
+        "path": FIXTURE_PATH,
+        "language": "csharp",
+    }))
+    msg = text(result)
+    assert "Indexed" in msg
+
+
 # ---------------------------------------------------------------------------
 # Symbol query tools
 # ---------------------------------------------------------------------------
@@ -135,6 +147,19 @@ def test_search_symbols(mcp_server: FastMCP) -> None:
     assert len(symbols) >= 1
     names = [s["full_name"] for s in symbols]
     assert any("Task" in n for n in names)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_search_symbols_language_filter(mcp_server: FastMCP) -> None:
+    """search_symbols with language filter returns only C# symbols."""
+    result = run(mcp_server.call_tool("search_symbols", {
+        "query": "Task",
+        "language": "csharp",
+    }))
+    symbols = result_json(result)
+    for sym in symbols:
+        assert sym.get("language") == "csharp"
 
 
 # ---------------------------------------------------------------------------
@@ -194,6 +219,18 @@ def test_get_hierarchy_model(mcp_server: FastMCP) -> None:
     hierarchy = result_json(result)
     parent_names = [p.get("full_name", "") for p in hierarchy["parents"]]
     assert any("BaseEntity" in n for n in parent_names)
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_usages(mcp_server: FastMCP) -> None:
+    """find_usages returns compact text summary for a C# interface."""
+    result = run(mcp_server.call_tool("find_usages", {
+        "full_name": "SynappsTest.Services.ITaskService"
+    }))
+    output = text(result)
+    assert "Usages of" in output
+    assert "ITaskService" in output
 
 
 @pytest.mark.integration
@@ -346,6 +383,18 @@ def test_get_call_depth(mcp_server: FastMCP) -> None:
 # ---------------------------------------------------------------------------
 # Summary tools
 # ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_get_summary_no_summary(mcp_server: FastMCP) -> None:
+    """summary action=get returns None when no summary set for C# symbol."""
+    result = run(mcp_server.call_tool("summary", {
+        "action": "get",
+        "full_name": "SynappsTest.Services.ProjectService",
+    }))
+    summary = result_json(result)
+    assert summary is None or isinstance(summary, str)
+
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)

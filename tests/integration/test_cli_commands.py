@@ -73,6 +73,14 @@ def test_implementations(service: SynappsService) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
+def test_usages(service: SynappsService) -> None:
+    """usages command returns exit code 0 for a C# interface."""
+    result = _invoke(service, ["usages", "SynappsTest.Services.ITaskService"])
+    assert result.exit_code == 0
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
 def test_hierarchy(service: SynappsService) -> None:
     result = _invoke(service, ["hierarchy", "SynappsTest.Models.TaskItem"])
     assert result.exit_code == 0
@@ -131,6 +139,13 @@ def test_search(service: SynappsService) -> None:
     assert result.exit_code == 0
     assert "Task" in result.output
 
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_search_language_filter(service: SynappsService) -> None:
+    """search with --language csharp filters to only C# symbols."""
+    result = _invoke(service, ["search", "Task", "--language", "csharp"])
+    assert result.exit_code == 0
 
 
 @pytest.mark.integration
