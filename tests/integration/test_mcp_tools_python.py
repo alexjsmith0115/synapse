@@ -295,21 +295,6 @@ def test_get_context_for_impact(python_mcp: FastMCP) -> None:
     assert "affected" in output
 
 
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_type_impact(python_mcp: FastMCP) -> None:
-    """find_usages with include_test_breakdown returns dict with expected keys for a Python type."""
-    result = run(python_mcp.call_tool("find_usages", {
-        "full_name": "synappspytest.animals.IAnimal",
-        "include_test_breakdown": True,
-    }))
-    impact = result_json(result)
-    assert isinstance(impact, dict)
-    assert "references" in impact
-    assert "prod_count" in impact
-    assert "test_count" in impact
-
-
 # ---------------------------------------------------------------------------
 # Summary tools
 # ---------------------------------------------------------------------------

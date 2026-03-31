@@ -334,8 +334,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         exclude_test_callers: bool = True,
         limit: int = 20,
         kind: str | None = None,
-        include_test_breakdown: bool = False,
-    ) -> str | list[dict] | dict:
+    ) -> str | list[dict]:
         """Find all code that uses a symbol — returns a compact text summary.
 
         For methods/properties/fields: lists callers with file locations.
@@ -344,14 +343,10 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
 
         kind: optional filter for type references — one of 'parameter', 'return_type', 'property_type'.
         When kind is set, returns structured type reference list instead of text summary.
-        include_test_breakdown: if True, returns prod/test categorized impact analysis dict
-        with keys {type, references, prod_count, test_count, _total_references}.
         """
         _auto_sync_check()
         if kind is not None:
             return service.find_type_references(full_name, kind=kind, limit=limit)
-        if include_test_breakdown:
-            return service.find_type_impact(full_name, limit=limit)
         return service.find_usages(full_name, exclude_test_callers, limit=limit)
 
     @mcp.tool()

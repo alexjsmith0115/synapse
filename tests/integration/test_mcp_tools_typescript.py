@@ -319,21 +319,6 @@ def test_find_entry_points(typescript_mcp: FastMCP) -> None:
     assert "entry_points" in ep
 
 
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_type_impact(typescript_mcp: FastMCP) -> None:
-    """find_usages with include_test_breakdown returns dict with expected keys for a TypeScript type."""
-    result = run(typescript_mcp.call_tool("find_usages", {
-        "full_name": "src/animals.IAnimal",
-        "include_test_breakdown": True,
-    }))
-    impact = result_json(result)
-    assert isinstance(impact, dict)
-    assert "references" in impact
-    assert "prod_count" in impact
-    assert "test_count" in impact
-
-
 # ---------------------------------------------------------------------------
 # Summary tools
 # ---------------------------------------------------------------------------

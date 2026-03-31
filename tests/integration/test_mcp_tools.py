@@ -73,25 +73,6 @@ def test_controller_calls_service_method(
 
 
 # ---------------------------------------------------------------------------
-# Bug 2 regression: test references counted in find_type_impact
-# ---------------------------------------------------------------------------
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_find_type_impact_counts_test_refs(mcp_server: FastMCP) -> None:
-    """Bug 2 regression: find_usages with include_test_breakdown must count test project references."""
-    result = run(mcp_server.call_tool("find_usages", {
-        "full_name": "SynappsTest.Services.ITaskService",
-        "include_test_breakdown": True,
-    }))
-    impact = result_json(result)
-    assert impact["test_count"] > 0, (
-        f"Expected test_count > 0 for ITaskService, got {impact['test_count']}. "
-        f"References: {impact.get('references', [])}"
-    )
-
-
-# ---------------------------------------------------------------------------
 # Project-level tools
 # ---------------------------------------------------------------------------
 

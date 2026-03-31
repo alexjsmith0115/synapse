@@ -203,16 +203,6 @@ def test_find_usages_with_kind_delegates_to_type_references() -> None:
     service.find_usages.assert_not_called()
 
 
-def test_find_usages_with_test_breakdown_delegates_to_type_impact() -> None:
-    service = MagicMock()
-    service.find_type_impact.return_value = {"type": "Ns.Cls", "prod_count": 3, "test_count": 1}
-    fns = _register(service)
-    result = fns["find_usages"](full_name="Ns.Cls", include_test_breakdown=True)
-    service.find_type_impact.assert_called_once_with("Ns.Cls", limit=20)
-    service.find_usages.assert_not_called()
-    assert result["prod_count"] == 3
-
-
 # --- list_projects path filter tests ---
 
 def test_list_projects_with_path_returns_index_status() -> None:
@@ -223,6 +213,7 @@ def test_list_projects_with_path_returns_index_status() -> None:
     service.get_index_status.assert_called_once_with("/my/proj")
     service.list_projects.assert_not_called()
     assert result["file_count"] == 10
+    assert "synapps_mcp_version" in result
 
 
 def test_list_projects_without_path_returns_all() -> None:
@@ -231,7 +222,8 @@ def test_list_projects_without_path_returns_all() -> None:
     fns = _register(service)
     result = fns["list_projects"]()
     service.list_projects.assert_called_once()
-    assert len(result) == 2
+    assert "synapps_mcp_version" in result
+    assert len(result["projects"]) == 2
 
 
 # --- HTTP endpoint tool tests ---

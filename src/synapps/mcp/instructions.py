@@ -16,8 +16,7 @@ TOOL SELECTION (by task):
 - Find a symbol by name: search_symbols (not guessing full_name strings)
 - Find who calls a method: find_usages (auto-selects strategy by symbol kind)
 - Find what a method calls: find_callees (not execute_query). Use depth param for reachable call tree
-- All usages of any symbol: find_usages. Use kind param to filter \
-type references, include_test_breakdown=True for prod/test split
+- All usages of any symbol: find_usages. Use kind param to filter type references
 - Impact analysis before changes: get_context_for with scope="impact" (not manual caller tracing)
 - Find API/controller entry points: find_entry_points (not recursive find_callers)
 - Find all classes implementing an interface: find_implementations
