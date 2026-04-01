@@ -8,6 +8,10 @@ matcher directly — no Memgraph or external services required.
 """
 from __future__ import annotations
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 import tree_sitter_python
 import tree_sitter_typescript
 from tree_sitter import Language, Parser
