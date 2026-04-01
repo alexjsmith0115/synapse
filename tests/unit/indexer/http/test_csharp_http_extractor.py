@@ -703,3 +703,66 @@ public class TodoEndpoint : Endpoint<TodoRequest, TodoResponse> {
     # No symbols provided — HandleAsync cannot be resolved
     result = extractor.extract("test.cs", _parse(source), [])
     assert len(result.endpoint_defs) == 0
+
+
+# ---------------------------------------------------------------------------
+# FastEndpoints Verbs() + Routes() multi-declaration tests (Plan 02 / FE-05)
+# ---------------------------------------------------------------------------
+
+
+def test_fastendpoints_verbs_routes_cross_product() -> None:
+    """Verbs(Http.POST, Http.PUT) + Routes('/a', '/b') produces 4 endpoints (cross-product per D-04)."""
+    source = '''\
+public class MultiEndpoint : Endpoint<Req, Res> {
+    public override void Configure() {
+        Verbs(Http.POST, Http.PUT);
+        Routes("/a", "/b");
+    }
+    public override async Task HandleAsync(Req req, CancellationToken ct) { }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([("HandleAsync", "MultiEndpoint.HandleAsync", 7)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 4
+    pairs = {(ep.http_method, ep.route) for ep in result.endpoint_defs}
+    assert pairs == {("POST", "/a"), ("POST", "/b"), ("PUT", "/a"), ("PUT", "/b")}
+    assert all(ep.handler_full_name == "MultiEndpoint.HandleAsync" for ep in result.endpoint_defs)
+
+
+def test_fastendpoints_verbs_string_style() -> None:
+    """Verbs('GET', 'POST') string-style arguments produce correct verbs."""
+    source = '''\
+public class StringVerbEndpoint : Endpoint<Req, Res> {
+    public override void Configure() {
+        Verbs("GET", "POST");
+        Routes("/api/multi");
+    }
+    public override async Task HandleAsync(Req req, CancellationToken ct) { }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([("HandleAsync", "StringVerbEndpoint.HandleAsync", 7)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 2
+    pairs = {(ep.http_method, ep.route) for ep in result.endpoint_defs}
+    assert pairs == {("GET", "/api/multi"), ("POST", "/api/multi")}
+
+
+def test_fastendpoints_verbs_enum_single() -> None:
+    """Verbs(Http.DELETE) + Routes('/api/items') produces exactly 1 endpoint."""
+    source = '''\
+public class SingleVerbEndpoint : EndpointWithoutRequest {
+    public override void Configure() {
+        Verbs(Http.DELETE);
+        Routes("/api/items");
+    }
+    public override async Task HandleAsync(CancellationToken ct) { }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([("HandleAsync", "SingleVerbEndpoint.HandleAsync", 7)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    assert result.endpoint_defs[0].http_method == "DELETE"
+    assert result.endpoint_defs[0].route == "/api/items"
