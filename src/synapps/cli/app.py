@@ -51,15 +51,19 @@ summary_app = typer.Typer(name="summary", help="Get, set, or list symbol summari
 app.add_typer(summary_app, name="summary", rich_help_panel="Symbol Queries")
 
 _svc: SynappsService | None = None
+_svc_path: str | None = None
 
 
 def _get_service(project_path: str | None = None) -> SynappsService:
-    global _svc
+    global _svc, _svc_path
+    resolved = project_path or str(Path.cwd())
+    if _svc is not None and resolved != _svc_path:
+        _svc = None
     if _svc is None:
-        path = project_path or str(Path.cwd())
-        conn = ConnectionManager(path).get_connection()
+        conn = ConnectionManager(resolved).get_connection()
         ensure_schema(conn)
         _svc = SynappsService(conn)
+        _svc_path = resolved
     return _svc
 
 
@@ -184,14 +188,14 @@ def watch(path: str) -> None:
     def _log_file_event(event: str, file_path: str) -> None:
         typer.echo(f"  [{event}] {file_path}")
 
-    _get_service().watch_project(abs_path, on_file_event=_log_file_event)
+    _get_service(abs_path).watch_project(abs_path, on_file_event=_log_file_event)
     typer.echo(f"Watching {abs_path}. Press Ctrl+C to stop.")
     try:
         import time
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        _get_service().unwatch_project(abs_path)
+        _get_service(abs_path).unwatch_project(abs_path)
 
 
 @app.command(rich_help_panel="Indexing")
@@ -226,7 +230,7 @@ def sync(path: str) -> None:
 def delete(path: str) -> None:
     """Remove a project from the graph."""
     abs_path = str(Path(path).resolve())
-    _get_service().delete_project(abs_path)
+    _get_service(abs_path).delete_project(abs_path)
     typer.echo(f"Deleted {abs_path}")
 
 
@@ -235,7 +239,7 @@ def status(path: Optional[str] = None) -> None:
     """Show index status for a project or all projects."""
     from synapps import __version__
     typer.echo(f"synapps-cli v{__version__}")
-    svc = _get_service()
+    svc = _get_service(str(Path(path).resolve()) if path else None)
     if path:
         result = svc.get_index_status(str(Path(path).resolve()))
         typer.echo(result or "Not indexed")
