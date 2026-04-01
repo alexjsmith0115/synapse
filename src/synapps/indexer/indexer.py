@@ -27,6 +27,8 @@ from synapps.indexer.overrides_indexer import OverridesIndexer
 from synapps.indexer.symbol_resolver import SymbolResolver
 from synapps.lsp.interface import IndexSymbol, LSPAdapter, LSPResolverBackend, SymbolKind
 
+from synapps.indexer.tree_sitter_util import node_text
+
 if TYPE_CHECKING:
     from tree_sitter import Tree
     from synapps.indexer.tree_sitter_util import ParsedFile
@@ -65,6 +67,20 @@ def _is_minified_source(source: str) -> bool:
     first_line = source[:newline] if newline != -1 else source
     stripped = first_line.strip()
     return len(stripped) > _MINIFIED_LINE_THRESHOLD if stripped else False
+
+
+def _extract_java_package(tree: Tree) -> str | None:
+    """Extract the package name from a Java file's tree-sitter AST.
+
+    Returns the fully qualified package name (e.g. 'com.synappstest') or None
+    if no package declaration is found.
+    """
+    for child in tree.root_node.children:
+        if child.type == "package_declaration":
+            for sub in child.children:
+                if sub.type in ("scoped_identifier", "identifier"):
+                    return node_text(sub)
+    return None
 
 
 class Indexer:
@@ -587,6 +603,19 @@ class Indexer:
                 upsert_file_contains_symbol(self._conn, file_path, symbol.full_name)
             else:
                 upsert_contains_symbol(self._conn, symbol.parent_full_name, symbol.full_name)
+
+        # Wire Java Package -> Class/Interface CONTAINS edges (per D-05, D-06)
+        if self._language == "java" and parsed_file is not None:
+            pkg_name = _extract_java_package(parsed_file.tree)
+            if pkg_name:
+                pkg_simple = pkg_name.rsplit(".", 1)[-1]
+                upsert_package(self._conn, pkg_name, pkg_simple)
+                for symbol in symbols:
+                    if symbol.parent_full_name is None and symbol.kind in (
+                        SymbolKind.CLASS, SymbolKind.INTERFACE, SymbolKind.ABSTRACT_CLASS,
+                        SymbolKind.ENUM, SymbolKind.RECORD,
+                    ):
+                        upsert_contains_symbol(self._conn, pkg_name, symbol.full_name)
 
     def _index_file_imports(self, file_path: str, tree: Tree | None = None) -> None:
         if tree is None:

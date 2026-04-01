@@ -481,3 +481,42 @@ def test_class_level_attributes_populated(java_mcp: FastMCP) -> None:
     assert "abstract" in attributes_value, (
         f"Expected 'abstract' in Animal.attributes, got: {attributes_value}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Java Package node and CONTAINS edge tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_java_package_node_exists(java_mcp: FastMCP) -> None:
+    """Package node for 'com.synappstest' exists after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": "MATCH (p:Package) WHERE p.full_name CONTAINS 'synappstest' RETURN p.full_name, p.name",
+    }))
+    data = result_json(result)
+    assert len(data) >= 1, f"Expected at least 1 package node, got: {data}"
+    pkg_names = [row["row"][0] for row in data]
+    assert any("com.synappstest" in p for p in pkg_names), (
+        f"Expected com.synappstest package, got: {pkg_names}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_java_package_contains_edges(java_mcp: FastMCP) -> None:
+    """Package node 'com.synappstest' exists and has CONTAINS edges to top-level classes."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (p:Package {full_name: 'com.synappstest'})-[:CONTAINS]->(c) "
+            "RETURN c.full_name ORDER BY c.full_name"
+        ),
+    }))
+    data = result_json(result)
+    contained = [row["row"][0] for row in data]
+    # SynappsJavaTest has: Animal, AnimalService, Cat, Dog, Formatter, IAnimal
+    assert len(contained) >= 3, f"Expected at least 3 contained symbols, got: {contained}"
+    full_names_str = " ".join(str(c) for c in contained)
+    assert "Animal" in full_names_str, f"Expected Animal class in package, got: {contained}"
+    assert "IAnimal" in full_names_str, f"Expected IAnimal interface in package, got: {contained}"
