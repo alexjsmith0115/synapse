@@ -169,6 +169,26 @@ def test_upsert_repository_strips_trailing_slash() -> None:
     assert params["path"] == "/Users/alex/Dev/myrepo"
 
 
+def test_upsert_repository_sets_name() -> None:
+    """upsert_repository must set n.name to the basename of the path."""
+    conn = MagicMock()
+    upsert_repository(conn, "/Users/alex/Dev/myrepo", "csharp")
+    cypher, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert "n.name" in cypher, "Cypher must contain 'n.name'"
+    assert params["name"] == "myrepo", f"Expected name='myrepo', got: {params.get('name')}"
+
+
+def test_upsert_repository_sets_name_after_strip() -> None:
+    """upsert_repository with trailing slash must still set correct basename."""
+    conn = MagicMock()
+    upsert_repository(conn, "/Users/alex/Dev/myrepo/", "csharp")
+    cypher, params = conn.execute.call_args[0][0], conn.execute.call_args[0][1]
+    assert "n.name" in cypher, "Cypher must contain 'n.name'"
+    assert params["name"] == "myrepo", (
+        f"Trailing slash must be stripped before computing basename; got: {params.get('name')}"
+    )
+
+
 def test_upsert_interface_sets_kind_property() -> None:
     """Interface nodes must carry kind='interface' for consistent property access."""
     conn = _conn()
