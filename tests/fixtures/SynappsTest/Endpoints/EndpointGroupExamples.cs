@@ -6,8 +6,10 @@ public class TodoItems : IEndpointGroup
 {
     public void Map(RouteGroupBuilder app)
     {
+        // Route-first: string literal as first arg
         app.MapGet("/", GetAllTodos);
-        app.MapPost("/", CreateTodo);
+        // Handler-first: identifier as first arg
+        app.MapPost(CreateTodo, "/");
     }
 
     public static IResult GetAllTodos()
@@ -25,6 +27,7 @@ public class ItemGroup : EndpointGroupBase
 {
     public void Map(RouteGroupBuilder app)
     {
+        // Route-first: string literal as first arg
         app.MapDelete("/items/{id}", DeleteItem);
     }
 
