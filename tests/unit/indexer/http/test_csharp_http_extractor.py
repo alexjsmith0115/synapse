@@ -766,3 +766,184 @@ public class SingleVerbEndpoint : EndpointWithoutRequest {
     assert len(result.endpoint_defs) == 1
     assert result.endpoint_defs[0].http_method == "DELETE"
     assert result.endpoint_defs[0].route == "/api/items"
+
+
+# ---------------------------------------------------------------------------
+# IEndpointGroup detection tests (Phase 24 / EG-01..EG-04)
+# ---------------------------------------------------------------------------
+
+
+def test_iendpointgroup_basic_mapget() -> None:
+    """Class implementing IEndpointGroup with MapGet produces 1 endpoint."""
+    source = '''
+public class TodoItems : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/todos", GetAllTodos);
+    }
+    public static IResult GetAllTodos() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "TodoItems.Map", 3),
+        ("GetAllTodos", "TodoItems.GetAllTodos", 6),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/todos"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "TodoItems.GetAllTodos"
+
+
+def test_iendpointgroup_multiple_verbs() -> None:
+    """IEndpointGroup Map() with MapGet + MapPost + MapDelete produces 3 endpoints."""
+    source = '''
+public class TodoItems : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/todos", GetAll);
+        app.MapPost("/todos", Create);
+        app.MapDelete("/todos/{id}", Delete);
+    }
+    public static IResult GetAll() { return Results.Ok(); }
+    public static IResult Create() { return Results.Ok(); }
+    public static IResult Delete() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "TodoItems.Map", 3),
+        ("GetAll", "TodoItems.GetAll", 8),
+        ("Create", "TodoItems.Create", 9),
+        ("Delete", "TodoItems.Delete", 10),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 3
+    pairs = {(ep.http_method, ep.route) for ep in result.endpoint_defs}
+    assert ("GET", "/todos") in pairs
+    assert ("POST", "/todos") in pairs
+    assert ("DELETE", "/todos/{id}") in pairs
+
+
+def test_iendpointgroup_endpointgroupbase() -> None:
+    """Class inheriting EndpointGroupBase (not interface) is also detected."""
+    source = '''
+public class HealthGroup : EndpointGroupBase {
+    public override void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/health", GetHealth);
+    }
+    public static IResult GetHealth() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "HealthGroup.Map", 3),
+        ("GetHealth", "HealthGroup.GetHealth", 6),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/health"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "HealthGroup.GetHealth"
+
+
+def test_iendpointgroup_handler_first_ordering() -> None:
+    """app.MapPost(CreateItem, '{id}') — handler-first — produces correct route and verb (EG-04)."""
+    source = '''
+public class Items : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapPost(CreateItem, "{id}");
+    }
+    public static IResult CreateItem() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "Items.Map", 3),
+        ("CreateItem", "Items.CreateItem", 6),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/{id}"
+    assert ep.http_method == "POST"
+    assert ep.handler_full_name == "Items.CreateItem"
+
+
+def test_iendpointgroup_route_first_ordering() -> None:
+    """app.MapGet('/items', GetItems) — route-first — produces correct route and verb (EG-04)."""
+    source = '''
+public class Items : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/items", GetItems);
+    }
+    public static IResult GetItems() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "Items.Map", 3),
+        ("GetItems", "Items.GetItems", 6),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "Items.GetItems"
+
+
+def test_iendpointgroup_lambda_handler() -> None:
+    """Lambda handler app.MapGet('/health', () => ...) resolves to Map method's full_name."""
+    source = '''
+public class HealthGroup : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/health", () => Results.Ok());
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([("Map", "HealthGroup.Map", 3)])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/health"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "HealthGroup.Map"
+
+
+def test_iendpointgroup_mutual_exclusion() -> None:
+    """IEndpointGroup class with [Route] attribute does NOT produce controller-style endpoints."""
+    source = '''
+[Route("/api/todos")]
+public class TodoItems : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/todos", GetAll);
+    }
+    public static IResult GetAll() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "TodoItems.Map", 4),
+        ("GetAll", "TodoItems.GetAll", 7),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    # Only IEndpointGroup endpoints — no controller-style duplicates
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/todos"
+    assert ep.handler_full_name == "TodoItems.GetAll"
+
+
+def test_iendpointgroup_negative_plain_class() -> None:
+    """A plain class with a method named MapGet() is not an IEndpointGroup and produces zero endpoints."""
+    source = '''
+public class NotAnEndpointGroup {
+    public void MapGet(string route, object handler) { }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    result = extractor.extract("test.cs", _parse(source), [])
+    assert len(result.endpoint_defs) == 0
