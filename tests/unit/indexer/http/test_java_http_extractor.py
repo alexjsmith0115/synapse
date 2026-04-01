@@ -582,3 +582,146 @@ def test_find_enclosing_symbol_outer_only_when_not_in_inner() -> None:
 def test_find_enclosing_symbol_single_symbol() -> None:
     symbols = [(1, 50, "OuterClass.outerMethod")]
     assert _find_enclosing_symbol(15, symbols) == "OuterClass.outerMethod"
+
+
+# ---------------------------------------------------------------------------
+# RestTemplate exchange() tests
+# ---------------------------------------------------------------------------
+
+def test_rest_template_exchange_get() -> None:
+    """exchange(url, HttpMethod.GET, ...) with string_literal URL produces GET client call."""
+    source = """
+public class OrderClient {
+    public String getOrders() {
+        return restTemplate.exchange("/api/orders", HttpMethod.GET, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getOrders", "OrderClient.getOrders", 3, 5)]))
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.route == "/api/orders"
+    assert call.http_method == "GET"
+    assert call.caller_full_name == "OrderClient.getOrders"
+
+
+def test_rest_template_exchange_post() -> None:
+    """exchange(url, HttpMethod.POST, ...) produces POST client call."""
+    source = """
+public class OrderClient {
+    public String createOrder(Object entity) {
+        return restTemplate.exchange("/api/orders", HttpMethod.POST, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("createOrder", "OrderClient.createOrder", 3, 5)]))
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.route == "/api/orders"
+    assert call.http_method == "POST"
+
+
+def test_rest_template_exchange_put() -> None:
+    """exchange(url, HttpMethod.PUT, ...) produces PUT client call."""
+    source = """
+public class OrderClient {
+    public void updateOrder(Object entity) {
+        restTemplate.exchange("/api/orders/1", HttpMethod.PUT, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("updateOrder", "OrderClient.updateOrder", 3, 5)]))
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "PUT"
+    assert result.client_calls[0].route == "/api/orders/1"
+
+
+def test_rest_template_exchange_delete() -> None:
+    """exchange(url, HttpMethod.DELETE, ...) produces DELETE client call."""
+    source = """
+public class OrderClient {
+    public void deleteOrder() {
+        restTemplate.exchange("/api/orders/1", HttpMethod.DELETE, null, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("deleteOrder", "OrderClient.deleteOrder", 3, 5)]))
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].http_method == "DELETE"
+    assert result.client_calls[0].route == "/api/orders/1"
+
+
+def test_rest_template_exchange_binary_expression_url() -> None:
+    """exchange(baseUrl + "/orders/" + orderId, ...) produces {param}/orders/{param} route."""
+    source = """
+public class OrderClient {
+    public String getOrders() {
+        return restTemplate.exchange(baseUrl + "/orders/" + orderId, HttpMethod.GET, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getOrders", "OrderClient.getOrders", 3, 5)]))
+    assert len(result.client_calls) == 1
+    call = result.client_calls[0]
+    assert call.http_method == "GET"
+    # String literal parts preserved, identifier parts become {param}
+    assert "{param}" in call.route
+    assert "/orders/" in call.route
+
+
+def test_rest_template_exchange_identifier_url() -> None:
+    """exchange(url, HttpMethod.GET, ...) where url is bare identifier -> route='{dynamic}'."""
+    source = """
+public class OrderClient {
+    public String getOrders(String url) {
+        return restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getOrders", "OrderClient.getOrders", 3, 5)]))
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].route == "{dynamic}"
+
+
+def test_rest_template_exchange_no_slash_in_resolved_url_skipped() -> None:
+    """binary_expression URL that resolves to no '/' produces no client call."""
+    source = """
+public class OrderClient {
+    public String getData() {
+        return restTemplate.exchange(prefix + suffix, HttpMethod.GET, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("getData", "OrderClient.getData", 3, 5)]))
+    # No slash in resolved URL -> skipped
+    assert len(result.client_calls) == 0
+
+
+def test_rest_template_exchange_caller_attribution() -> None:
+    """exchange() inside a named method -> caller_full_name matches enclosing method."""
+    source = """
+public class TrainClient {
+    public String queryTrains() {
+        return restTemplate.exchange("/api/trains", HttpMethod.GET, entity, String.class);
+    }
+}
+"""
+    from synapps.indexer.java.java_http_extractor import JavaHttpExtractor
+    extractor = JavaHttpExtractor()
+    result = extractor.extract("test.java", _parse(source), _symbols([("queryTrains", "TrainClient.queryTrains", 3, 5)]))
+    assert len(result.client_calls) == 1
+    assert result.client_calls[0].caller_full_name == "TrainClient.queryTrains"
