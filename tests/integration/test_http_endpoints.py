@@ -200,8 +200,9 @@ def test_minimal_api_no_iendpointgroup_duplicate(http_service) -> None:
     _svc, conn = http_service
     result = conn.query(
         "MATCH (ep:Endpoint) WHERE ep.route IN ['/', '/items/{id}'] "
-        "RETURN ep.route, ep.http_method, count(ep) AS cnt "
-        "ORDER BY ep.route, ep.http_method"
+        "WITH ep.route AS route, ep.http_method AS method "
+        "RETURN route, method, count(*) AS cnt "
+        "ORDER BY route, method"
     )
     # Each route+method combination must appear exactly once (no duplicates)
     for row in result:
