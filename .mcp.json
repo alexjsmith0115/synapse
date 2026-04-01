@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "synapps": {
+      "command": "synapps-mcp",
+      "args": []
+    }
+  }
+}

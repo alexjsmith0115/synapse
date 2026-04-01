@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock
 
-from synapps.graph.lookups import resolve_full_name
+import pytest
+
+from synapps.graph.lookups import resolve_full_name, suggest_similar_names
+from synapps.service import SynappsService
 
 
 def _conn(return_value: list) -> MagicMock:
@@ -39,11 +42,11 @@ def test_suffix_fallback_multiple_matches() -> None:
     assert result == ["A.MyClass", "B.MyClass"]
 
 
-def test_no_match_returns_original() -> None:
+def test_no_match_returns_none() -> None:
     conn = MagicMock()
     conn.query.side_effect = [[], []]
     result = resolve_full_name(conn, "NoSuchThing")
-    assert result == "NoSuchThing"
+    assert result is None
 
 
 def test_exact_match_skips_suffix() -> None:
@@ -67,3 +70,52 @@ def test_suffix_fallback_prefers_class_over_method() -> None:
     assert result == "Ns.Services.MeetingService", (
         "Should resolve to the Class node, not raise an ambiguity error"
     )
+
+
+# ---------------------------------------------------------------------------
+# suggest_similar_names
+# ---------------------------------------------------------------------------
+
+def test_suggest_similar_names_returns_matches() -> None:
+    conn = MagicMock()
+    conn.query.return_value = [["order.service.OrderServiceImpl.create"]]
+    result = suggest_similar_names(conn, "createOrder")
+    assert len(result) == 1
+    assert "create" in result[0]
+
+
+def test_suggest_similar_names_empty_when_no_match() -> None:
+    conn = MagicMock()
+    conn.query.return_value = []
+    result = suggest_similar_names(conn, "xyzNonexistent")
+    assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _resolve raises ValueError with suggestions for not-found symbols
+# ---------------------------------------------------------------------------
+
+def test_resolve_not_found_raises_with_suggestions() -> None:
+    conn = MagicMock()
+    # resolve_full_name: exact match → nothing, suffix match → nothing (returns None)
+    # suggest_similar_names: returns suggestions
+    conn.query.side_effect = [
+        [],  # exact match
+        [],  # suffix match
+        [["order.service.OrderServiceImpl.create"]],  # suggest_similar_names
+    ]
+    svc = SynappsService(conn)
+    with pytest.raises(ValueError, match="Did you mean"):
+        svc._resolve("createOrder")
+
+
+def test_resolve_not_found_raises_without_suggestions() -> None:
+    conn = MagicMock()
+    conn.query.side_effect = [
+        [],  # exact match
+        [],  # suffix match
+        [],  # suggest_similar_names (no results)
+    ]
+    svc = SynappsService(conn)
+    with pytest.raises(ValueError, match="Symbol not found"):
+        svc._resolve("createOrder")

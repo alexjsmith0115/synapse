@@ -352,6 +352,17 @@ class SymbolResolver:
         ):
             return
 
+        # Name-based fallback: when LSP definitions land outside indexed sources
+        # (e.g. library jars), try resolving by simple name if unambiguous.
+        if callee_simple_name and self._name_to_full_names:
+            candidates = self._name_to_full_names.get(callee_simple_name, [])
+            if len(candidates) == 1 and candidates[0] != caller_full_name:
+                self._upsert_call(caller_full_name, candidates[0], call_line_1, call_col_0)
+                if stats:
+                    stats.calls_resolved += 1
+                    stats.calls_resolved_via_import += 1
+                return
+
         # Fallback: resolve via containing symbol (may fail for single-line declarations)
         t_cs = time.monotonic()
         try:

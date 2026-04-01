@@ -20,8 +20,8 @@ def _conn_with_side_effects(*query_results):
 def test_returns_methods_and_stats_keys():
     conn = _conn_with_side_effects([], [(0,)])
     result = find_dead_code(conn)
-    assert {"methods", "stats"} <= set(result.keys())
-    assert set(result["stats"].keys()) == {"total_methods", "dead_count", "dead_ratio"}
+    assert set(result.keys()) == {"methods", "stats"}
+    assert set(result["stats"].keys()) == {"total_methods", "dead_count", "dead_ratio", "truncated", "limit"}
 
 
 # ---------------------------------------------------------------------------
@@ -270,27 +270,49 @@ def test_total_methods_query_has_same_exclusions():
 
 
 # ---------------------------------------------------------------------------
-# Test 18: limit parameter truncates methods list and sets _truncated flag
+# Regression: main() and Main() excluded as framework entry points
 # ---------------------------------------------------------------------------
 
-def test_limit_truncates_methods_and_sets_flag():
-    rows = [(f"Ns.Foo.M{i}", f"/src/Foo.cs", i) for i in range(5)]
-    conn = _conn_with_side_effects(rows, [(10,)])
+def test_main_methods_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert "'main'" in cypher
+    assert "'Main'" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: Spring framework attributes excluded
+# ---------------------------------------------------------------------------
+
+def test_spring_attributes_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert '"Bean"' in cypher
+    assert '"PostConstruct"' in cypher
+    assert '"RequestMapping"' in cypher
+    assert '"GetMapping"' in cypher
+    assert '"Scheduled"' in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: limit parameter truncates methods list
+# ---------------------------------------------------------------------------
+
+def test_limit_truncates_methods_list():
+    dead_rows = [(f"Ns.Foo{i}", f"/foo{i}.cs", i) for i in range(10)]
+    conn = _conn_with_side_effects(dead_rows, [(50,)])
     result = find_dead_code(conn, limit=3)
     assert len(result["methods"]) == 3
-    assert result["_truncated"] is True
-    assert result["_limit"] == 3
-    # stats still reflect the full count
-    assert result["stats"]["dead_count"] == 5
+    assert result["stats"]["dead_count"] == 10
+    assert result["stats"]["truncated"] is True
+    assert result["stats"]["limit"] == 3
 
 
-# ---------------------------------------------------------------------------
-# Test 19: limit not exceeded — no _truncated key
-# ---------------------------------------------------------------------------
-
-def test_limit_not_exceeded_no_truncated_key():
-    rows = [("Ns.Foo.M1", "/src/Foo.cs", 1)]
-    conn = _conn_with_side_effects(rows, [(5,)])
-    result = find_dead_code(conn, limit=50)
+def test_limit_not_truncated_when_under():
+    dead_rows = [("Ns.Foo", "/foo.cs", 1)]
+    conn = _conn_with_side_effects(dead_rows, [(5,)])
+    result = find_dead_code(conn, limit=100)
     assert len(result["methods"]) == 1
-    assert "_truncated" not in result
+    assert result["stats"]["truncated"] is False
