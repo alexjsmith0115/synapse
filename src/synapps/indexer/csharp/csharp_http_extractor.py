@@ -101,6 +101,9 @@ class CSharpHttpExtractor:
 
         endpoint_defs: list[HttpEndpointDef] = []
         client_calls: list[HttpClientCall] = []
+        # Track whether _walk is recursing inside a claimed class (IEndpointGroup/FastEndpoints)
+        # to prevent _handle_minimal_api_invocation from double-counting those nodes.
+        self._in_claimed_class = False
         self._walk(tree.root_node, endpoint_defs, symbol_by_name_line, client_calls, sorted_symbols)
         return HttpExtractionResult(endpoint_defs=endpoint_defs, client_calls=client_calls)
 
@@ -111,7 +114,18 @@ class CSharpHttpExtractor:
                 claimed = self._handle_fastendpoints(node, results, symbol_map)
             if not claimed:
                 self._handle_class(node, results, symbol_map)
+            # Recurse into claimed class children with the deduplication flag set so that
+            # _handle_minimal_api_invocation skips invocations already handled by the
+            # IEndpointGroup/FastEndpoints extractor paths.
+            prior = self._in_claimed_class
+            if claimed:
+                self._in_claimed_class = True
+            for child in node.children:
+                self._walk(child, results, symbol_map, client_results, sorted_symbols)
+            self._in_claimed_class = prior
+            return
         if node.type == "invocation_expression":
+            self._handle_minimal_api_invocation(node, results, symbol_map, sorted_symbols)
             self._handle_invocation(node, client_results, sorted_symbols)
         elif node.type == "object_creation_expression":
             self._handle_object_creation(node, client_results, sorted_symbols)
@@ -517,6 +531,100 @@ class CSharpHttpExtractor:
             line=call_line_0 + 1,
             col=call_col_0,
         ))
+
+    def _handle_minimal_api_invocation(self, node, results, symbol_map, sorted_symbols):
+        """Detect standalone MapGet/MapPost/etc. calls and emit HttpEndpointDef entries.
+
+        Skipped if inside a claimed class (IEndpointGroup/FastEndpoints) to prevent
+        double-counting endpoints already handled by those dedicated extractor paths.
+        """
+        if self._in_claimed_class:
+            return
+
+        fn_node = node.child_by_field_name("function")
+        if fn_node is None or fn_node.type != "member_access_expression":
+            return
+
+        name_node = fn_node.child_by_field_name("name")
+        if name_node is None:
+            return
+        verb_name = node_text(name_node)
+        http_method = _MAP_VERB_MAP.get(verb_name)
+        if http_method is None:
+            return
+
+        arg_list_node = None
+        for child in node.children:
+            if child.type == "argument_list":
+                arg_list_node = child
+                break
+        if arg_list_node is None:
+            return
+
+        args = [c for c in arg_list_node.children if c.type == "argument"]
+        if not args:
+            return
+
+        first_arg = args[0]
+        first_child = _first_non_punctuation_child(first_arg)
+        if first_child is None:
+            return
+
+        call_line_0 = node.start_point[0]
+
+        if first_child.type in ("string_literal", "verbatim_string_literal"):
+            # Route-first: arg[0]=route, arg[1]=handler
+            route_str = _try_string_literal(first_child) or ""
+            handler_full_name = self._resolve_minimal_api_handler(
+                args[1] if len(args) > 1 else None, call_line_0, symbol_map, sorted_symbols,
+            )
+        elif first_child.type in ("lambda_expression", "parenthesized_lambda_expression"):
+            # Lambda in first arg position (unusual) — fall back to enclosing method
+            route_str = ""
+            handler_full_name = _find_enclosing_symbol(call_line_0, sorted_symbols) or ""
+        else:
+            # Lambda or other expression in route position — skip
+            return
+
+        if not handler_full_name:
+            return
+
+        results.append(HttpEndpointDef(
+            route=normalize_route("", route_str),
+            http_method=http_method,
+            handler_full_name=handler_full_name,
+            line=call_line_0 + 1,
+        ))
+
+    def _resolve_minimal_api_handler(
+        self,
+        handler_arg,
+        call_line_0: int,
+        symbol_map: dict,
+        sorted_symbols: list[tuple[int, int, str]],
+    ) -> str:
+        """Resolve a handler argument to a full_name for Minimal API endpoints.
+
+        - Identifier: look up in symbol_map using enclosing class as scope prefix
+        - Lambda/other: fall back to the enclosing method's full_name
+        """
+        if handler_arg is None:
+            return _find_enclosing_symbol(call_line_0, sorted_symbols) or ""
+
+        child = _first_non_punctuation_child(handler_arg)
+        if child is None:
+            return _find_enclosing_symbol(call_line_0, sorted_symbols) or ""
+
+        if child.type == "identifier":
+            handler_name = node_text(child)
+            enclosing = _find_enclosing_symbol(call_line_0, sorted_symbols)
+            # Derive class prefix from enclosing method full_name (everything before last '.')
+            class_prefix = enclosing.rsplit(".", 1)[0] if enclosing and "." in enclosing else ""
+            resolved = _lookup_handler_full_name(handler_name, class_prefix, symbol_map) if class_prefix else None
+            return resolved or enclosing or ""
+
+        # Lambda or other expression — use enclosing method
+        return _find_enclosing_symbol(call_line_0, sorted_symbols) or ""
 
     def _handle_object_creation(self, node, client_results, sorted_symbols):
         """Detect RestSharp calls: new RestRequest("/api/users", Method.Get)."""
