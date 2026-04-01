@@ -769,10 +769,19 @@ class Indexer:
         qualified_to_full: dict[str, list[str]] = {}
         for sym in symbols:
             name_to_full.setdefault(sym.name, []).append(sym.full_name)
+            # Java LSP includes param signatures in method names (e.g. "legacyMethod()")
+            # but tree-sitter extractors return bare identifiers ("legacyMethod").
+            # Index the base name (without parens) as a fallback key.
+            if "(" in sym.name:
+                base_name = sym.name[:sym.name.index("(")]
+                name_to_full.setdefault(base_name, []).append(sym.full_name)
             if sym.parent_full_name:
                 parent_simple = sym.parent_full_name.rsplit(".", 1)[-1]
                 qual_key = f"{parent_simple}.{sym.name}"
                 qualified_to_full.setdefault(qual_key, []).append(sym.full_name)
+                if "(" in sym.name:
+                    base_qual = f"{parent_simple}.{sym.name[:sym.name.index('(')]}"
+                    qualified_to_full.setdefault(base_qual, []).append(sym.full_name)
 
         resolved = 0
         for result_name, attrs in results:
@@ -804,10 +813,16 @@ class Indexer:
         qualified_to_full: dict[str, list[str]] = {}
         for sym in symbols:
             name_to_full.setdefault(sym.name, []).append(sym.full_name)
+            if "(" in sym.name:
+                base_name = sym.name[:sym.name.index("(")]
+                name_to_full.setdefault(base_name, []).append(sym.full_name)
             if sym.parent_full_name:
                 parent_simple = sym.parent_full_name.rsplit(".", 1)[-1]
                 qual_key = f"{parent_simple}.{sym.name}"
                 qualified_to_full.setdefault(qual_key, []).append(sym.full_name)
+                if "(" in sym.name:
+                    base_qual = f"{parent_simple}.{sym.name[:sym.name.index('(')]}"
+                    qualified_to_full.setdefault(base_qual, []).append(sym.full_name)
 
         resolved = 0
         for result_name, attrs in results:
