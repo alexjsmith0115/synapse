@@ -22,6 +22,15 @@ public class AnimalService {
         return greetings;
     }
 
+    public Runnable createTask() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                System.out.println(animal.speak());
+            }
+        };
+    }
+
     @Deprecated
     public static synchronized void legacyMethod() {
         // Legacy code

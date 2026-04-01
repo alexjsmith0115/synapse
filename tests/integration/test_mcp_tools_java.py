@@ -520,3 +520,14 @@ def test_java_package_contains_edges(java_mcp: FastMCP) -> None:
     full_names_str = " ".join(str(c) for c in contained)
     assert "Animal" in full_names_str, f"Expected Animal class in package, got: {contained}"
     assert "IAnimal" in full_names_str, f"Expected IAnimal interface in package, got: {contained}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_java_no_anonymous_class_nodes(java_mcp: FastMCP) -> None:
+    """Anonymous class expressions must not produce Class nodes in the graph."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": "MATCH (c:Class) WHERE c.name STARTS WITH 'new ' RETURN c.name, c.full_name",
+    }))
+    data = result_json(result)
+    assert len(data) == 0, f"Expected 0 anonymous class nodes, got: {data}"
