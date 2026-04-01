@@ -250,3 +250,150 @@ def test_init_command_calls_run_init():
     with patch("synapps.onboarding.init_wizard.run_init") as mock_run:
         result = runner.invoke(app, ["init", "/tmp/test-project"])
     mock_run.assert_called_once()
+
+
+# --- HK-01 / HK-02: _get_service singleton invalidation and path forwarding ---
+
+
+def _make_mock_cm(mock_cm_cls: MagicMock) -> MagicMock:
+    """Configure mock ConnectionManager to return a fresh mock connection each call."""
+    def _cm_factory(path: str) -> MagicMock:
+        instance = MagicMock()
+        instance.get_connection.return_value = MagicMock()
+        return instance
+    mock_cm_cls.side_effect = _cm_factory
+    return mock_cm_cls
+
+
+def test_get_service_invalidates_on_path_change():
+    """_get_service("/a") then _get_service("/b") must create two separate services."""
+    original_svc = cli_module._svc
+    original_svc_path = getattr(cli_module, "_svc_path", None)
+    try:
+        cli_module._svc = None
+        cli_module._svc_path = None
+        with patch.object(cli_module, "ConnectionManager") as mock_cm_cls, \
+             patch.object(cli_module, "ensure_schema"), \
+             patch.object(cli_module, "SynappsService") as mock_svc_cls:
+            mock_cm_cls.return_value.get_connection.return_value = MagicMock()
+            mock_svc_cls.side_effect = lambda conn: MagicMock()
+
+            _get_service("/project-a")
+            _get_service("/project-b")
+
+            assert mock_cm_cls.call_count == 2, (
+                "ConnectionManager must be called twice for two different paths"
+            )
+            calls = [c[0][0] for c in mock_cm_cls.call_args_list]
+            assert "/project-a" in calls
+            assert "/project-b" in calls
+    finally:
+        cli_module._svc = original_svc
+        if hasattr(cli_module, "_svc_path"):
+            cli_module._svc_path = original_svc_path
+
+
+def test_get_service_reuses_for_same_path():
+    """_get_service("/a") called twice must NOT create two separate services."""
+    original_svc = cli_module._svc
+    original_svc_path = getattr(cli_module, "_svc_path", None)
+    try:
+        cli_module._svc = None
+        cli_module._svc_path = None
+        with patch.object(cli_module, "ConnectionManager") as mock_cm_cls, \
+             patch.object(cli_module, "ensure_schema"), \
+             patch.object(cli_module, "SynappsService"):
+            mock_cm_cls.return_value.get_connection.return_value = MagicMock()
+
+            _get_service("/project-a")
+            _get_service("/project-a")
+
+            assert mock_cm_cls.call_count == 1, (
+                "ConnectionManager must be called only once for the same path"
+            )
+    finally:
+        cli_module._svc = original_svc
+        if hasattr(cli_module, "_svc_path"):
+            cli_module._svc_path = original_svc_path
+
+
+def test_get_service_invalidates_when_path_changes_from_none():
+    """_get_service(None) then _get_service("/b") must create a new service."""
+    original_svc = cli_module._svc
+    original_svc_path = getattr(cli_module, "_svc_path", None)
+    try:
+        cli_module._svc = None
+        cli_module._svc_path = None
+        with patch.object(cli_module, "ConnectionManager") as mock_cm_cls, \
+             patch.object(cli_module, "ensure_schema"), \
+             patch.object(cli_module, "SynappsService") as mock_svc_cls, \
+             patch("synapps.cli.app.Path") as mock_path:
+            mock_path.cwd.return_value = Path("/mock/cwd")
+            mock_cm_cls.return_value.get_connection.return_value = MagicMock()
+            mock_svc_cls.side_effect = lambda conn: MagicMock()
+
+            _get_service(None)
+            _get_service("/project-b")
+
+            assert mock_cm_cls.call_count == 2, (
+                "ConnectionManager must be called twice when path changes"
+            )
+    finally:
+        cli_module._svc = original_svc
+        if hasattr(cli_module, "_svc_path"):
+            cli_module._svc_path = original_svc_path
+
+
+def test_status_with_path_passes_to_get_service():
+    """status --path /some/project must pass resolved path to _get_service."""
+    svc = _svc()
+    svc.get_index_status.return_value = None
+    captured_paths = []
+
+    def fake_get_service(path=None):
+        captured_paths.append(path)
+        return svc
+
+    with patch("synapps.cli.app._get_service", side_effect=fake_get_service):
+        runner.invoke(app, ["status", "--path", "/some/project"])
+
+    assert any(p is not None and "some" in p for p in captured_paths), (
+        f"Expected resolved path passed to _get_service, got: {captured_paths}"
+    )
+
+
+def test_delete_passes_path_to_get_service():
+    """delete command must pass resolved path to _get_service."""
+    svc = _svc()
+    captured_paths = []
+
+    def fake_get_service(path=None):
+        captured_paths.append(path)
+        return svc
+
+    with patch("synapps.cli.app._get_service", side_effect=fake_get_service):
+        runner.invoke(app, ["delete", "/some/project"])
+
+    assert any(p is not None and "some" in p for p in captured_paths), (
+        f"Expected resolved path passed to _get_service, got: {captured_paths}"
+    )
+
+
+def test_watch_passes_path_to_get_service():
+    """watch command must pass resolved path to _get_service."""
+    svc = _svc()
+    captured_paths = []
+
+    def fake_get_service(path=None):
+        captured_paths.append(path)
+        return svc
+
+    # watch blocks on time.sleep; interrupt it immediately
+    import time
+    with patch("synapps.cli.app._get_service", side_effect=fake_get_service), \
+         patch("time.sleep", side_effect=KeyboardInterrupt):
+        runner.invoke(app, ["watch", "/some/project"])
+
+    assert any(p is not None and "some" in p for p in captured_paths), (
+        f"Expected resolved path passed to _get_service, got: {captured_paths}"
+    )
