@@ -240,7 +240,12 @@ class JavaLSPAdapter:
         full_name = _build_java_full_name(raw, file_path, source_root)
 
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0)
+        # Use selectionRange.start.line when available — JDT LS sets location.range to include the
+        # Javadoc block, but selectionRange points to the declaration keyword (what LSP definition
+        # lookups return). The symbol_map and base_type_symbol_map are keyed by (file_path, line)
+        # so both must agree.
+        sel_range = raw.get("selectionRange", range_obj)
+        line = sel_range.get("start", {}).get("line", 0)
         end_line = range_obj.get("end", {}).get("line", 0)
         detail = raw.get("detail", "") or ""
 

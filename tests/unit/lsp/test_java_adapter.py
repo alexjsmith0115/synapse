@@ -475,6 +475,86 @@ class TestGetDocumentSymbols:
 
 
 # ---------------------------------------------------------------------------
+# TestConvertSelectionRange — regression test for Javadoc line fix (JF-01)
+# ---------------------------------------------------------------------------
+
+class TestConvertSelectionRange:
+    def test_uses_selection_range_start_line_when_present(self) -> None:
+        """JF-01: selectionRange.start.line is used for IndexSymbol.line, not location.range.start.line.
+
+        Javadoc causes location.range.start.line to point at the /** line, while
+        selectionRange.start.line points at the 'class'/'interface' keyword — the
+        value that LSP definition lookups return. Both symbol_map and base_type_symbol_map
+        are keyed by (file_path, line) and must match.
+        """
+        raw = {
+            "name": "Animal",
+            "kind": 5,
+            "detail": "",
+            "location": {
+                "uri": "file:///proj/src/main/java/com/test/Animal.java",
+                "range": {
+                    "start": {"line": 3, "character": 0},
+                    "end": {"line": 20, "character": 1},
+                },
+            },
+            "selectionRange": {
+                "start": {"line": 7, "character": 13},
+                "end": {"line": 7, "character": 19},
+            },
+        }
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(raw, "/proj/src/main/java/com/test/Animal.java", parent_full_name=None)
+
+        assert sym.line == 7, "line must use selectionRange.start.line, not location.range.start.line"
+        assert sym.end_line == 20, "end_line must still use location.range.end.line"
+
+    def test_falls_back_to_location_range_when_selection_range_absent(self) -> None:
+        """Backward compat: when selectionRange is not present, use location.range.start.line."""
+        raw = {
+            "name": "Animal",
+            "kind": 5,
+            "detail": "",
+            "location": {
+                "uri": "file:///proj/src/main/java/com/test/Animal.java",
+                "range": {
+                    "start": {"line": 5, "character": 0},
+                    "end": {"line": 15, "character": 1},
+                },
+            },
+        }
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(raw, "/proj/src/main/java/com/test/Animal.java", parent_full_name=None)
+
+        assert sym.line == 5
+        assert sym.end_line == 15
+
+    def test_end_line_not_taken_from_selection_range(self) -> None:
+        """selectionRange covers only the declaration name; end_line must use location.range.end."""
+        raw = {
+            "name": "Animal",
+            "kind": 5,
+            "detail": "",
+            "location": {
+                "uri": "file:///proj/src/main/java/com/test/Animal.java",
+                "range": {
+                    "start": {"line": 3, "character": 0},
+                    "end": {"line": 50, "character": 1},
+                },
+            },
+            "selectionRange": {
+                "start": {"line": 7, "character": 13},
+                "end": {"line": 7, "character": 19},
+            },
+        }
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(raw, "/proj/src/main/java/com/test/Animal.java", parent_full_name=None)
+
+        assert sym.end_line == 50, "end_line is the class body extent, not the selectionRange end"
+        assert sym.line == 7
+
+
+# ---------------------------------------------------------------------------
 # Stub methods
 # ---------------------------------------------------------------------------
 
