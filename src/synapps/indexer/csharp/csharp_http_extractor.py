@@ -210,7 +210,12 @@ class CSharpHttpExtractor:
         return True
 
     def _parse_configure_method(self, class_node, handler_full_name, results):
-        """Walk Configure() body for FastEndpoints verb calls and build HttpEndpointDef entries."""
+        """Walk Configure() body for FastEndpoints verb calls and build HttpEndpointDef entries.
+
+        Two-bucket strategy (D-04): accumulate simple_endpoints, collected_verbs, and
+        collected_routes; emit cross-product of verbs x routes after the walk.
+        Direct verb calls (Post("/route")) are always emitted alongside Verbs/Routes results.
+        """
         for child in class_node.children:
             if child.type != "declaration_list":
                 continue
@@ -222,24 +227,44 @@ class CSharpHttpExtractor:
                 body = member.child_by_field_name("body")
                 if body is None:
                     return
-                self._walk_configure_body(body, handler_full_name, results)
+                simple_endpoints: list[HttpEndpointDef] = []
+                collected_verbs: list[str] = []
+                collected_routes: list[str] = []
+                self._walk_configure_body(
+                    body, handler_full_name, simple_endpoints, collected_verbs, collected_routes,
+                )
+                if collected_verbs and collected_routes:
+                    for verb in collected_verbs:
+                        for route in collected_routes:
+                            results.append(HttpEndpointDef(
+                                route=route,
+                                http_method=verb,
+                                handler_full_name=handler_full_name,
+                                line=body.start_point[0] + 1,
+                            ))
+                results.extend(simple_endpoints)
                 return
 
-    def _walk_configure_body(self, body_node, handler_full_name, results):
-        """Recursively walk a Configure() block for verb invocation_expression nodes."""
+    def _walk_configure_body(self, body_node, handler_full_name, simple_endpoints, collected_verbs, collected_routes):
+        """Recursively walk a Configure() block, routing invocations to the correct bucket."""
         for child in body_node.children:
             if child.type == "expression_statement":
                 for expr_child in child.children:
                     if expr_child.type == "invocation_expression":
-                        self._try_extract_verb_call(expr_child, handler_full_name, results)
+                        self._classify_invocation(
+                            expr_child, handler_full_name, simple_endpoints, collected_verbs, collected_routes,
+                        )
             elif child.type == "invocation_expression":
-                self._try_extract_verb_call(child, handler_full_name, results)
+                self._classify_invocation(
+                    child, handler_full_name, simple_endpoints, collected_verbs, collected_routes,
+                )
             else:
-                self._walk_configure_body(child, handler_full_name, results)
+                self._walk_configure_body(
+                    child, handler_full_name, simple_endpoints, collected_verbs, collected_routes,
+                )
 
-    def _try_extract_verb_call(self, invocation_node, handler_full_name, results):
-        """Check if an invocation_expression is a bare FastEndpoints verb call and emit endpoint."""
-        # FastEndpoints verb calls are bare identifiers (not member_access_expression)
+    def _classify_invocation(self, invocation_node, handler_full_name, simple_endpoints, collected_verbs, collected_routes):
+        """Route a Configure()-body invocation to simple_endpoints, collected_verbs, or collected_routes."""
         function_node = invocation_node.child_by_field_name("function")
         if function_node is None:
             for child in invocation_node.children:
@@ -249,12 +274,8 @@ class CSharpHttpExtractor:
         if function_node is None or function_node.type != "identifier":
             return
 
-        verb_name = node_text(function_node)
-        http_method = _FASTENDPOINTS_VERB_MAP.get(verb_name)
-        if http_method is None:
-            return
+        call_name = node_text(function_node)
 
-        # Extract the first string argument (the route)
         arg_list_node = None
         for child in invocation_node.children:
             if child.type == "argument_list":
@@ -263,24 +284,40 @@ class CSharpHttpExtractor:
         if arg_list_node is None:
             return
 
-        first = _first_arg(arg_list_node)
-        if first is None:
-            return
-
-        route_str: str | None = None
-        for child in first.children:
-            route_str = _try_string_literal(child)
-            if route_str is not None:
-                break
-        if route_str is None:
-            return
-
-        results.append(HttpEndpointDef(
-            route=normalize_route("", route_str),
-            http_method=http_method,
-            handler_full_name=handler_full_name,
-            line=invocation_node.start_point[0] + 1,
-        ))
+        if call_name == "Verbs":
+            for arg in arg_list_node.children:
+                if arg.type == "argument":
+                    verb = _extract_verb_arg(arg)
+                    if verb:
+                        collected_verbs.append(verb)
+        elif call_name == "Routes":
+            for arg in arg_list_node.children:
+                if arg.type == "argument":
+                    for child in arg.children:
+                        route_str = _try_string_literal(child)
+                        if route_str is not None:
+                            collected_routes.append(normalize_route("", route_str))
+                            break
+        else:
+            http_method = _FASTENDPOINTS_VERB_MAP.get(call_name)
+            if http_method is None:
+                return
+            first = _first_arg(arg_list_node)
+            if first is None:
+                return
+            route_str: str | None = None
+            for child in first.children:
+                route_str = _try_string_literal(child)
+                if route_str is not None:
+                    break
+            if route_str is None:
+                return
+            simple_endpoints.append(HttpEndpointDef(
+                route=normalize_route("", route_str),
+                http_method=http_method,
+                handler_full_name=handler_full_name,
+                line=invocation_node.start_point[0] + 1,
+            ))
 
     def _handle_invocation(self, node, client_results, sorted_symbols):
         """Detect HttpClient verb calls: _httpClient.GetAsync(url), etc."""
@@ -508,6 +545,30 @@ def _first_arg(arg_list_node) -> object | None:
     for child in arg_list_node.children:
         if child.type == "argument":
             return child
+    return None
+
+
+_VALID_HTTP_VERBS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"})
+
+
+def _extract_verb_arg(arg_node) -> str | None:
+    """Extract an HTTP verb string from a Verbs() argument node.
+
+    Handles enum-style (Http.POST → member_access_expression → name field)
+    and string-style ("POST" → string_literal → content).
+    """
+    for child in arg_node.children:
+        if child.type == "member_access_expression":
+            name_node = child.child_by_field_name("name")
+            if name_node and name_node.type == "identifier":
+                verb = node_text(name_node).upper()
+                if verb in _VALID_HTTP_VERBS:
+                    return verb
+        text = _try_string_literal(child)
+        if text is not None:
+            verb = text.upper()
+            if verb in _VALID_HTTP_VERBS:
+                return verb
     return None
 
 
