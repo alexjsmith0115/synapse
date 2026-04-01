@@ -390,3 +390,54 @@ def test_execute_mutating_query_blocked(java_mcp: FastMCP) -> None:
         run(java_mcp.call_tool("execute_query", {
             "cypher": "CREATE (n:Fake) RETURN n"
         }))
+
+
+# ---------------------------------------------------------------------------
+# Attribute property verification (AnimalService.legacyMethod: @Deprecated, static, synchronized)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_attributes_populated_on_java_nodes(java_mcp: FastMCP) -> None:
+    """n.attributes JSON property is populated for annotated Java methods after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (n:Method) WHERE n.full_name CONTAINS 'legacyMethod' "
+            "RETURN n.attributes, n.is_static"
+        )
+    }))
+    rows = result_json(result)
+    assert rows and len(rows) > 0, "legacyMethod node not found in graph"
+    row = rows[0]["row"]
+    attributes_value = row[0]
+    is_static_value = row[1]
+    assert attributes_value is not None, (
+        "n.attributes is null on legacyMethod — Java attribute extraction pipeline not writing to graph"
+    )
+    assert "deprecated" in attributes_value, (
+        f"Expected 'deprecated' in legacyMethod.attributes, got: {attributes_value}"
+    )
+    assert is_static_value is True, (
+        f"Expected n.is_static=true on legacyMethod (static modifier), got: {is_static_value}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_class_level_attributes_populated(java_mcp: FastMCP) -> None:
+    """Abstract modifier on Java class produces n.attributes entry after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (n) WHERE n.full_name = 'com.synappstest.Animal' "
+            "RETURN n.attributes"
+        )
+    }))
+    rows = result_json(result)
+    assert rows and len(rows) > 0, "Animal class node not found in graph"
+    attributes_value = rows[0]["row"][0]
+    assert attributes_value is not None, (
+        "n.attributes is null on Animal class — abstract modifier not extracted"
+    )
+    assert "abstract" in attributes_value, (
+        f"Expected 'abstract' in Animal.attributes, got: {attributes_value}"
+    )

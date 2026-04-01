@@ -645,3 +645,28 @@ def test_reindex_preserves_dispatches_to(service: SynappsService) -> None:
         "TaskService.CreateTaskAsync was lost after reindex_file"
     )
 
+
+# ---------------------------------------------------------------------------
+# Attribute property verification (TaskController: [ApiController], [Route])
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_attributes_populated_on_csharp_nodes(mcp_server: FastMCP) -> None:
+    """n.attributes JSON property is populated for attributed C# symbols after indexing."""
+    result = run(mcp_server.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (n {full_name: 'SynappsTest.Controllers.TaskController'}) "
+            "RETURN n.attributes"
+        )
+    }))
+    rows = result_json(result)
+    assert rows and len(rows) > 0, "TaskController node not found in graph"
+    attributes_value = rows[0]["row"][0]
+    assert attributes_value is not None, (
+        "n.attributes is null on TaskController — attribute extraction pipeline not writing to graph"
+    )
+    assert "ApiController" in attributes_value, (
+        f"Expected 'ApiController' in TaskController.attributes, got: {attributes_value}"
+    )
+
