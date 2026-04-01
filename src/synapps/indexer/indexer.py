@@ -787,6 +787,7 @@ class Indexer:
         name_to_full_names: dict[str, list[str]],
     ) -> None:
         triples = self._base_type_extractor.extract(file_path, tree)
+        log.debug("Base type extractor found %d triples for %s", len(triples), file_path)
         if not triples:
             return
 
@@ -799,6 +800,8 @@ class Indexer:
                 simple = full_name.rsplit(".", 1)[-1]
                 file_type_names.setdefault(simple, []).append(full_name)
 
+        log.debug("file_type_names for %s: %s", file_path, dict(file_type_names))
+
         rel_path = os.path.relpath(file_path, root_path)
         try:
             with ls.open_file(rel_path):
@@ -808,6 +811,10 @@ class Indexer:
                     except Exception:
                         log.debug("LSP request_definition failed for %s:%d:%d", rel_path, line, col)
                         continue
+                    log.debug(
+                        "request_definition for '%s' at %s:%d:%d returned %d definitions",
+                        base_simple, rel_path, line, col, len(definitions) if definitions else 0,
+                    )
                     if not definitions:
                         log.debug("No definition for base type '%s' at %s:%d:%d", base_simple, rel_path, line, col)
                         continue
@@ -818,11 +825,16 @@ class Indexer:
                         if abs_path is not None and def_line is not None:
                             base_full = symbol_map.get((abs_path, def_line))
                             if base_full is not None:
+                                log.debug("Resolved base type '%s' -> '%s'", base_simple, base_full)
                                 break
                     if base_full is None:
                         log.debug("Definition for '%s' not in symbol_map (external type)", base_simple)
                         continue
                     for type_full in file_type_names.get(type_simple, []):
+                        log.debug(
+                            "Declaring type '%s' resolved to %s",
+                            type_simple, file_type_names.get(type_simple, []),
+                        )
                         type_kind = kind_map.get(type_full)
                         if self._language in ("python", "java"):
                             base_kind = kind_map.get(base_full)
