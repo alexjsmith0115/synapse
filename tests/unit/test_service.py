@@ -1756,3 +1756,31 @@ def test_search_symbols_returns_relative_paths() -> None:
     with patch("synapps.service.search_symbols", return_value=[node]):
         result = svc.search_symbols("Foo")
     assert result[0]["file_path"] == "src/Foo.cs"
+
+
+# ---------------------------------------------------------------------------
+# find_tests_for: fallback to transitive CALLS when TESTS edges return empty
+# ---------------------------------------------------------------------------
+
+def test_find_tests_for_falls_back_to_transitive_calls() -> None:
+    svc = _service()
+    with patch("synapps.service.query_find_tests_for", return_value=[]) as mock_tests, \
+         patch("synapps.service.query_find_test_coverage", return_value=[
+             {"full_name": "tests.test_order.test_create", "file_path": "/tests/test_order.py"}
+         ]) as mock_coverage:
+        result = svc.find_tests_for("Ns.OrderService.create")
+    mock_tests.assert_called_once()
+    mock_coverage.assert_called_once()
+    assert len(result) == 1
+    assert result[0]["full_name"] == "tests.test_order.test_create"
+
+
+def test_find_tests_for_skips_fallback_when_tests_edge_found() -> None:
+    svc = _service()
+    direct_result = [{"full_name": "tests.test_direct.test_it", "file_path": "/tests/test_direct.py", "line": 5}]
+    with patch("synapps.service.query_find_tests_for", return_value=direct_result) as mock_tests, \
+         patch("synapps.service.query_find_test_coverage") as mock_coverage:
+        result = svc.find_tests_for("Ns.Foo.bar")
+    mock_tests.assert_called_once()
+    mock_coverage.assert_not_called()
+    assert len(result) == 1

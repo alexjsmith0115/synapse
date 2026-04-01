@@ -30,7 +30,7 @@ def test_returns_methods_and_stats_keys():
 def test_stats_keys_are_untested_not_dead():
     conn = _conn_with_side_effects([], [(0,)])
     result = find_untested(conn)
-    assert set(result["stats"].keys()) == {"total_methods", "untested_count", "untested_ratio"}
+    assert set(result["stats"].keys()) == {"total_methods", "untested_count", "untested_ratio", "truncated", "limit"}
 
 
 # ---------------------------------------------------------------------------

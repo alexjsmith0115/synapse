@@ -11,11 +11,13 @@ from synapps.graph.lookups import (
     get_symbol_source_info, check_staleness,
     get_members_overview, get_implemented_interfaces,
     resolve_full_name, resolve_full_name_with_labels,
+    suggest_similar_names,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
     find_http_endpoints as query_find_http_endpoints,
     find_http_dependency as query_find_http_dependency,
     find_tests_for as query_find_tests_for,
+    find_test_coverage as query_find_test_coverage,
     _TEST_PATH_PATTERN,
 )
 from synapps.graph.traversal import trace_call_chain, find_entry_points, get_call_depth
@@ -59,9 +61,19 @@ class SynappsService:
         preference: 'concrete' prefers :Class, 'interface' prefers :Interface.
         For type nodes, filters directly by label. For method nodes, checks the
         containing type's label (via CONTAINS edge) to resolve interface-vs-concrete pairs.
-        Raises ValueError if the name is ambiguous after applying preference.
+        Raises ValueError if the name is ambiguous or not found.
         """
         result = resolve_full_name(self._conn, name)
+
+        if result is None:
+            suggestions = suggest_similar_names(self._conn, name)
+            if suggestions:
+                hint = ", ".join(suggestions[:5])
+                raise ValueError(
+                    f"Symbol not found: '{name}'. Did you mean: {hint}?"
+                )
+            raise ValueError(f"Symbol not found: '{name}'")
+
         if not isinstance(result, list):
             return result
 
@@ -473,13 +485,16 @@ class SynappsService:
     def get_architecture_overview(self, limit: int = 10) -> dict:
         return get_architecture_overview(self._conn, limit=limit)
 
-    def find_dead_code(self, exclude_pattern: str = "") -> dict:
-        return find_dead_code(self._conn, exclude_pattern=exclude_pattern)
+    def find_dead_code(self, exclude_pattern: str = "", limit: int = 200) -> dict:
+        return find_dead_code(self._conn, exclude_pattern=exclude_pattern, limit=limit)
 
     def find_tests_for(self, method_full_name: str) -> list[dict]:
         method_full_name = self._resolve(method_full_name)
-        return query_find_tests_for(self._conn, method_full_name)
+        result = query_find_tests_for(self._conn, method_full_name)
+        if not result:
+            result = query_find_test_coverage(self._conn, method_full_name)
+        return result
 
-    def find_untested(self, exclude_pattern: str = "") -> dict:
-        return find_untested(self._conn, exclude_pattern=exclude_pattern)
+    def find_untested(self, exclude_pattern: str = "", limit: int = 200) -> dict:
+        return find_untested(self._conn, exclude_pattern=exclude_pattern, limit=limit)
 

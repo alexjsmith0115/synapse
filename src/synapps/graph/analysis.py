@@ -198,147 +198,158 @@ def _ensure_full_match_regex(pattern: str) -> str:
     return pattern
 
 
-def find_dead_code(conn: GraphConnection, exclude_pattern: str = "") -> dict:
-    """Query for methods with zero inbound CALLS, excluding test/framework/infra methods."""
-    exclude_pattern = _ensure_full_match_regex(exclude_pattern)
-    dead_rows = conn.query(
-        "MATCH (m:Method) "
-        "WHERE NOT m.file_path =~ $test_pattern "
+# Names of methods excluded as framework entry points (not callable via normal code paths)
+_EXCLUDED_METHOD_NAMES = [
+    "__init__", "constructor",
+    # .NET EF Core migrations
+    "Up", "Down", "BuildTargetModel", "BuildModel", "OnModelCreating", "CreateDbContext",
+    # Java / JVM entry points
+    "main", "Main",
+]
+
+# Framework decorator/attribute names that mark methods as entry points.
+# These are stored in the attributes JSON list on Method nodes.
+_FRAMEWORK_ATTRIBUTES = [
+    # Python CLI/framework decorators
+    "command", "tool", "callback",
+    # Java Spring annotations
+    "Bean", "PostConstruct", "PreDestroy", "EventListener", "Scheduled",
+    "RequestMapping", "GetMapping", "PostMapping", "PutMapping",
+    "DeleteMapping", "PatchMapping",
+    # Java test lifecycle
+    "BeforeEach", "AfterEach", "BeforeAll", "AfterAll",
+    # Python/Java serialization hooks
+    "PostLoad", "PrePersist", "PostPersist", "PreUpdate", "PostUpdate",
+    "PreRemove", "PostRemove",
+]
+
+
+def _build_base_exclusion_where() -> str:
+    """Build the shared WHERE clause fragment for dead code / untested queries."""
+    name_list = ", ".join(f"'{n}'" for n in _EXCLUDED_METHOD_NAMES)
+    attr_checks = " OR ".join(
+        f"coalesce(m.attributes, '[]') CONTAINS '\"{ a}\"'"
+        for a in _FRAMEWORK_ATTRIBUTES
+    )
+    return (
+        "NOT m.file_path =~ $test_pattern "
         "AND NOT (m)-[:SERVES]->() "
         "AND NOT ()-[:IMPLEMENTS]->(m) "
         "AND NOT ()-[:DISPATCHES_TO]->(m) "
         "AND NOT (m)-[:OVERRIDES]->() "
         "AND NOT (m)<-[:CONTAINS]-(:Interface) "
-        "AND NOT m.name IN ['__init__', 'constructor', "
-        "'Up', 'Down', 'BuildTargetModel', 'BuildModel', "
-        "'OnModelCreating', 'CreateDbContext'] "
+        f"AND NOT m.name IN [{name_list}] "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
         "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
         "AND NOT (m.name = 'Configure' AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
         "WHERE cfg:Class AND cfg.name ENDS WITH 'Configuration' }) "
-        "AND NOT (coalesce(m.attributes, '[]') CONTAINS '\"command\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"tool\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"callback\"') "
+        f"AND NOT ({attr_checks}) "
         "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
+    )
+
+
+def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int = 200) -> dict:
+    """Query for methods with zero inbound CALLS, excluding test/framework/infra methods."""
+    exclude_pattern = _ensure_full_match_regex(exclude_pattern)
+    base_where = _build_base_exclusion_where()
+    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
+
+    dead_rows = conn.query(
+        "MATCH (m:Method) "
+        f"WHERE {base_where}"
         "AND NOT EXISTS { MATCH ()-[:CALLS]->(m) } "
         "RETURN m.full_name, m.file_path, m.line "
         "ORDER BY m.file_path, m.full_name",
-        {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern},
+        params,
     )
     total_rows = conn.query(
         "MATCH (m:Method) "
-        "WHERE NOT m.file_path =~ $test_pattern "
-        "AND NOT (m)-[:SERVES]->() "
-        "AND NOT ()-[:IMPLEMENTS]->(m) "
-        "AND NOT ()-[:DISPATCHES_TO]->(m) "
-        "AND NOT (m)-[:OVERRIDES]->() "
-        "AND NOT (m)<-[:CONTAINS]-(:Interface) "
-        "AND NOT m.name IN ['__init__', 'constructor', "
-        "'Up', 'Down', 'BuildTargetModel', 'BuildModel', "
-        "'OnModelCreating', 'CreateDbContext'] "
-        "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
-        "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name = 'Configure' AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
-        "WHERE cfg:Class AND cfg.name ENDS WITH 'Configuration' }) "
-        "AND NOT (coalesce(m.attributes, '[]') CONTAINS '\"command\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"tool\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"callback\"') "
-        "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
+        f"WHERE {base_where}"
         "RETURN count(m)",
-        {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern},
+        params,
     )
-    methods = [
+    all_methods = [
         {"full_name": r[0], "file_path": r[1], "line": r[2], "inbound_call_count": 0}
         for r in dead_rows
     ]
     total_methods = total_rows[0][0] if total_rows else 0
-    dead_count = len(methods)
+    dead_count = len(all_methods)
+    truncated = dead_count > limit
     return {
-        "methods": methods,
+        "methods": all_methods[:limit],
         "stats": {
             "total_methods": total_methods,
             "dead_count": dead_count,
             "dead_ratio": round(dead_count / total_methods, 4) if total_methods else 0.0,
+            "truncated": truncated,
+            "limit": limit,
         },
     }
 
 
-def find_untested(conn: GraphConnection, exclude_pattern: str = "") -> dict:
+def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int = 200) -> dict:
     """Query for production methods with no inbound TESTS edges."""
     exclude_pattern = _ensure_full_match_regex(exclude_pattern)
+    base_where = _build_base_exclusion_where()
+    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
+
     untested_rows = conn.query(
         "MATCH (m:Method) "
-        "WHERE NOT m.file_path =~ $test_pattern "
-        "AND NOT (m)-[:SERVES]->() "
-        "AND NOT ()-[:IMPLEMENTS]->(m) "
-        "AND NOT ()-[:DISPATCHES_TO]->(m) "
-        "AND NOT (m)-[:OVERRIDES]->() "
-        "AND NOT (m)<-[:CONTAINS]-(:Interface) "
-        "AND NOT m.name IN ['__init__', 'constructor', "
-        "'Up', 'Down', 'BuildTargetModel', 'BuildModel', "
-        "'OnModelCreating', 'CreateDbContext'] "
-        "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
-        "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name = 'Configure' AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
-        "WHERE cfg:Class AND cfg.name ENDS WITH 'Configuration' }) "
-        "AND NOT (coalesce(m.attributes, '[]') CONTAINS '\"command\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"tool\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"callback\"') "
-        "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
+        f"WHERE {base_where}"
         "AND NOT EXISTS { MATCH ()-[:TESTS]->(m) } "
         "RETURN m.full_name, m.file_path, m.line "
         "ORDER BY m.file_path, m.full_name",
-        {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern},
+        params,
     )
     total_rows = conn.query(
         "MATCH (m:Method) "
-        "WHERE NOT m.file_path =~ $test_pattern "
-        "AND NOT (m)-[:SERVES]->() "
-        "AND NOT ()-[:IMPLEMENTS]->(m) "
-        "AND NOT ()-[:DISPATCHES_TO]->(m) "
-        "AND NOT (m)-[:OVERRIDES]->() "
-        "AND NOT (m)<-[:CONTAINS]-(:Interface) "
-        "AND NOT m.name IN ['__init__', 'constructor', "
-        "'Up', 'Down', 'BuildTargetModel', 'BuildModel', "
-        "'OnModelCreating', 'CreateDbContext'] "
-        "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
-        "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name = 'Configure' AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
-        "WHERE cfg:Class AND cfg.name ENDS WITH 'Configuration' }) "
-        "AND NOT (coalesce(m.attributes, '[]') CONTAINS '\"command\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"tool\"' "
-        "      OR coalesce(m.attributes, '[]') CONTAINS '\"callback\"') "
-        "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
+        f"WHERE {base_where}"
         "RETURN count(m)",
-        {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern},
+        params,
     )
-    methods = [
+    all_methods = [
         {"full_name": r[0], "file_path": r[1], "line": r[2]}
         for r in untested_rows
     ]
     total_methods = total_rows[0][0] if total_rows else 0
-    untested_count = len(methods)
+    untested_count = len(all_methods)
+    truncated = untested_count > limit
     return {
-        "methods": methods,
+        "methods": all_methods[:limit],
         "stats": {
             "total_methods": total_methods,
             "untested_count": untested_count,
             "untested_ratio": round(untested_count / total_methods, 4) if total_methods else 0.0,
+            "truncated": truncated,
+            "limit": limit,
         },
     }
 
 
-def get_architecture_overview(conn: GraphConnection, limit: int = 10) -> dict:
+_VENDORED_PATH_PATTERN = (
+    r"(?:"
+    r".*[/\\]node_modules[/\\].*"
+    r"|.*[/\\]vendor[/\\].*"
+    r"|.*[/\\]third_party[/\\].*"
+    r"|.*[/\\]\.gradle[/\\].*"
+    r"|.*\.min\.[jt]sx?$"
+    r"|.*\.bundle\.[jt]sx?$"
+    r"|.*\.chunk\.[jt]sx?$"
+    r")"
+)
+
+
+def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packages: int = 50, max_endpoints: int = 100) -> dict:
     """Single-call project architecture overview for agent orientation.
 
     Returns a dict with four sections:
-    - packages: list of {name, file_count, symbol_count} per package.
+    - packages: top N packages by symbol count (capped at max_packages).
       Most meaningful for C# projects — Python/TypeScript projects may return [].
-    - hotspots: top N methods by inbound caller count, excluding test methods
-    - http_service_map: flat list of {route, method, handler, file_path, direction} entries
+    - hotspots: top N methods by inbound caller count, excluding test and vendored code
+    - http_service_map: flat list of {route, method, handler, file_path, direction} entries (capped at max_endpoints)
     - stats: {total_files, total_symbols, total_packages, total_endpoints, files_by_language}
     """
-    # Query 1: Package breakdown
+    # Query 1: Package breakdown (limited)
     pkg_rows = conn.query(
         "MATCH (p:Package) "
         "OPTIONAL MATCH (f:File)-[:IMPORTS]->(p) "
@@ -348,45 +359,60 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10) -> dict:
         "  AND s.full_name STARTS WITH (p.full_name + '.') "
         "WITH p, file_count, count(DISTINCT s) AS symbol_count "
         "RETURN p.name, file_count, symbol_count "
-        "ORDER BY symbol_count DESC"
+        "ORDER BY symbol_count DESC "
+        "LIMIT $max_packages",
+        {"max_packages": max_packages},
     )
     packages = [{"name": r[0], "file_count": r[1], "symbol_count": r[2]} for r in pkg_rows]
 
-    # Query 2: Hotspot methods (most inbound callers, excluding test methods)
+    # Total packages for stats (separate count if limited)
+    total_pkg_rows = conn.query("MATCH (p:Package) RETURN count(p)")
+    total_packages = total_pkg_rows[0][0] if total_pkg_rows else 0
+
+    # Query 2: Hotspot methods — exclude test AND vendored/minified files
     hotspot_rows = conn.query(
         "MATCH (caller:Method)-[:CALLS]->(m:Method) "
         "WHERE NOT m.file_path =~ $test_pattern "
+        "AND NOT m.file_path =~ $vendor_pattern "
         "WITH m, count(DISTINCT caller) AS inbound_callers "
         "ORDER BY inbound_callers DESC "
         "LIMIT $limit "
         "RETURN m.full_name, m.file_path, m.line, inbound_callers",
-        {"test_pattern": _TEST_PATH_PATTERN, "limit": limit},
+        {"test_pattern": _TEST_PATH_PATTERN, "limit": limit, "vendor_pattern": _VENDORED_PATH_PATTERN},
     )
     hotspots = [
         {"full_name": r[0], "file_path": r[1], "line": r[2], "inbound_callers": r[3]}
         for r in hotspot_rows
     ]
 
-    # Query 3: HTTP endpoints served by this codebase
+    # Query 3: HTTP endpoints served by this codebase (limited)
     serves_rows = conn.query(
         "MATCH (handler:Method)-[:SERVES]->(ep:Endpoint) "
-        "RETURN ep.route, ep.http_method, handler.full_name, handler.file_path"
+        "RETURN ep.route, ep.http_method, handler.full_name, handler.file_path "
+        "ORDER BY ep.route "
+        "LIMIT $max_endpoints",
+        {"max_endpoints": max_endpoints},
     )
     serves = [
         {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "serves"}
         for r in serves_rows
     ]
 
-    # Query 4: Client-only HTTP calls (orphan endpoints with no SERVES handler)
-    calls_rows = conn.query(
-        "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
-        "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
-        "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path"
-    )
-    calls = [
-        {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
-        for r in calls_rows
-    ]
+    # Query 4: Client-only HTTP calls (limited)
+    remaining = max(max_endpoints - len(serves), 0)
+    calls: list[dict] = []
+    if remaining > 0:
+        calls_rows = conn.query(
+            "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
+            "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
+            "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path "
+            "LIMIT $lim",
+            {"lim": remaining},
+        )
+        calls = [
+            {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
+            for r in calls_rows
+        ]
 
     # Query 5: File count by language
     lang_rows = conn.query(
@@ -416,8 +442,10 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10) -> dict:
         "stats": {
             "total_files": total_files,
             "total_symbols": total_symbols,
-            "total_packages": len(packages),
+            "total_packages": total_packages,
+            "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
+            "endpoints_shown": len(serves) + len(calls),
             "files_by_language": files_by_language,
         },
     }

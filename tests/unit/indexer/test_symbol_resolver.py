@@ -538,3 +538,81 @@ def test_resolve_stats_tracks_assignment_fallback_count():
     assert stats.calls_resolved_via_assignment == 1
     stats.calls_resolved_via_assignment += 3
     assert stats.calls_resolved_via_assignment == 4
+
+
+def test_name_based_fallback_when_lsp_returns_external_definition():
+    """When LSP definitions point to files not in symbol_map, fall back to name_to_full_names."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    ls = _make_ls()
+
+    # LSP returns a definition in a library jar file (not in symbol_map)
+    ls.request_definition.return_value = [
+        {"absolutePath": "/lib/spring/Repository.java",
+         "relativePath": "lib/spring/Repository.java",
+         "range": {"start": {"line": 50, "character": 8}}}
+    ]
+    # request_containing_symbol would also fail for a jar
+    ls.request_containing_symbol.return_value = None
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("order.OrderServiceImpl.create", "save", 15, 20)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    # Provide name_to_full_names with a unique match for "save"
+    name_to_full_names = {"save": ["order.OrderRepository.save"]}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        name_to_full_names=name_to_full_names,
+    )
+    tree = _mock_tree()
+    symbol_map = {("/proj/OrderServiceImpl.java", 10): "order.OrderServiceImpl.create"}
+
+    resolver._stats = _ResolveStats()
+    resolver._resolve_file("/proj/OrderServiceImpl.java", "source", tree, symbol_map)
+
+    # Verify the CALLS edge was created via name-based fallback
+    assert resolver._stats.calls_resolved >= 1
+    # Check the pending calls contain the expected edge
+    # (resolve_file calls _flush_pending which batch writes)
+    assert conn.execute.call_count > 0
+
+
+def test_name_based_fallback_skipped_when_ambiguous():
+    """When name_to_full_names has multiple candidates, don't create edge."""
+    conn = MagicMock()
+    conn.query.return_value = []
+    ls = _make_ls()
+
+    ls.request_definition.return_value = [
+        {"absolutePath": "/lib/external.java",
+         "relativePath": "lib/external.java",
+         "range": {"start": {"line": 1, "character": 0}}}
+    ]
+    ls.request_containing_symbol.return_value = None
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [("A.B.method", "save", 5, 10)]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    # Multiple candidates — ambiguous, should not resolve
+    name_to_full_names = {"save": ["X.Repository.save", "Y.Repository.save"]}
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+        name_to_full_names=name_to_full_names,
+    )
+    tree = _mock_tree()
+    symbol_map = {("/proj/B.java", 3): "A.B.method"}
+
+    resolver._stats = _ResolveStats()
+    resolver._resolve_file("/proj/B.java", "source", tree, symbol_map)
+
+    assert resolver._stats.calls_unresolved >= 1

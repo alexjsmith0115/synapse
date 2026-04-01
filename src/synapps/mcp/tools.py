@@ -233,9 +233,12 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         Returns {root, callees: [{full_name, file_path, depth}], depth_limit}.
         """
         _auto_sync_check()
-        if depth is not None:
-            return service.get_call_depth(method_full_name, depth)
-        return service.find_callees(method_full_name, include_interface_dispatch, limit=limit)
+        try:
+            if depth is not None:
+                return service.get_call_depth(method_full_name, depth)
+            return service.find_callees(method_full_name, include_interface_dispatch, limit=limit)
+        except ValueError as e:
+            return {"error": str(e)}
 
     @mcp.tool()
     def get_hierarchy(class_name: str) -> dict:
@@ -345,9 +348,12 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         When kind is set, returns structured type reference list instead of text summary.
         """
         _auto_sync_check()
-        if kind is not None:
-            return service.find_type_references(full_name, kind=kind, limit=limit)
-        return service.find_usages(full_name, exclude_test_callers, limit=limit)
+        try:
+            if kind is not None:
+                return service.find_type_references(full_name, kind=kind, limit=limit)
+            return service.find_usages(full_name, exclude_test_callers, limit=limit)
+        except ValueError as e:
+            return str(e)
 
     @mcp.tool()
     def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict] | dict:
@@ -358,7 +364,10 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         Useful for impact analysis — depth=2 shows transitive dependencies.
         """
         _auto_sync_check()
-        return service.find_dependencies(full_name, depth, limit=limit)
+        try:
+            return service.find_dependencies(full_name, depth, limit=limit)
+        except ValueError as e:
+            return {"error": str(e)}
 
     @mcp.tool()
     def get_context_for(full_name: str, scope: str | None = None, max_lines: int = 200) -> str:
@@ -381,7 +390,10 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         _auto_sync_check()
-        result = service.get_context_for(full_name, scope=scope, max_lines=max_lines)
+        try:
+            result = service.get_context_for(full_name, scope=scope, max_lines=max_lines)
+        except ValueError as e:
+            return str(e)
         if result:
             warning = service._staleness_warning(full_name)
             if warning:
@@ -406,7 +418,10 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         _auto_sync_check()
-        return service.find_entry_points(method, max_depth, exclude_pattern, exclude_test_callers)
+        try:
+            return service.find_entry_points(method, max_depth, exclude_pattern, exclude_test_callers)
+        except ValueError as e:
+            return {"error": str(e)}
 
     @mcp.tool()
     def find_http_endpoints(
@@ -455,13 +470,16 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def find_dead_code(
         path: str,
         exclude_pattern: str = "",
+        limit: int = 200,
     ) -> dict:
         """[Experimental] Find methods with zero inbound callers (dead code candidates) in an indexed project.
 
         Excludes test methods, HTTP handlers, interface implementations,
         interface dispatch targets, interface/protocol definition methods,
         constructor methods, overriding methods, EF Core migration methods,
-        and decorator-registered entry points (@command, @tool, @callback).
+        main() entry points, and framework-registered entry points
+        (@command, @tool, @callback, @Bean, @PostConstruct, @RequestMapping,
+        @GetMapping, @PostMapping, @Scheduled, etc.).
 
         Known false positive patterns (use exclude_pattern to filter):
         - Methods called via closures/callbacks passed as arguments
@@ -473,10 +491,11 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
-        Returns {methods: [{full_name, file_path, line, inbound_call_count}], stats: {total_methods, dead_count, dead_ratio}}.
+        limit: max number of dead methods to return (default 200). Stats always reflect full count.
+        Returns {methods: [{full_name, file_path, line, inbound_call_count}], stats: {total_methods, dead_count, dead_ratio, truncated, limit}}.
         """
         _auto_sync_check()
-        return service.find_dead_code(exclude_pattern=exclude_pattern)
+        return service.find_dead_code(exclude_pattern=exclude_pattern, limit=limit)
 
     @mcp.tool()
     def find_tests_for(
@@ -494,19 +513,25 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         Returns [{full_name, file_path, line}] — one entry per test method covering the target.
         """
         _auto_sync_check()
-        return service.find_tests_for(method_full_name=method_full_name)
+        try:
+            return service.find_tests_for(method_full_name=method_full_name)
+        except ValueError as e:
+            return {"error": str(e)}
 
     @mcp.tool()
     def find_untested(
         path: str,
         exclude_pattern: str = "",
+        limit: int = 200,
     ) -> dict:
         """[Experimental] Find production methods with no inbound TESTS edges (not directly covered by any test).
 
         Excludes test methods, HTTP handlers, interface implementations,
         interface dispatch targets, interface/protocol definition methods,
         constructor methods, overriding methods, EF Core migration methods,
-        and decorator-registered entry points (@command, @tool, @callback).
+        main() entry points, and framework-registered entry points
+        (@command, @tool, @callback, @Bean, @PostConstruct, @RequestMapping,
+        @GetMapping, @PostMapping, @Scheduled, etc.).
 
         Known false positive patterns (use exclude_pattern to filter):
         - Methods tested only through string-based dispatch (MCP call_tool, mocks)
@@ -518,9 +543,10 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
-        Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio}}.
+        limit: max number of untested methods to return (default 200). Stats always reflect full count.
+        Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio, truncated, limit}}.
         """
         _auto_sync_check()
-        return service.find_untested(exclude_pattern=exclude_pattern)
+        return service.find_untested(exclude_pattern=exclude_pattern, limit=limit)
 
 
