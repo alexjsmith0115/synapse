@@ -158,6 +158,26 @@ def test_tests_phase_csharp_attribute_detection():
     assert '"TestCaseSource"' in derivation_cypher
 
 
+def test_tests_phase_csharp_mstest_testmethod_detection():
+    conn = _mock_conn()
+    conn.query.return_value = [(0,)]
+    phase = TestsPhase(conn, "/repo")
+    phase.run()
+    derivation_cypher = conn.execute.call_args_list[1].args[0]
+    # MSTest
+    assert '"TestMethod"' in derivation_cypher
+
+
+def test_tests_phase_csharp_mstest_datatestmethod_detection():
+    conn = _mock_conn()
+    conn.query.return_value = [(0,)]
+    phase = TestsPhase(conn, "/repo")
+    phase.run()
+    derivation_cypher = conn.execute.call_args_list[1].args[0]
+    # MSTest
+    assert '"DataTestMethod"' in derivation_cypher
+
+
 def test_tests_phase_java_annotation_detection():
     conn = _mock_conn()
     conn.query.return_value = [(0,)]
