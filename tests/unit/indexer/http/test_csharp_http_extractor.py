@@ -947,3 +947,128 @@ public class NotAnEndpointGroup {
     extractor = CSharpHttpExtractor()
     result = extractor.extract("test.cs", _parse(source), [])
     assert len(result.endpoint_defs) == 0
+
+
+# ---------------------------------------------------------------------------
+# Minimal API detection tests (Phase 29 / MA-01..MA-03)
+# ---------------------------------------------------------------------------
+
+
+def test_minimal_api_method_ref() -> None:
+    """app.MapGet('/items', GetAllItems) in a static method produces 1 endpoint with route /items, verb GET. (MA-01, MA-02)"""
+    source = '''\
+public static class MinimalApiEndpoints {
+    public static void MapEndpoints(WebApplication app) {
+        app.MapGet("/items", GetAllItems);
+    }
+    public static IResult GetAllItems() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([
+        ("MapEndpoints", "Program.MapEndpoints", 2, 4),
+        ("GetAllItems", "Program.GetAllItems", 5, 5),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/items"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "Program.GetAllItems"
+
+
+def test_minimal_api_lambda() -> None:
+    """app.MapGet('/', async (ctx) => {...}) produces 1 endpoint with route / and handler resolved to enclosing method. (MA-01, MA-03)"""
+    source = '''\
+public static class MinimalApiEndpoints {
+    public static void MapEndpoints(WebApplication app) {
+        app.MapGet("/", async (ctx) => { });
+    }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([
+        ("MapEndpoints", "Program.MapEndpoints", 2, 4),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "Program.MapEndpoints"
+
+
+def test_minimal_api_multiple_verbs() -> None:
+    """MapGet + MapPost + MapDelete in a static method produces 3 endpoints with correct verbs. (MA-01)"""
+    source = '''\
+public static class MinimalApiEndpoints {
+    public static void MapEndpoints(WebApplication app) {
+        app.MapGet("/items", GetAll);
+        app.MapPost("/items", CreateItem);
+        app.MapDelete("/items/{id}", DeleteItem);
+    }
+    public static IResult GetAll() { return Results.Ok(); }
+    public static IResult CreateItem() { return Results.Ok(); }
+    public static IResult DeleteItem() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([
+        ("MapEndpoints", "Program.MapEndpoints", 2, 6),
+        ("GetAll", "Program.GetAll", 7, 7),
+        ("CreateItem", "Program.CreateItem", 8, 8),
+        ("DeleteItem", "Program.DeleteItem", 9, 9),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 3
+    pairs = {(ep.http_method, ep.route) for ep in result.endpoint_defs}
+    assert ("GET", "/items") in pairs
+    assert ("POST", "/items") in pairs
+    assert ("DELETE", "/items/{id}") in pairs
+
+
+def test_minimal_api_no_duplicate_in_iendpointgroup() -> None:
+    """MapGet inside IEndpointGroup class produces exactly 1 endpoint, not 2. (deduplication guard)"""
+    source = '''
+public class TodoItems : IEndpointGroup {
+    public void Map(IEndpointRouteBuilder app) {
+        app.MapGet("/todos", GetAll);
+    }
+    public static IResult GetAll() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols([
+        ("Map", "TodoItems.Map", 3),
+        ("GetAll", "TodoItems.GetAll", 6),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    # Exactly 1 endpoint — IEndpointGroup path claims this class
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/todos"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "TodoItems.GetAll"
+
+
+def test_minimal_api_handler_resolution_across_class() -> None:
+    """Method ref GetAllItems resolves via symbol_map lookup using enclosing class name. (MA-02)"""
+    source = '''\
+public static class ItemHandlers {
+    public static void RegisterRoutes(WebApplication app) {
+        app.MapGet("/api/items", GetAllItems);
+    }
+    public static IResult GetAllItems() { return Results.Ok(); }
+}
+'''
+    extractor = CSharpHttpExtractor()
+    syms = _symbols_with_end([
+        ("RegisterRoutes", "ItemHandlers.RegisterRoutes", 2, 4),
+        ("GetAllItems", "ItemHandlers.GetAllItems", 5, 5),
+    ])
+    result = extractor.extract("test.cs", _parse(source), syms)
+    assert len(result.endpoint_defs) == 1
+    ep = result.endpoint_defs[0]
+    assert ep.route == "/api/items"
+    assert ep.http_method == "GET"
+    assert ep.handler_full_name == "ItemHandlers.GetAllItems"
