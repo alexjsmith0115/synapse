@@ -14,3 +14,8 @@ htmlcov/
 .planning/
 .serena/
 docs/superpowers/
+docs/
+
+# C# build artifacts in test fixtures
+tests/fixtures/**/bin/
+tests/fixtures/**/obj/
