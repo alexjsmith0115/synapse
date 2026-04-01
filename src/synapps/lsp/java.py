@@ -13,7 +13,8 @@ log = logging.getLogger(__name__)
 # Maps LSP SymbolKind integers to Synapps SymbolKind.
 # Per D-23: Java-specific kind mapping for Eclipse JDT LS.
 _LSP_KIND_MAP: dict[int, SymbolKind] = {
-    3: SymbolKind.NAMESPACE,   # package
+    3: SymbolKind.NAMESPACE,   # package (LSP SymbolKind.Namespace)
+    4: SymbolKind.NAMESPACE,   # package (LSP SymbolKind.Package — JDT LS reports kind 4)
     5: SymbolKind.CLASS,       # class
     6: SymbolKind.METHOD,      # method
     7: SymbolKind.PROPERTY,    # property
@@ -221,6 +222,10 @@ class JavaLSPAdapter:
         result: list[IndexSymbol],
     ) -> None:
         sym = self._convert(raw, file_path, parent_full_name)
+        # JC-02: Skip anonymous class expressions — JDT LS names them "new Foo() {...}".
+        # These create spurious Class nodes; their internals are not useful for the graph.
+        if sym.kind == SymbolKind.CLASS and sym.name.startswith("new "):
+            return
         result.append(sym)
         for child in raw.get("children", []):
             self._traverse(child, file_path, parent_full_name=sym.full_name, result=result)
