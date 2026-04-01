@@ -361,15 +361,14 @@ def get_implemented_interfaces(conn: GraphConnection, class_full_name: str) -> l
     return [r[0] for r in rows]
 
 
-def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
+def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str] | None:
     """Resolve a possibly-short symbol name to its full qualified name.
 
     Tries exact match first, then falls back to suffix matching.
     When suffix matching returns both Class/Interface and Method nodes for the
     same name (e.g. class + its constructor), Class/Interface nodes are preferred
     to avoid spurious ambiguity errors on short class names.
-    Returns the original name unchanged if no match is found (lets
-    downstream queries fail naturally with empty results).
+    Returns None if no match is found.
     """
     rows = conn.query(
         "MATCH (n {full_name: $name}) RETURN n.full_name LIMIT 1",
@@ -384,7 +383,7 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
         {"suffix": "." + name},
     )
     if not rows:
-        return name
+        return None
 
     # Prefer Class/Interface nodes over Method nodes when disambiguating
     type_nodes = [r for r in rows if any(lbl in ("Class", "Interface") for lbl in r[1])]
@@ -395,9 +394,23 @@ def resolve_full_name(conn: GraphConnection, name: str) -> str | list[str]:
     return [r[0] for r in candidates]
 
 
+def suggest_similar_names(conn: GraphConnection, name: str, limit: int = 5) -> list[str]:
+    """Find symbols with names similar to the given name, for 'did you mean?' suggestions."""
+    # Extract the simple name (last segment after dots)
+    simple = name.rsplit(".", 1)[-1]
+    rows = conn.query(
+        "MATCH (n) WHERE n.name IS NOT NULL AND n.name CONTAINS $simple "
+        "RETURN DISTINCT n.full_name "
+        "ORDER BY CASE WHEN n.name = $simple THEN 0 ELSE 1 END, n.full_name "
+        "LIMIT $limit",
+        {"simple": simple, "limit": limit},
+    )
+    return [r[0] for r in rows]
+
+
 def resolve_full_name_with_labels(
     conn: GraphConnection, name: str,
-) -> str | list[tuple[str, list[str]]]:
+) -> str | list[tuple[str, list[str]]] | None:
     """Like resolve_full_name but preserves label information for ambiguous results."""
     rows = conn.query(
         "MATCH (n {full_name: $name}) RETURN n.full_name LIMIT 1",
@@ -412,7 +425,7 @@ def resolve_full_name_with_labels(
         {"suffix": "." + name},
     )
     if not rows:
-        return name
+        return None
 
     type_nodes = [r for r in rows if any(lbl in ("Class", "Interface") for lbl in r[1])]
     candidates = type_nodes if type_nodes else rows

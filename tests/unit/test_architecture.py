@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-from synapps.graph.analysis import get_architecture_overview
+from synapps.graph.analysis import get_architecture_overview, _VENDORED_PATH_PATTERN
 from synapps.graph.lookups import _TEST_PATH_PATTERN
 
 
@@ -16,8 +16,8 @@ def _conn_with_side_effects(*query_results):
 
 
 def _empty_conn():
-    """Return a mock GraphConnection where all queries return empty lists (7 queries)."""
-    return _conn_with_side_effects([], [], [], [], [], [], [])
+    """Return a mock GraphConnection where all queries return empty lists (8 queries)."""
+    return _conn_with_side_effects([], [], [], [], [], [], [], [])
 
 
 # ---------------------------------------------------------------------------
@@ -58,19 +58,19 @@ def test_stats_keys_on_empty_graph():
 
 
 # ---------------------------------------------------------------------------
-# Test 4: Hotspot query receives the _TEST_PATH_PATTERN parameter
+# Test 4: Hotspot query excludes test AND vendored methods
 # ---------------------------------------------------------------------------
 
-def test_hotspots_exclude_test_methods():
+def test_hotspots_exclude_test_and_vendored_methods():
     conn = _empty_conn()
     get_architecture_overview(conn)
-    # Find the call whose cypher includes the test-exclusion WHERE clause
     hotspot_call = next(
         c for c in conn.query.call_args_list
         if "NOT m.file_path =~ $test_pattern" in (c.args[0] if c.args else "")
     )
     _, params = hotspot_call.args[0], hotspot_call.args[1]
     assert params.get("test_pattern") == _TEST_PATH_PATTERN
+    assert params.get("vendor_pattern") == _VENDORED_PATH_PATTERN
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ def test_hotspots_exclude_test_methods():
 # ---------------------------------------------------------------------------
 
 def test_hotspots_limit_passed_to_query():
-    conn = _conn_with_side_effects([], [], [], [], [], [], [])
+    conn = _conn_with_side_effects([], [], [], [], [], [], [], [])
     get_architecture_overview(conn, limit=5)
     hotspot_call = next(
         c for c in conn.query.call_args_list
@@ -111,8 +111,8 @@ def test_hotspot_default_limit_is_10():
 def test_packages_populated():
     # Rows: (name, file_count, symbol_count)
     pkg_rows = [("MyApp.Services", 3, 12), ("MyApp.Controllers", 5, 8)]
-    # Remaining 6 queries empty
-    conn = _conn_with_side_effects(pkg_rows, [], [], [], [], [], [])
+    # Query order: packages, total_pkg_count, hotspots, serves, calls, lang, symbols, endpoints
+    conn = _conn_with_side_effects(pkg_rows, [[2]], [], [], [], [], [], [])
     result = get_architecture_overview(conn)
     assert len(result["packages"]) == 2
     first = result["packages"][0]
@@ -134,7 +134,7 @@ def test_hotspots_populated():
         ("MyApp.Services.FooService.DoWork", "/src/FooService.cs", 42, 15),
         ("MyApp.Services.BarService.Run", "/src/BarService.cs", 10, 9),
     ]
-    conn = _conn_with_side_effects([], hotspot_rows, [], [], [], [], [])
+    conn = _conn_with_side_effects([], [], hotspot_rows, [], [], [], [], [])
     result = get_architecture_overview(conn)
     assert len(result["hotspots"]) == 2
     first = result["hotspots"][0]
@@ -151,7 +151,7 @@ def test_hotspots_populated():
 def test_http_service_map_serves_direction():
     # Rows: (route, http_method, handler_full_name, file_path)
     serves_rows = [("GET /api/items", "GET", "MyApp.ItemsController.GetAll", "/src/ItemsController.cs")]
-    conn = _conn_with_side_effects([], [], serves_rows, [], [], [], [])
+    conn = _conn_with_side_effects([], [], [], serves_rows, [], [], [], [])
     result = get_architecture_overview(conn)
     serves_entries = [e for e in result["http_service_map"] if e["direction"] == "serves"]
     assert len(serves_entries) == 1
@@ -167,7 +167,7 @@ def test_http_service_map_serves_direction():
 def test_http_service_map_calls_direction():
     # Rows for calls query: (route, http_method, caller_full_name, file_path)
     calls_rows = [("POST /external/api", "POST", "MyApp.HttpClient.Post", "/src/Client.cs")]
-    conn = _conn_with_side_effects([], [], [], calls_rows, [], [], [])
+    conn = _conn_with_side_effects([], [], [], [], calls_rows, [], [], [])
     result = get_architecture_overview(conn)
     calls_entries = [e for e in result["http_service_map"] if e["direction"] == "calls"]
     assert len(calls_entries) == 1
@@ -181,9 +181,22 @@ def test_http_service_map_calls_direction():
 # ---------------------------------------------------------------------------
 
 def test_stats_files_by_language():
-    # Query 5 (files by language): rows are (language, count)
+    # Query 6 (files by language): rows are (language, count)
     lang_rows = [("csharp", 10), ("python", 5)]
-    conn = _conn_with_side_effects([], [], [], [], lang_rows, [], [])
+    conn = _conn_with_side_effects([], [], [], [], [], lang_rows, [], [])
     result = get_architecture_overview(conn)
     assert result["stats"]["files_by_language"] == {"csharp": 10, "python": 5}
     assert result["stats"]["total_files"] == 15
+
+
+# ---------------------------------------------------------------------------
+# Test 12: packages_shown and total_packages in stats
+# ---------------------------------------------------------------------------
+
+def test_stats_packages_shown_vs_total():
+    pkg_rows = [("Pkg1", 1, 10)]
+    total_pkg = [[5]]  # 5 total packages, but only 1 shown due to LIMIT
+    conn = _conn_with_side_effects(pkg_rows, total_pkg, [], [], [], [], [], [])
+    result = get_architecture_overview(conn, max_packages=1)
+    assert result["stats"]["total_packages"] == 5
+    assert result["stats"]["packages_shown"] == 1

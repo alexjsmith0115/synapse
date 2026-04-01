@@ -212,14 +212,30 @@ def delete_outgoing_edges_for_file(conn: GraphConnection, file_path: str) -> Non
 
 
 def batch_upsert_references(conn: GraphConnection, batch: list[dict]) -> None:
-    """Batch-write REFERENCES edges."""
+    """Batch-write REFERENCES edges.
+
+    First tries to match existing target nodes. For any remaining unmatched
+    targets (library types not in the graph), creates stub Class nodes so
+    REFERENCES edges can still be created for dependency tracking.
+    """
     if not batch:
         return
+    # Match existing target nodes
     conn.execute(
         "UNWIND $batch AS row "
         "MATCH (src {full_name: row.source}), (dst {full_name: row.target}) "
         "WHERE dst:Class OR dst:Interface "
         "MERGE (src)-[r:REFERENCES {kind: row.kind}]->(dst)",
+        {"batch": batch},
+    )
+    # Create stubs for library types not yet in the graph
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src {full_name: row.source}) "
+        "WHERE NOT EXISTS { MATCH (existing {full_name: row.target}) WHERE existing:Class OR existing:Interface } "
+        "MERGE (stub:Class {full_name: row.target}) "
+        "ON CREATE SET stub.name = split(row.target, '.')[-1], stub.library = true "
+        "MERGE (src)-[r:REFERENCES {kind: row.kind}]->(stub)",
         {"batch": batch},
     )
 

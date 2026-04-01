@@ -30,7 +30,7 @@ def test_returns_methods_and_stats_keys():
 def test_stats_keys_are_untested_not_dead():
     conn = _conn_with_side_effects([], [(0,)])
     result = find_untested(conn)
-    assert set(result["stats"].keys()) == {"total_methods", "untested_count", "untested_ratio"}
+    assert set(result["stats"].keys()) == {"total_methods", "untested_count", "untested_ratio", "truncated", "limit"}
 
 
 # ---------------------------------------------------------------------------
@@ -273,19 +273,19 @@ def test_limit_truncates_methods_and_sets_flag():
     conn = _conn_with_side_effects(rows, [(10,)])
     result = find_untested(conn, limit=3)
     assert len(result["methods"]) == 3
-    assert result["_truncated"] is True
-    assert result["_limit"] == 3
+    assert result["stats"]["truncated"] is True
+    assert result["stats"]["limit"] == 3
     # stats still reflect the full count
     assert result["stats"]["untested_count"] == 5
 
 
 # ---------------------------------------------------------------------------
-# Test 19: limit not exceeded — no _truncated key
+# Test 19: limit not exceeded — truncated is False
 # ---------------------------------------------------------------------------
 
-def test_limit_not_exceeded_no_truncated_key():
+def test_limit_not_exceeded_truncated_false():
     rows = [("Ns.Foo.M1", "/src/Foo.cs", 1)]
     conn = _conn_with_side_effects(rows, [(5,)])
     result = find_untested(conn, limit=50)
     assert len(result["methods"]) == 1
-    assert "_truncated" not in result
+    assert result["stats"]["truncated"] is False
