@@ -59,6 +59,19 @@ _FASTENDPOINTS_VERB_MAP: dict[str, str] = {
     "Patch": "PATCH",
 }
 
+_IENDPOINTGROUP_BASE_TYPES = frozenset({
+    "IEndpointGroup",
+    "EndpointGroupBase",
+})
+
+_MAP_VERB_MAP: dict[str, str] = {
+    "MapGet": "GET",
+    "MapPost": "POST",
+    "MapPut": "PUT",
+    "MapDelete": "DELETE",
+    "MapPatch": "PATCH",
+}
+
 
 class CSharpHttpExtractor:
     """Extract HTTP endpoint definitions and client calls from C# source files.
@@ -93,7 +106,9 @@ class CSharpHttpExtractor:
 
     def _walk(self, node, results, symbol_map, client_results, sorted_symbols):
         if node.type == "class_declaration":
-            claimed = self._handle_fastendpoints(node, results, symbol_map)
+            claimed = self._handle_iendpointgroup(node, results, symbol_map)
+            if not claimed:
+                claimed = self._handle_fastendpoints(node, results, symbol_map)
             if not claimed:
                 self._handle_class(node, results, symbol_map)
         if node.type == "invocation_expression":
@@ -208,6 +223,143 @@ class CSharpHttpExtractor:
 
         self._parse_configure_method(node, handler_full_name, results)
         return True
+
+    def _handle_iendpointgroup(self, node, results, symbol_map) -> bool:
+        """Detect IEndpointGroup / EndpointGroupBase classes and extract endpoints from Map().
+
+        Returns True if this class was claimed (preventing _handle_class from running — mutual
+        exclusion mirrors the FastEndpoints pattern).
+        """
+        base_list_node = None
+        for child in node.children:
+            if child.type == "base_list":
+                base_list_node = child
+                break
+
+        if base_list_node is None:
+            return False
+
+        entries = [c for c in base_list_node.children if c.type not in (":", ",")]
+        matched = any(
+            _extract_simple_base_name(entry) in _IENDPOINTGROUP_BASE_TYPES
+            for entry in entries
+        )
+        if not matched:
+            return False
+
+        class_name = _extract_name(node)
+        if not class_name:
+            return False
+
+        self._parse_map_method(node, class_name, results, symbol_map)
+        return True
+
+    def _parse_map_method(self, class_node, class_name, results, symbol_map):
+        """Walk Map() body for MapGet/MapPost/etc. invocations and emit HttpEndpointDef entries."""
+        for child in class_node.children:
+            if child.type != "declaration_list":
+                continue
+            for member in child.children:
+                if member.type != "method_declaration":
+                    continue
+                if _extract_name(member) != "Map":
+                    continue
+                body = member.child_by_field_name("body")
+                if body is None:
+                    return
+
+                # Resolve Map method's full_name for lambda handler fallback
+                map_line = member.start_point[0] + 1
+                map_full_name: str | None = None
+                for (sym_name, _line), sym in symbol_map.items():
+                    if sym_name == "Map" and class_name in sym.full_name:
+                        map_full_name = sym.full_name
+                        break
+                if map_full_name is None:
+                    # Fallback: scan symbol_map for any Map entry in this class
+                    for (_sym_name, _line), sym in symbol_map.items():
+                        if class_name in sym.full_name and sym.full_name.endswith(".Map"):
+                            map_full_name = sym.full_name
+                            break
+
+                self._walk_map_body(body, class_name, map_full_name, results, symbol_map)
+                return
+
+    def _walk_map_body(self, body_node, class_name, map_full_name, results, symbol_map):
+        """Walk a Map() block and emit HttpEndpointDef for each MapGet/MapPost/etc. invocation."""
+        for child in body_node.children:
+            if child.type == "expression_statement":
+                for expr_child in child.children:
+                    if expr_child.type == "invocation_expression":
+                        self._extract_map_invocation(
+                            expr_child, class_name, map_full_name, results, symbol_map,
+                        )
+            elif child.type == "invocation_expression":
+                self._extract_map_invocation(
+                    child, class_name, map_full_name, results, symbol_map,
+                )
+            else:
+                self._walk_map_body(child, class_name, map_full_name, results, symbol_map)
+
+    def _extract_map_invocation(self, invocation_node, class_name, map_full_name, results, symbol_map):
+        """Extract a single MapGet/MapPost/etc. call and append an HttpEndpointDef."""
+        fn_node = invocation_node.child_by_field_name("function")
+        if fn_node is None or fn_node.type != "member_access_expression":
+            return
+
+        name_node = fn_node.child_by_field_name("name")
+        if name_node is None:
+            return
+        verb_name = node_text(name_node)
+        http_method = _MAP_VERB_MAP.get(verb_name)
+        if http_method is None:
+            return
+
+        arg_list_node = None
+        for child in invocation_node.children:
+            if child.type == "argument_list":
+                arg_list_node = child
+                break
+        if arg_list_node is None:
+            return
+
+        args = [c for c in arg_list_node.children if c.type == "argument"]
+        if not args:
+            return
+
+        first_arg = args[0]
+        first_child = _first_non_punctuation_child(first_arg)
+
+        if first_child is None:
+            return
+
+        if first_child.type in ("string_literal", "verbatim_string_literal"):
+            # Route-first: arg[0]=route, arg[1]=handler
+            route_str = _try_string_literal(first_child) or ""
+            handler_full_name = _resolve_handler(args[1] if len(args) > 1 else None, class_name, map_full_name, symbol_map)
+        elif first_child.type == "identifier":
+            # Handler-first: arg[0]=handler, arg[1]=route
+            handler_name = node_text(first_child)
+            handler_full_name = _lookup_handler_full_name(handler_name, class_name, symbol_map) or map_full_name or ""
+            route_str = ""
+            if len(args) > 1:
+                second_child = _first_non_punctuation_child(args[1])
+                if second_child is not None:
+                    route_str = _try_string_literal(second_child) or ""
+        else:
+            # Lambda or other expression in first arg position (unusual)
+            route_str = ""
+            handler_full_name = map_full_name or ""
+
+        if not handler_full_name:
+            return
+
+        results.append(HttpEndpointDef(
+            route=normalize_route("", route_str),
+            http_method=http_method,
+            handler_full_name=handler_full_name,
+            line=invocation_node.start_point[0] + 1,
+        ))
 
     def _parse_configure_method(self, class_node, handler_full_name, results):
         """Walk Configure() body for FastEndpoints verb calls and build HttpEndpointDef entries.
@@ -411,6 +563,42 @@ class CSharpHttpExtractor:
             line=call_line_0 + 1,
             col=call_col_0,
         ))
+
+
+def _first_non_punctuation_child(arg_node):
+    """Return the first meaningful child of an argument node (skipping punctuation)."""
+    _SKIP_TYPES = frozenset({"(", ")", ",", "ref", "out", "in", "named_argument_expression"})
+    for child in arg_node.children:
+        if child.type not in _SKIP_TYPES:
+            return child
+    return None
+
+
+def _lookup_handler_full_name(handler_name: str, class_name: str, symbol_map: dict) -> str | None:
+    """Resolve a plain handler identifier to its full_name via symbol_map."""
+    for (sym_name, _line), sym in symbol_map.items():
+        if sym_name == handler_name and class_name in sym.full_name:
+            return sym.full_name
+    return None
+
+
+def _resolve_handler(arg_node, class_name: str, map_full_name: str | None, symbol_map: dict) -> str:
+    """Resolve a handler argument node to a full_name.
+
+    For identifier args: look up in symbol_map.
+    For lambda args: fall back to the enclosing Map method's full_name.
+    """
+    if arg_node is None:
+        return map_full_name or ""
+    child = _first_non_punctuation_child(arg_node)
+    if child is None:
+        return map_full_name or ""
+    if child.type == "identifier":
+        handler_name = node_text(child)
+        resolved = _lookup_handler_full_name(handler_name, class_name, symbol_map)
+        return resolved or map_full_name or ""
+    # Lambda or other expression — use Map method's full_name
+    return map_full_name or ""
 
 
 def _collect_attrs_with_args(node) -> list[tuple[str, str]]:
