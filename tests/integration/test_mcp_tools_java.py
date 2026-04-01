@@ -390,3 +390,43 @@ def test_execute_mutating_query_blocked(java_mcp: FastMCP) -> None:
         run(java_mcp.call_tool("execute_query", {
             "cypher": "CREATE (n:Fake) RETURN n"
         }))
+
+
+# ---------------------------------------------------------------------------
+# Inheritance and implementation edge assertions
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_java_inherits_edges(java_mcp: FastMCP) -> None:
+    """Dog class has an INHERITS edge to Animal class after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (child)-[:INHERITS]->(parent) "
+            "WHERE child.full_name CONTAINS 'Dog' AND parent.full_name CONTAINS 'Animal' "
+            "RETURN child.full_name, parent.full_name"
+        ),
+    }))
+    data = result_json(result)
+    assert isinstance(data, list) and len(data) >= 1, (
+        f"Expected Dog INHERITS Animal edge, got: {data}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_java_implements_edges(java_mcp: FastMCP) -> None:
+    """Animal class has an IMPLEMENTS edge to IAnimal interface after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (impl)-[:IMPLEMENTS]->(iface) "
+            "WHERE impl.full_name CONTAINS 'Animal' "
+            "AND NOT impl.full_name CONTAINS 'Service' "
+            "AND iface.full_name CONTAINS 'IAnimal' "
+            "RETURN impl.full_name, iface.full_name"
+        ),
+    }))
+    data = result_json(result)
+    assert isinstance(data, list) and len(data) >= 1, (
+        f"Expected Animal IMPLEMENTS IAnimal edge, got: {data}"
+    )
