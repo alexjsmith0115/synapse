@@ -7,6 +7,7 @@ from synapps.graph.connection import GraphConnection
 
 def upsert_repository(conn: GraphConnection, path: str, language: str) -> None:
     path = path.rstrip("/")
+    name = os.path.basename(path)
     conn.execute(
         "MERGE (n:Repository {path: $path}) "
         "WITH n, "
@@ -15,9 +16,9 @@ def upsert_repository(conn: GraphConnection, path: str, language: str) -> None:
         "WHEN NOT ($language IN n.languages) THEN n.languages + [$language] "
         "ELSE n.languages "
         "END AS langs "
-        "SET n.languages = langs, n.last_indexed = $ts "
+        "SET n.languages = langs, n.last_indexed = $ts, n.name = $name "
         "REMOVE n.language",
-        {"path": path, "language": language, "ts": _now()},
+        {"path": path, "language": language, "ts": _now(), "name": name},
     )
 
 
