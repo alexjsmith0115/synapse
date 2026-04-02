@@ -131,29 +131,19 @@ def _prompt_multiselect(
     pre_checked: set[str],
     prompt_label: str,
 ) -> list[str]:
-    """Show a numbered checklist with pre-checked defaults; return selected names."""
-    console.print(f"\n[bold]{prompt_label}[/bold]")
-    for i, (name, display) in enumerate(items, 1):
-        marker = "\\[x]" if name in pre_checked else "\\[ ]"
-        console.print(f"  {i}. {marker} {display}")
-    console.print("  Enter numbers to toggle, or press Enter to accept defaults")
-    console.print("  (e.g. '1 3' to toggle items 1 and 3)")
+    """Interactive checkbox menu with arrow keys and space to select."""
+    from InquirerPy import inquirer
 
-    raw = typer.prompt("Selection", default="")
-    selected = set(pre_checked)
-    if raw.strip():
-        for token in raw.replace(",", " ").split():
-            try:
-                idx = int(token) - 1
-                if 0 <= idx < len(items):
-                    name = items[idx][0]
-                    if name in selected:
-                        selected.discard(name)
-                    else:
-                        selected.add(name)
-            except (ValueError, IndexError):
-                pass
-    return [name for name, _ in items if name in selected]
+    choices = [
+        {"name": display, "value": name, "enabled": name in pre_checked}
+        for name, display in items
+    ]
+    selected = inquirer.checkbox(
+        message=prompt_label,
+        choices=choices,
+        instruction="(space to toggle, enter to confirm)",
+    ).execute()
+    return selected
 
 
 def _configure_agents(console, project_path: str) -> tuple[list[str], list[str], list[str]]:

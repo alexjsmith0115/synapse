@@ -224,13 +224,14 @@ def test_wizard_offers_mcp_config(tmp_path):
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     console = MagicMock()
 
+    mock_checkbox = MagicMock()
+    mock_checkbox.execute.return_value = ["claude"]
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[client]),
         patch("synapps.onboarding.init_wizard.write_mcp_config") as mock_write,
         patch("synapps.onboarding.agent_instructions.install_agent_instructions", return_value=[]),
-        # multiselect accepts defaults, then MCP=yes, hooks=no, instructions=no
-        patch("typer.prompt", return_value=""),
+        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
         patch("typer.confirm", side_effect=[True, False, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents
@@ -247,13 +248,14 @@ def test_wizard_skips_mcp_when_declined(tmp_path):
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     console = MagicMock()
 
+    mock_checkbox = MagicMock()
+    mock_checkbox.execute.return_value = ["claude"]
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[client]),
         patch("synapps.onboarding.init_wizard.write_mcp_config") as mock_write,
         patch("synapps.onboarding.agent_instructions.install_agent_instructions", return_value=[]),
-        # multiselect accepts defaults, then MCP=no, hooks=no, instructions=no
-        patch("typer.prompt", return_value=""),
+        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
         patch("typer.confirm", side_effect=[False, False, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents
@@ -601,25 +603,30 @@ def test_harness_multiselect_shows_all():
 
     console = MagicMock()
 
-    # Nothing pre-checked, accept defaults -> empty list
-    with patch("typer.prompt", return_value=""):
+    # User selects nothing -> empty list
+    mock_checkbox = MagicMock()
+    mock_checkbox.execute.return_value = []
+    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
         result = _prompt_multiselect(console, _ALL_HARNESSES, set(), "AI agent harnesses:")
     assert result == []
 
-    # Pre-check claude and copilot, accept defaults -> those two returned
-    with patch("typer.prompt", return_value=""):
+    # User keeps pre-checked claude and copilot -> those two returned
+    mock_checkbox.execute.return_value = ["claude", "copilot"]
+    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
         result = _prompt_multiselect(console, _ALL_HARNESSES, {"claude", "copilot"}, "AI agent harnesses:")
     assert sorted(result) == ["claude", "copilot"]
 
 
-def test_harness_multiselect_toggle():
+def test_harness_multiselect_select():
     from unittest.mock import MagicMock, patch
     from synapps.onboarding.init_wizard import _prompt_multiselect, _ALL_HARNESSES
 
     console = MagicMock()
 
-    # Pre-check claude (index 1), toggle "1 3" -> toggles claude off, copilot on
-    with patch("typer.prompt", return_value="1 3"):
+    # User selects only copilot
+    mock_checkbox = MagicMock()
+    mock_checkbox.execute.return_value = ["copilot"]
+    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
         result = _prompt_multiselect(console, _ALL_HARNESSES, {"claude"}, "AI agent harnesses:")
     assert result == ["copilot"]
 
@@ -640,6 +647,8 @@ def test_global_install_options_applied_to_all(tmp_path):
 
     console = MagicMock()
 
+    mock_checkbox = MagicMock()
+    mock_checkbox.execute.return_value = ["claude", "cursor"]
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent, cursor_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[claude_client, cursor_client]),
@@ -647,8 +656,7 @@ def test_global_install_options_applied_to_all(tmp_path):
         patch("synapps.hooks.config_upsert.upsert_claude_hook"),
         patch("synapps.hooks.config_upsert.upsert_cursor_hook"),
         patch("synapps.onboarding.agent_instructions.install_agent_instructions") as mock_install_instr,
-        # multiselect accepts defaults (claude + cursor pre-checked), then MCP=yes, hooks=yes, instructions=no
-        patch("typer.prompt", return_value=""),
+        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
         patch("typer.confirm", side_effect=[True, True, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents
