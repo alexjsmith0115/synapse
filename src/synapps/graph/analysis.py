@@ -209,18 +209,26 @@ _EXCLUDED_METHOD_NAMES = [
 
 # Framework decorator/attribute names that mark methods as entry points.
 # These are stored in the attributes JSON list on Method nodes.
+# IMPORTANT: Java annotations are stored lowercase (JavaAttributeExtractor uses .lower());
+# C# attributes are stored PascalCase (CSharpAttributeExtractor does NOT lowercase).
 _FRAMEWORK_ATTRIBUTES = [
-    # Python CLI/framework decorators
+    # Python CLI/framework decorators (already lowercase)
     "command", "tool", "callback",
-    # Java Spring annotations
-    "Bean", "PostConstruct", "PreDestroy", "EventListener", "Scheduled",
-    "RequestMapping", "GetMapping", "PostMapping", "PutMapping",
-    "DeleteMapping", "PatchMapping",
-    # Java test lifecycle
-    "BeforeEach", "AfterEach", "BeforeAll", "AfterAll",
-    # Python/Java serialization hooks
-    "PostLoad", "PrePersist", "PostPersist", "PreUpdate", "PostUpdate",
-    "PreRemove", "PostRemove",
+    # Java Spring annotations (lowercase — JavaAttributeExtractor stores as .lower())
+    "bean", "postconstruct", "predestroy", "eventlistener", "scheduled",
+    "requestmapping", "getmapping", "postmapping", "putmapping",
+    "deletemapping", "patchmapping",
+    # Java test lifecycle (lowercase)
+    "beforeeach", "aftereach", "beforeall", "afterall",
+    # Java/Python JPA hooks (lowercase for Java)
+    "postload", "prepersist", "postpersist", "preupdate", "postupdate",
+    "preremove", "postremove",
+    # C# attributes (PascalCase — C# extractor does NOT lowercase)
+    "ApiController",
+    "HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch",
+    # C# test attributes (PascalCase)
+    "TestMethod", "DataTestMethod", "Fact", "Theory",
+    "SetUp", "TearDown", "OneTimeSetUp", "OneTimeTearDown",
 ]
 
 
@@ -332,9 +340,11 @@ _VENDORED_PATH_PATTERN = (
     r"|.*[/\\]vendor[/\\].*"
     r"|.*[/\\]third_party[/\\].*"
     r"|.*[/\\]\.gradle[/\\].*"
+    r"|.*[/\\]static[/\\](?:js|lib|libs)[/\\].*"
     r"|.*\.min\.[jt]sx?$"
     r"|.*\.bundle\.[jt]sx?$"
     r"|.*\.chunk\.[jt]sx?$"
+    r"|.*[/\\](?:angular|vue|react|jquery|bootstrap|lodash|moment|axios)(?:-[\d.]+)?(?:\.min)?\.js$"
     r")"
 )
 
@@ -350,15 +360,17 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     - stats: {total_files, total_symbols, total_packages, total_endpoints, files_by_language}
     """
     # Query 1: Package breakdown (limited)
+    # Uses CONTAINS edges (written at index time) for correct file_count;
+    # returns p.full_name so agents see fully-qualified package names.
     pkg_rows = conn.query(
         "MATCH (p:Package) "
-        "OPTIONAL MATCH (f:File)-[:IMPORTS]->(p) "
-        "WITH p, count(DISTINCT f) AS file_count "
-        "OPTIONAL MATCH (s) "
-        "WHERE (s:Class OR s:Interface OR s:Method OR s:Property OR s:Field) "
-        "  AND s.full_name STARTS WITH (p.full_name + '.') "
-        "WITH p, file_count, count(DISTINCT s) AS symbol_count "
-        "RETURN p.name, file_count, symbol_count "
+        "OPTIONAL MATCH (p)-[:CONTAINS]->(fc) "
+        "WHERE fc:Class OR fc:Interface "
+        "WITH p, count(DISTINCT fc.file_path) AS file_count "
+        "OPTIONAL MATCH (p)-[:CONTAINS]->(sc) "
+        "WHERE sc:Class OR sc:Interface OR sc:Method OR sc:Property OR sc:Field "
+        "WITH p, file_count, count(DISTINCT sc) AS symbol_count "
+        "RETURN p.full_name, file_count, symbol_count "
         "ORDER BY symbol_count DESC "
         "LIMIT $max_packages",
         {"max_packages": max_packages},

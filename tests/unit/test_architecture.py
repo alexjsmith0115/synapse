@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -200,3 +201,47 @@ def test_stats_packages_shown_vs_total():
     result = get_architecture_overview(conn, max_packages=1)
     assert result["stats"]["total_packages"] == 5
     assert result["stats"]["packages_shown"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Regression: _VENDORED_PATH_PATTERN must match CDN library files
+# ---------------------------------------------------------------------------
+
+def test_vendored_pattern_matches_cdn_libraries():
+    """_VENDORED_PATH_PATTERN must catch popular CDN library files like angular.js."""
+    # Named CDN library files in static directories
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/static/js/angular.js")
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/src/main/resources/static/lib/vue.js")
+    # Minified files already covered
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/resources/static/jquery-3.6.0.min.js")
+    # static/js/ directory path
+    assert re.match(_VENDORED_PATH_PATTERN, "/project/static/js/some-lib.js")
+    # Non-vendored file should NOT match
+    assert not re.match(_VENDORED_PATH_PATTERN, "/app/src/main/java/com/example/MyClass.java")
+
+
+# ---------------------------------------------------------------------------
+# Regression: packages list must use full_name, not simple name
+# ---------------------------------------------------------------------------
+
+def test_packages_use_full_name():
+    """Package query must return p.full_name so agents see fully-qualified package names."""
+    pkg_rows = [("com.example.orderservice.service", 3, 15)]
+    conn = _conn_with_side_effects(pkg_rows, [[1]], [], [], [], [], [], [])
+    result = get_architecture_overview(conn)
+    assert result["packages"][0]["name"] == "com.example.orderservice.service"
+
+
+def test_package_query_uses_contains_edge():
+    """Package query must traverse [:CONTAINS] edges, not STARTS WITH string matching.
+
+    STARTS WITH fails for Java because Package nodes lack a '.' prefix convention;
+    CONTAINS edges are written at indexing time and are always correct.
+    """
+    conn = _conn_with_side_effects([], [], [], [], [], [], [], [])
+    get_architecture_overview(conn)
+    # First query call is the package query
+    pkg_cypher = conn.query.call_args_list[0].args[0]
+    assert "[:CONTAINS]" in pkg_cypher
+    assert "STARTS WITH" not in pkg_cypher
+    assert "p.full_name" in pkg_cypher

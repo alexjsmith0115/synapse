@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from synapps.graph.analysis import find_dead_code
+from synapps.graph.analysis import find_dead_code, _build_base_exclusion_where
 from synapps.graph.lookups import _TEST_PATH_PATTERN
 
 
@@ -282,18 +282,19 @@ def test_main_methods_excluded_via_cypher():
 
 
 # ---------------------------------------------------------------------------
-# Regression: Spring framework attributes excluded
+# Regression: Spring framework attributes excluded (now lowercase)
+# JavaAttributeExtractor stores annotations via .lower() so check must be lowercase.
 # ---------------------------------------------------------------------------
 
 def test_spring_attributes_excluded_via_cypher():
     conn = _conn_with_side_effects([], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
-    assert '"Bean"' in cypher
-    assert '"PostConstruct"' in cypher
-    assert '"RequestMapping"' in cypher
-    assert '"GetMapping"' in cypher
-    assert '"Scheduled"' in cypher
+    assert '"bean"' in cypher
+    assert '"postconstruct"' in cypher
+    assert '"requestmapping"' in cypher
+    assert '"getmapping"' in cypher
+    assert '"scheduled"' in cypher
 
 
 # ---------------------------------------------------------------------------
@@ -316,3 +317,26 @@ def test_limit_not_truncated_when_under():
     result = find_dead_code(conn, limit=100)
     assert len(result["methods"]) == 1
     assert result["stats"]["truncated"] is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: Java framework annotations must be stored as lowercase
+# (JavaAttributeExtractor stores annotations via .lower())
+# ---------------------------------------------------------------------------
+
+def test_framework_attributes_exclude_lowercase_java_annotations():
+    """_build_base_exclusion_where must contain lowercase Java annotations.
+
+    JavaAttributeExtractor stores attributes via .lower(), so the CONTAINS check
+    must use lowercase strings to match Spring/JPA annotations.
+    C# attributes remain PascalCase since the C# extractor does NOT lowercase.
+    """
+    where = _build_base_exclusion_where()
+    # Java Spring annotations — must be lowercase
+    assert '"bean"' in where
+    assert '"getmapping"' in where
+    assert '"postmapping"' in where
+    assert '"requestmapping"' in where
+    assert '"scheduled"' in where
+    # C# attributes — must remain PascalCase
+    assert '"ApiController"' in where
