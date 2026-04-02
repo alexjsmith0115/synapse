@@ -224,14 +224,13 @@ def test_wizard_offers_mcp_config(tmp_path):
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     console = MagicMock()
 
-    mock_checkbox = MagicMock()
-    mock_checkbox.execute.return_value = ["claude"]
+    select_mocks = _mock_select_sequence(["__continue__"])
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[client]),
         patch("synapps.onboarding.init_wizard.write_mcp_config") as mock_write,
         patch("synapps.onboarding.agent_instructions.install_agent_instructions", return_value=[]),
-        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
+        patch("InquirerPy.inquirer.select", side_effect=select_mocks),
         patch("typer.confirm", side_effect=[True, False, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents
@@ -248,14 +247,13 @@ def test_wizard_skips_mcp_when_declined(tmp_path):
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     console = MagicMock()
 
-    mock_checkbox = MagicMock()
-    mock_checkbox.execute.return_value = ["claude"]
+    select_mocks = _mock_select_sequence(["__continue__"])
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[client]),
         patch("synapps.onboarding.init_wizard.write_mcp_config") as mock_write,
         patch("synapps.onboarding.agent_instructions.install_agent_instructions", return_value=[]),
-        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
+        patch("InquirerPy.inquirer.select", side_effect=select_mocks),
         patch("typer.confirm", side_effect=[False, False, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents
@@ -597,36 +595,45 @@ class TestInitWizardHookOffer:
 # _prompt_multiselect
 # ---------------------------------------------------------------------------
 
+def _mock_select_sequence(values):
+    """Create a mock that returns values sequentially for inquirer.select calls."""
+    from unittest.mock import MagicMock
+    mocks = []
+    for v in values:
+        m = MagicMock()
+        m.execute.return_value = v
+        mocks.append(m)
+    return mocks
+
+
 def test_harness_multiselect_shows_all():
     from unittest.mock import MagicMock, patch
     from synapps.onboarding.init_wizard import _prompt_multiselect, _ALL_HARNESSES
 
     console = MagicMock()
 
-    # User selects nothing -> empty list
-    mock_checkbox = MagicMock()
-    mock_checkbox.execute.return_value = []
-    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
+    # Nothing pre-checked, user hits Continue immediately -> empty list
+    mocks = _mock_select_sequence(["__continue__"])
+    with patch("InquirerPy.inquirer.select", side_effect=mocks):
         result = _prompt_multiselect(console, _ALL_HARNESSES, set(), "AI agent harnesses:")
     assert result == []
 
-    # User keeps pre-checked claude and copilot -> those two returned
-    mock_checkbox.execute.return_value = ["claude", "copilot"]
-    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
+    # Pre-checked claude and copilot, user hits Continue -> those two returned
+    mocks = _mock_select_sequence(["__continue__"])
+    with patch("InquirerPy.inquirer.select", side_effect=mocks):
         result = _prompt_multiselect(console, _ALL_HARNESSES, {"claude", "copilot"}, "AI agent harnesses:")
     assert sorted(result) == ["claude", "copilot"]
 
 
-def test_harness_multiselect_select():
+def test_harness_multiselect_toggle():
     from unittest.mock import MagicMock, patch
     from synapps.onboarding.init_wizard import _prompt_multiselect, _ALL_HARNESSES
 
     console = MagicMock()
 
-    # User selects only copilot
-    mock_checkbox = MagicMock()
-    mock_checkbox.execute.return_value = ["copilot"]
-    with patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox):
+    # Pre-checked claude, user toggles claude off then copilot on, then Continue
+    mocks = _mock_select_sequence(["claude", "copilot", "__continue__"])
+    with patch("InquirerPy.inquirer.select", side_effect=mocks):
         result = _prompt_multiselect(console, _ALL_HARNESSES, {"claude"}, "AI agent harnesses:")
     assert result == ["copilot"]
 
@@ -647,8 +654,7 @@ def test_global_install_options_applied_to_all(tmp_path):
 
     console = MagicMock()
 
-    mock_checkbox = MagicMock()
-    mock_checkbox.execute.return_value = ["claude", "cursor"]
+    select_mocks = _mock_select_sequence(["__continue__"])
     with (
         patch("synapps.hooks.detector.detect_agents", return_value=[claude_agent, cursor_agent]),
         patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[claude_client, cursor_client]),
@@ -656,7 +662,7 @@ def test_global_install_options_applied_to_all(tmp_path):
         patch("synapps.hooks.config_upsert.upsert_claude_hook"),
         patch("synapps.hooks.config_upsert.upsert_cursor_hook"),
         patch("synapps.onboarding.agent_instructions.install_agent_instructions") as mock_install_instr,
-        patch("InquirerPy.inquirer.checkbox", return_value=mock_checkbox),
+        patch("InquirerPy.inquirer.select", side_effect=select_mocks),
         patch("typer.confirm", side_effect=[True, True, False]),
     ):
         from synapps.onboarding.init_wizard import _configure_agents

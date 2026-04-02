@@ -131,19 +131,35 @@ def _prompt_multiselect(
     pre_checked: set[str],
     prompt_label: str,
 ) -> list[str]:
-    """Interactive checkbox menu with arrow keys and space to select."""
+    """Interactive list menu — enter toggles items, 'Continue' advances."""
     from InquirerPy import inquirer
+    from InquirerPy.separator import Separator
 
-    choices = [
-        {"name": display, "value": name, "enabled": name in pre_checked}
-        for name, display in items
-    ]
-    selected = inquirer.checkbox(
-        message=prompt_label,
-        choices=choices,
-        instruction="(space to toggle, enter to confirm)",
-    ).execute()
-    return selected
+    enabled = set(pre_checked)
+    _CONTINUE = "__continue__"
+
+    while True:
+        choices = []
+        for name, display in items:
+            marker = "x" if name in enabled else " "
+            choices.append({"name": f"[{marker}] {display}", "value": name})
+        choices.append(Separator())
+        choices.append({"name": "Continue", "value": _CONTINUE})
+
+        picked = inquirer.select(
+            message=prompt_label,
+            choices=choices,
+            instruction="(enter to toggle, select Continue when done)",
+        ).execute()
+
+        if picked == _CONTINUE:
+            break
+        if picked in enabled:
+            enabled.discard(picked)
+        else:
+            enabled.add(picked)
+
+    return [name for name, _ in items if name in enabled]
 
 
 def _configure_agents(console, project_path: str) -> tuple[list[str], list[str], list[str]]:
