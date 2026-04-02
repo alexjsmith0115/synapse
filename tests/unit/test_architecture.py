@@ -17,8 +17,18 @@ def _conn_with_side_effects(*query_results):
 
 
 def _empty_conn():
-    """Return a mock GraphConnection where all queries return empty lists (8 queries)."""
-    return _conn_with_side_effects([], [], [], [], [], [], [], [])
+    """Return a mock GraphConnection where all queries return empty lists (7 queries).
+
+    Query order after BUG-06 fix (client calls query removed):
+      1. packages
+      2. total package count
+      3. hotspots
+      4. serves (HTTP server-side endpoints)
+      5. files by language
+      6. total symbol count
+      7. total endpoint count
+    """
+    return _conn_with_side_effects([], [], [], [], [], [], [])
 
 
 # ---------------------------------------------------------------------------
@@ -162,19 +172,22 @@ def test_http_service_map_serves_direction():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: HTTP service map HTTP_CALLS entries have direction="calls"
+# Test 10: HTTP service map does NOT include client-side HTTP_CALLS entries
+# (BUG-06 fix: client calls query removed to avoid noise from test HTTP clients)
 # ---------------------------------------------------------------------------
 
 def test_http_service_map_calls_direction():
-    # Rows for calls query: (route, http_method, caller_full_name, file_path)
-    calls_rows = [("POST /external/api", "POST", "MyApp.HttpClient.Post", "/src/Client.cs")]
-    conn = _conn_with_side_effects([], [], [], [], calls_rows, [], [], [])
+    """After BUG-06 fix, http_service_map must not include direction='calls' entries.
+
+    The old Query 4 (HTTP_CALLS client-side lookup) was removed because test
+    HTTP clients populated the architecture map with integration-test originated URLs.
+    """
+    conn = _empty_conn()
     result = get_architecture_overview(conn)
     calls_entries = [e for e in result["http_service_map"] if e["direction"] == "calls"]
-    assert len(calls_entries) == 1
-    entry = calls_entries[0]
-    assert entry["direction"] == "calls"
-    assert entry["route"] == "POST /external/api"
+    assert len(calls_entries) == 0, (
+        "http_service_map must not contain direction='calls' entries after BUG-06 fix"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +195,10 @@ def test_http_service_map_calls_direction():
 # ---------------------------------------------------------------------------
 
 def test_stats_files_by_language():
-    # Query 6 (files by language): rows are (language, count)
+    # Query 5 (files by language, after BUG-06 removed Query 4 client calls):
+    # rows are (language, count)
     lang_rows = [("csharp", 10), ("python", 5)]
-    conn = _conn_with_side_effects([], [], [], [], [], lang_rows, [], [])
+    conn = _conn_with_side_effects([], [], [], [], lang_rows, [], [])
     result = get_architecture_overview(conn)
     assert result["stats"]["files_by_language"] == {"csharp": 10, "python": 5}
     assert result["stats"]["total_files"] == 15

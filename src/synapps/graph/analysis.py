@@ -260,7 +260,7 @@ def _build_base_exclusion_where() -> str:
     )
 
 
-def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int = 200) -> dict:
+def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:
     """Query for methods with zero inbound CALLS, excluding test/framework/infra methods."""
     exclude_pattern = _ensure_full_match_regex(exclude_pattern)
     base_where = _build_base_exclusion_where()
@@ -286,20 +286,21 @@ def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int 
     ]
     total_methods = total_rows[0][0] if total_rows else 0
     dead_count = len(all_methods)
-    truncated = dead_count > limit
+    truncated = dead_count > offset + limit
     return {
-        "methods": all_methods[:limit],
+        "methods": all_methods[offset:offset + limit],
         "stats": {
             "total_methods": total_methods,
             "dead_count": dead_count,
             "dead_ratio": round(dead_count / total_methods, 4) if total_methods else 0.0,
             "truncated": truncated,
             "limit": limit,
+            "offset": offset,
         },
     }
 
 
-def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int = 200) -> dict:
+def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:
     """Query for production methods with no inbound TESTS edges."""
     exclude_pattern = _ensure_full_match_regex(exclude_pattern)
     base_where = _build_base_exclusion_where()
@@ -325,15 +326,16 @@ def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int =
     ]
     total_methods = total_rows[0][0] if total_rows else 0
     untested_count = len(all_methods)
-    truncated = untested_count > limit
+    truncated = untested_count > offset + limit
     return {
-        "methods": all_methods[:limit],
+        "methods": all_methods[offset:offset + limit],
         "stats": {
             "total_methods": total_methods,
             "untested_count": untested_count,
             "untested_ratio": round(untested_count / total_methods, 4) if total_methods else 0.0,
             "truncated": truncated,
             "limit": limit,
+            "offset": offset,
         },
     }
 
@@ -414,22 +416,6 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
         for r in serves_rows
     ]
 
-    # Query 4: Client-only HTTP calls (limited)
-    remaining = max(max_endpoints - len(serves), 0)
-    calls: list[dict] = []
-    if remaining > 0:
-        calls_rows = conn.query(
-            "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
-            "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
-            "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path "
-            "LIMIT $lim",
-            {"lim": remaining},
-        )
-        calls = [
-            {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
-            for r in calls_rows
-        ]
-
     # Query 5: File count by language
     lang_rows = conn.query(
         "MATCH (f:File) WHERE f.language IS NOT NULL "
@@ -438,9 +424,10 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     files_by_language = {r[0]: r[1] for r in lang_rows}
     total_files = sum(files_by_language.values())
 
-    # Query 6: Total symbol count
+    # Query 6: Total symbol count — includes Package and Endpoint to match list_projects
     symbol_count_rows = conn.query(
         "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field "
+        "OR s:Package OR s:Endpoint "
         "RETURN count(s)"
     )
     total_symbols = symbol_count_rows[0][0] if symbol_count_rows else 0
@@ -454,14 +441,14 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     return {
         "packages": packages,
         "hotspots": hotspots,
-        "http_service_map": serves + calls,
+        "http_service_map": serves,
         "stats": {
             "total_files": total_files,
             "total_symbols": total_symbols,
             "total_packages": total_packages,
             "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
-            "endpoints_shown": len(serves) + len(calls),
+            "endpoints_shown": len(serves),
             "files_by_language": files_by_language,
         },
     }

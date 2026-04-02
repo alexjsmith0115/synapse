@@ -470,7 +470,8 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def find_dead_code(
         path: str,
         exclude_pattern: str = "",
-        limit: int = 200,
+        limit: int = 15,
+        offset: int = 0,
     ) -> dict:
         """[Experimental] Find methods with zero inbound callers (dead code candidates) in an indexed project.
 
@@ -491,11 +492,12 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
-        limit: max number of dead methods to return (default 200). Stats always reflect full count.
-        Returns {methods: [{full_name, file_path, line, inbound_call_count}], stats: {total_methods, dead_count, dead_ratio, truncated, limit}}.
+        limit: max number of dead methods to return per page (default 15). Stats always reflect full count.
+        offset: number of methods to skip for pagination (default 0).
+        Returns {methods: [{full_name, file_path, line, inbound_call_count}], stats: {total_methods, dead_count, dead_ratio, truncated, limit, offset}}.
         """
         _auto_sync_check()
-        return service.find_dead_code(exclude_pattern=exclude_pattern, limit=limit)
+        return service.find_dead_code(exclude_pattern=exclude_pattern, limit=limit, offset=offset)
 
     @mcp.tool()
     def find_tests_for(
@@ -522,7 +524,8 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def find_untested(
         path: str,
         exclude_pattern: str = "",
-        limit: int = 200,
+        limit: int = 15,
+        offset: int = 0,
     ) -> dict:
         """[Experimental] Find production methods with no inbound TESTS edges (not directly covered by any test).
 
@@ -543,10 +546,11 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
-        limit: max number of untested methods to return (default 200). Stats always reflect full count.
-        Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio, truncated, limit}}.
+        limit: max number of untested methods to return per page (default 15). Stats always reflect full count.
+        offset: number of methods to skip for pagination (default 0).
+        Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio, truncated, limit, offset}}.
         """
         _auto_sync_check()
-        return service.find_untested(exclude_pattern=exclude_pattern, limit=limit)
+        return service.find_untested(exclude_pattern=exclude_pattern, limit=limit, offset=offset)
 
 
