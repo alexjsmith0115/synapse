@@ -237,6 +237,7 @@ def _build_base_exclusion_where() -> str:
         "AND NOT ()-[:IMPLEMENTS]->(m) "
         "AND NOT ()-[:DISPATCHES_TO]->(m) "
         "AND NOT (m)-[:OVERRIDES]->() "
+        "AND NOT coalesce(m.attributes, '[]') CONTAINS '\"override\"' "
         "AND NOT (m)<-[:CONTAINS]-(:Interface) "
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
