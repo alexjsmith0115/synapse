@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from synapps.graph.analysis import find_dead_code, _build_base_exclusion_where
+from synapps.graph.analysis import find_dead_code, find_untested, _build_base_exclusion_where
 from synapps.graph.lookups import _TEST_PATH_PATTERN
 
 
@@ -21,7 +21,7 @@ def test_returns_methods_and_stats_keys():
     conn = _conn_with_side_effects([], [(0,)])
     result = find_dead_code(conn)
     assert set(result.keys()) == {"methods", "stats"}
-    assert set(result["stats"].keys()) == {"total_methods", "dead_count", "dead_ratio", "truncated", "limit"}
+    assert set(result["stats"].keys()) == {"total_methods", "dead_count", "dead_ratio", "truncated", "limit", "offset"}
 
 
 # ---------------------------------------------------------------------------
@@ -340,3 +340,79 @@ def test_framework_attributes_exclude_lowercase_java_annotations():
     assert '"scheduled"' in where
     # C# attributes — must remain PascalCase
     assert '"ApiController"' in where
+
+
+# ---------------------------------------------------------------------------
+# BUG-07: Default limit must be 15 (not 200)
+# ---------------------------------------------------------------------------
+
+def test_find_dead_code_default_limit_is_15():
+    """find_dead_code default limit parameter must be 15."""
+    import inspect
+    sig = inspect.signature(find_dead_code)
+    assert sig.parameters["limit"].default == 15, (
+        f"Expected default limit=15, got {sig.parameters['limit'].default}"
+    )
+
+
+def test_find_untested_default_limit_is_15():
+    """find_untested default limit parameter must be 15."""
+    import inspect
+    sig = inspect.signature(find_untested)
+    assert sig.parameters["limit"].default == 15, (
+        f"Expected default limit=15, got {sig.parameters['limit'].default}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BUG-07: offset parameter for pagination
+# ---------------------------------------------------------------------------
+
+def _dead_rows(count: int):
+    """Generate count fake dead method rows."""
+    return [(f"Ns.Method{i}", f"/src/file{i}.cs", i) for i in range(count)]
+
+
+def test_find_dead_code_offset_paginates():
+    """With 20 methods and offset=5, limit=5, should return items 5-9."""
+    rows = _dead_rows(20)
+    conn = _conn_with_side_effects(rows, [(50,)])
+    result = find_dead_code(conn, offset=5, limit=5)
+    returned_names = [m["full_name"] for m in result["methods"]]
+    expected_names = [f"Ns.Method{i}" for i in range(5, 10)]
+    assert returned_names == expected_names
+
+
+def test_find_dead_code_offset_in_stats():
+    """Stats dict must contain 'offset' key reflecting the requested offset."""
+    conn = _conn_with_side_effects(_dead_rows(5), [(10,)])
+    result = find_dead_code(conn, offset=2, limit=3)
+    assert "offset" in result["stats"], "Stats dict missing 'offset' key"
+    assert result["stats"]["offset"] == 2
+
+
+def test_find_dead_code_offset_zero_is_default():
+    """Default offset=0 means first page."""
+    import inspect
+    sig = inspect.signature(find_dead_code)
+    assert "offset" in sig.parameters, "find_dead_code missing 'offset' parameter"
+    assert sig.parameters["offset"].default == 0
+
+
+def test_find_untested_offset_paginates():
+    """With 20 methods and offset=5, limit=5, find_untested returns items 5-9."""
+    rows = [(f"Ns.Method{i}", f"/src/file{i}.cs", i) for i in range(20)]
+    conn = _conn_with_side_effects(rows, [(50,)])
+    result = find_untested(conn, offset=5, limit=5)
+    returned_names = [m["full_name"] for m in result["methods"]]
+    expected_names = [f"Ns.Method{i}" for i in range(5, 10)]
+    assert returned_names == expected_names
+
+
+def test_find_untested_offset_in_stats():
+    """find_untested stats dict must contain 'offset' key."""
+    rows = [(f"Ns.M{i}", f"/f{i}.cs", i) for i in range(3)]
+    conn = _conn_with_side_effects(rows, [(10,)])
+    result = find_untested(conn, offset=1, limit=2)
+    assert "offset" in result["stats"], "Stats dict missing 'offset' key"
+    assert result["stats"]["offset"] == 1

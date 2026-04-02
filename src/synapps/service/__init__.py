@@ -485,8 +485,8 @@ class SynappsService:
     def get_architecture_overview(self, limit: int = 10) -> dict:
         return get_architecture_overview(self._conn, limit=limit)
 
-    def find_dead_code(self, exclude_pattern: str = "", limit: int = 200) -> dict:
-        return find_dead_code(self._conn, exclude_pattern=exclude_pattern, limit=limit)
+    def find_dead_code(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:
+        return find_dead_code(self._conn, exclude_pattern=exclude_pattern, limit=limit, offset=offset)
 
     def find_tests_for(self, method_full_name: str) -> list[dict]:
         method_full_name = self._resolve(method_full_name)
@@ -495,6 +495,6 @@ class SynappsService:
             result = query_find_test_coverage(self._conn, method_full_name)
         return result
 
-    def find_untested(self, exclude_pattern: str = "", limit: int = 200) -> dict:
-        return find_untested(self._conn, exclude_pattern=exclude_pattern, limit=limit)
+    def find_untested(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:
+        return find_untested(self._conn, exclude_pattern=exclude_pattern, limit=limit, offset=offset)
 
