@@ -119,3 +119,20 @@ def test_resolve_not_found_raises_without_suggestions() -> None:
     svc = SynappsService(conn)
     with pytest.raises(ValueError, match="Symbol not found"):
         svc._resolve("createOrder")
+
+
+def test_suggest_similar_names_filters_none_full_names() -> None:
+    """Regression: suggest_similar_names query must include n.full_name IS NOT NULL guard.
+
+    Repository/Directory/File nodes have a name but no full_name property.
+    Without this guard those nodes can return NULL rows that break the caller's join().
+    """
+    conn = MagicMock()
+    # Simulate a node with null full_name sneaking through (pre-fix behaviour)
+    conn.query.return_value = [[None], ["com.example.Foo"]]
+    result = suggest_similar_names(conn, "Foo")
+    # Verify the query-level guard is present
+    cypher = conn.query.call_args[0][0]
+    assert "n.full_name IS NOT NULL" in cypher
+    # The returned list must contain no None entries (belt-and-suspenders)
+    assert None not in result

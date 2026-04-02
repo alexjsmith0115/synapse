@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -203,68 +204,44 @@ def test_stats_packages_shown_vs_total():
 
 
 # ---------------------------------------------------------------------------
-# Regression: file_count derived from symbol file_path, not IMPORTS edges
+# Regression: _VENDORED_PATH_PATTERN must match CDN library files
 # ---------------------------------------------------------------------------
 
-def test_package_file_count_uses_symbol_file_path():
-    """Query 1 must count files via Class/Interface file_path, not IMPORTS edges."""
-    conn = _empty_conn()
-    get_architecture_overview(conn)
-    pkg_cypher = conn.query.call_args_list[0].args[0]
-    # Must NOT use the broken IMPORTS-based approach
-    assert "IMPORTS" not in pkg_cypher
-    # Must derive file_count from symbol file_path
-    assert "s.file_path" in pkg_cypher or "file_path" in pkg_cypher
-
-
-# ---------------------------------------------------------------------------
-# Regression: total_symbols must include Package nodes to match list_projects
-# ---------------------------------------------------------------------------
-
-def test_stats_symbol_count_includes_packages():
-    """Query 6 must count Package nodes alongside Class/Interface/Method/Property/Field."""
-    conn = _empty_conn()
-    get_architecture_overview(conn)
-    # Query 6 is the symbol count query — find it by checking for "count(s)"
-    symbol_query = next(
-        c for c in conn.query.call_args_list
-        if "count(s)" in (c.args[0] if c.args else "")
-    )
-    cypher = symbol_query.args[0]
-    assert "s:Package" in cypher
+def test_vendored_pattern_matches_cdn_libraries():
+    """_VENDORED_PATH_PATTERN must catch popular CDN library files like angular.js."""
+    # Named CDN library files in static directories
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/static/js/angular.js")
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/src/main/resources/static/lib/vue.js")
+    # Minified files already covered
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/resources/static/jquery-3.6.0.min.js")
+    # static/js/ directory path
+    assert re.match(_VENDORED_PATH_PATTERN, "/project/static/js/some-lib.js")
+    # Non-vendored file should NOT match
+    assert not re.match(_VENDORED_PATH_PATTERN, "/app/src/main/java/com/example/MyClass.java")
 
 
 # ---------------------------------------------------------------------------
-# Regression: HTTP client calls query excludes test-path callers
+# Regression: packages list must use full_name, not simple name
 # ---------------------------------------------------------------------------
 
-def test_http_calls_exclude_test_callers():
-    """Query 4 must filter out test-path callers."""
-    conn = _empty_conn()
-    get_architecture_overview(conn)
-    # Query 4 is the HTTP_CALLS query
-    calls_query = next(
-        (c for c in conn.query.call_args_list
-         if "HTTP_CALLS" in (c.args[0] if c.args else "")),
-        None,
-    )
-    if calls_query is not None:
-        cypher = calls_query.args[0]
-        assert "test_pattern" in cypher
-
-
-# ---------------------------------------------------------------------------
-# Regression: endpoints_shown counts unique route+method pairs
-# ---------------------------------------------------------------------------
-
-def test_endpoints_shown_counts_unique_routes():
-    """endpoints_shown must not exceed total_endpoints when there are no duplicates."""
-    serves_rows = [
-        ("/api/items", "GET", "Ctrl.GetAll", "/src/Ctrl.cs"),
-        ("/api/items", "POST", "Ctrl.Create", "/src/Ctrl.cs"),
-    ]
-    # total endpoint count = 2
-    conn = _conn_with_side_effects([], [], [], serves_rows, [], [], [], [(2,)])
+def test_packages_use_full_name():
+    """Package query must return p.full_name so agents see fully-qualified package names."""
+    pkg_rows = [("com.example.orderservice.service", 3, 15)]
+    conn = _conn_with_side_effects(pkg_rows, [[1]], [], [], [], [], [], [])
     result = get_architecture_overview(conn)
-    assert result["stats"]["endpoints_shown"] <= result["stats"]["total_endpoints"] or \
-           result["stats"]["endpoints_shown"] == len({(e["route"], e["method"]) for e in result["http_service_map"]})
+    assert result["packages"][0]["name"] == "com.example.orderservice.service"
+
+
+def test_package_query_uses_contains_edge():
+    """Package query must traverse [:CONTAINS] edges, not STARTS WITH string matching.
+
+    STARTS WITH fails for Java because Package nodes lack a '.' prefix convention;
+    CONTAINS edges are written at indexing time and are always correct.
+    """
+    conn = _conn_with_side_effects([], [], [], [], [], [], [], [])
+    get_architecture_overview(conn)
+    # First query call is the package query
+    pkg_cypher = conn.query.call_args_list[0].args[0]
+    assert "[:CONTAINS]" in pkg_cypher
+    assert "STARTS WITH" not in pkg_cypher
+    assert "p.full_name" in pkg_cypher

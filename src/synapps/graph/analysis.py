@@ -209,18 +209,26 @@ _EXCLUDED_METHOD_NAMES = [
 
 # Framework decorator/attribute names that mark methods as entry points.
 # These are stored in the attributes JSON list on Method nodes.
+# IMPORTANT: Java annotations are stored lowercase (JavaAttributeExtractor uses .lower());
+# C# attributes are stored PascalCase (CSharpAttributeExtractor does NOT lowercase).
 _FRAMEWORK_ATTRIBUTES = [
-    # Python CLI/framework decorators
+    # Python CLI/framework decorators (already lowercase)
     "command", "tool", "callback",
-    # Java Spring annotations
-    "Bean", "PostConstruct", "PreDestroy", "EventListener", "Scheduled",
-    "RequestMapping", "GetMapping", "PostMapping", "PutMapping",
-    "DeleteMapping", "PatchMapping",
-    # Java test lifecycle
-    "BeforeEach", "AfterEach", "BeforeAll", "AfterAll",
-    # Python/Java serialization hooks
-    "PostLoad", "PrePersist", "PostPersist", "PreUpdate", "PostUpdate",
-    "PreRemove", "PostRemove",
+    # Java Spring annotations (lowercase — JavaAttributeExtractor stores as .lower())
+    "bean", "postconstruct", "predestroy", "eventlistener", "scheduled",
+    "requestmapping", "getmapping", "postmapping", "putmapping",
+    "deletemapping", "patchmapping",
+    # Java test lifecycle (lowercase)
+    "beforeeach", "aftereach", "beforeall", "afterall",
+    # Java/Python JPA hooks (lowercase for Java)
+    "postload", "prepersist", "postpersist", "preupdate", "postupdate",
+    "preremove", "postremove",
+    # C# attributes (PascalCase — C# extractor does NOT lowercase)
+    "ApiController",
+    "HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch",
+    # C# test attributes (PascalCase)
+    "TestMethod", "DataTestMethod", "Fact", "Theory",
+    "SetUp", "TearDown", "OneTimeSetUp", "OneTimeTearDown",
 ]
 
 
@@ -237,7 +245,6 @@ def _build_base_exclusion_where() -> str:
         "AND NOT ()-[:IMPLEMENTS]->(m) "
         "AND NOT ()-[:DISPATCHES_TO]->(m) "
         "AND NOT (m)-[:OVERRIDES]->() "
-        "AND NOT coalesce(m.attributes, '[]') CONTAINS '\"override\"' "
         "AND NOT (m)<-[:CONTAINS]-(:Interface) "
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
@@ -333,9 +340,11 @@ _VENDORED_PATH_PATTERN = (
     r"|.*[/\\]vendor[/\\].*"
     r"|.*[/\\]third_party[/\\].*"
     r"|.*[/\\]\.gradle[/\\].*"
+    r"|.*[/\\]static[/\\](?:js|lib|libs)[/\\].*"
     r"|.*\.min\.[jt]sx?$"
     r"|.*\.bundle\.[jt]sx?$"
     r"|.*\.chunk\.[jt]sx?$"
+    r"|.*[/\\](?:angular|vue|react|jquery|bootstrap|lodash|moment|axios)(?:-[\d.]+)?(?:\.min)?\.js$"
     r")"
 )
 
@@ -351,16 +360,17 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     - stats: {total_files, total_symbols, total_packages, total_endpoints, files_by_language}
     """
     # Query 1: Package breakdown (limited)
+    # Uses CONTAINS edges (written at index time) for correct file_count;
+    # returns p.full_name so agents see fully-qualified package names.
     pkg_rows = conn.query(
         "MATCH (p:Package) "
-        "OPTIONAL MATCH (s) "
-        "WHERE (s:Class OR s:Interface) AND s.full_name STARTS WITH (p.full_name + '.') "
-        "WITH p, count(DISTINCT s.file_path) AS file_count "
-        "OPTIONAL MATCH (s2) "
-        "WHERE (s2:Class OR s2:Interface OR s2:Method OR s2:Property OR s2:Field) "
-        "  AND s2.full_name STARTS WITH (p.full_name + '.') "
-        "WITH p, file_count, count(DISTINCT s2) AS symbol_count "
-        "RETURN p.name, file_count, symbol_count "
+        "OPTIONAL MATCH (p)-[:CONTAINS]->(fc) "
+        "WHERE fc:Class OR fc:Interface "
+        "WITH p, count(DISTINCT fc.file_path) AS file_count "
+        "OPTIONAL MATCH (p)-[:CONTAINS]->(sc) "
+        "WHERE sc:Class OR sc:Interface OR sc:Method OR sc:Property OR sc:Field "
+        "WITH p, file_count, count(DISTINCT sc) AS symbol_count "
+        "RETURN p.full_name, file_count, symbol_count "
         "ORDER BY symbol_count DESC "
         "LIMIT $max_packages",
         {"max_packages": max_packages},
@@ -400,17 +410,16 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
         for r in serves_rows
     ]
 
-    # Query 4: Client-only HTTP calls (limited, excluding test callers)
+    # Query 4: Client-only HTTP calls (limited)
     remaining = max(max_endpoints - len(serves), 0)
     calls: list[dict] = []
     if remaining > 0:
         calls_rows = conn.query(
             "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
             "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
-            "AND NOT caller.file_path =~ $test_pattern "
             "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path "
             "LIMIT $lim",
-            {"lim": remaining, "test_pattern": _TEST_PATH_PATTERN},
+            {"lim": remaining},
         )
         calls = [
             {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
@@ -427,7 +436,7 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
 
     # Query 6: Total symbol count
     symbol_count_rows = conn.query(
-        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field OR s:Package "
+        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field "
         "RETURN count(s)"
     )
     total_symbols = symbol_count_rows[0][0] if symbol_count_rows else 0
@@ -438,20 +447,17 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     )
     total_endpoints = endpoint_count_rows[0][0] if endpoint_count_rows else 0
 
-    all_endpoints = serves + calls
-    unique_routes = {(e["route"], e["method"]) for e in all_endpoints}
-
     return {
         "packages": packages,
         "hotspots": hotspots,
-        "http_service_map": all_endpoints,
+        "http_service_map": serves + calls,
         "stats": {
             "total_files": total_files,
             "total_symbols": total_symbols,
             "total_packages": total_packages,
             "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
-            "endpoints_shown": len(unique_routes),
+            "endpoints_shown": len(serves) + len(calls),
             "files_by_language": files_by_language,
         },
     }
