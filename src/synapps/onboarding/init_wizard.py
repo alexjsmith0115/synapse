@@ -132,6 +132,7 @@ def _prompt_multiselect(
     prompt_label: str,
 ) -> list[str]:
     """Interactive list menu — enter toggles items, 'Continue' advances."""
+    import sys
     from InquirerPy import inquirer
     from InquirerPy.separator import Separator
 
@@ -158,6 +159,9 @@ def _prompt_multiselect(
             enabled.discard(picked)
         else:
             enabled.add(picked)
+        # Erase the "? prompt: answer" line InquirerPy prints after selection
+        sys.stdout.write("\033[A\033[2K")
+        sys.stdout.flush()
 
     return [name for name, _ in items if name in enabled]
 
