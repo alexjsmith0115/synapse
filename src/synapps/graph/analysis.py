@@ -223,6 +223,9 @@ _FRAMEWORK_ATTRIBUTES = [
     # Java/Python JPA hooks (lowercase for Java)
     "postload", "prepersist", "postpersist", "preupdate", "postupdate",
     "preremove", "postremove",
+    # Java @Override — catches external framework overrides (gRPC, etc.)
+    # where OVERRIDES edges cannot be created because the base class is not indexed
+    "override",
     # C# attributes (PascalCase — C# extractor does NOT lowercase)
     "ApiController",
     "HttpGet", "HttpPost", "HttpPut", "HttpDelete", "HttpPatch",
@@ -249,8 +252,9 @@ def _build_base_exclusion_where() -> str:
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
         "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name = 'Configure' AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
-        "WHERE cfg:Class AND cfg.name ENDS WITH 'Configuration' }) "
+        "AND NOT (m.name IN ['configure', 'Configure'] AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
+        "WHERE cfg:Class AND (cfg.name ENDS WITH 'Configuration' "
+        "OR cfg.name ENDS WITH 'Configurer' OR cfg.name ENDS WITH 'Adapter') }) "
         f"AND NOT ({attr_checks}) "
         "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
     )
