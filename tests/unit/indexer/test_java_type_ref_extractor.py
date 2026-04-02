@@ -242,3 +242,63 @@ public class MyClass {
     animal_refs = [r for r in results if r.type_name == "Animal"]
     assert len(animal_refs) >= 1
     assert animal_refs[0].owner_full_name == "com.example.MyClass.greet"
+
+
+# ---------------------------------------------------------------------------
+# @Autowired field type ref extraction (Issue #2)
+# ---------------------------------------------------------------------------
+
+
+def test_autowired_field_type_ref_has_owner_class(extractor):
+    """@Autowired field type refs must carry the containing class as owner_full_name.
+
+    When class_lines is populated with the class scope, JavaTypeRefExtractor must
+    use find_enclosing_scope to attribute the field ref to the enclosing class.
+    This is the fixed-state test: class_lines is properly passed.
+    """
+    source = """\
+package com.example;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.client.RestTemplate;
+
+public class OrderService {
+    @Autowired
+    private RestTemplate restTemplate;
+
+    public void doSomething() {}
+}
+"""
+    # class_lines: OrderService class starts at line 5 (0-indexed)
+    class_lines = [(5, "com.example.OrderService")]
+    results = extractor.extract(FILE, _parse(source), {}, class_lines)
+    rest_template_refs = [r for r in results if r.type_name == "RestTemplate"]
+    assert rest_template_refs, "Expected a TypeRef for RestTemplate field"
+    assert rest_template_refs[0].owner_full_name == "com.example.OrderService", (
+        f"Expected owner 'com.example.OrderService' but got {rest_template_refs[0].owner_full_name!r}"
+    )
+    assert rest_template_refs[0].ref_kind == "field_type"
+
+
+def test_field_type_ref_no_owner_without_class_lines(extractor):
+    """When class_lines is empty, field type refs cannot find an enclosing scope.
+
+    This documents the baseline behavior: without class_lines, the owner is None
+    and the TypeRef is filtered out (find_enclosing_scope returns None -> no emit).
+    The fix is upstream (class_lines_per_file propagation from indexer.py), not here.
+    """
+    source = """\
+package com.example;
+
+public class OrderService {
+    private RestTemplate restTemplate;
+}
+"""
+    # No class_lines provided — simulates the broken propagation case
+    results = extractor.extract(FILE, _parse(source), {}, class_lines=[])
+    rest_template_refs = [r for r in results if r.type_name == "RestTemplate"]
+    # With empty class_lines, find_enclosing_scope returns None and no TypeRef is emitted
+    assert rest_template_refs == [], (
+        "Expected no TypeRef for RestTemplate when class_lines is empty "
+        f"(broken baseline), but got: {rest_template_refs}"
+    )
