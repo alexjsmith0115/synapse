@@ -316,3 +316,17 @@ def test_limit_not_truncated_when_under():
     result = find_dead_code(conn, limit=100)
     assert len(result["methods"]) == 1
     assert result["stats"]["truncated"] is False
+
+
+# ---------------------------------------------------------------------------
+# Regression: C# override methods excluded via attributes check
+# (gRPC service methods override unindexed generated base classes,
+# so they have no OVERRIDES edge — the "override" keyword in
+# m.attributes must catch them instead)
+# ---------------------------------------------------------------------------
+
+def test_override_attribute_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert 'CONTAINS \'"override"\'' in cypher

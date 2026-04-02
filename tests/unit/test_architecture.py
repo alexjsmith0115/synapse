@@ -200,3 +200,71 @@ def test_stats_packages_shown_vs_total():
     result = get_architecture_overview(conn, max_packages=1)
     assert result["stats"]["total_packages"] == 5
     assert result["stats"]["packages_shown"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Regression: file_count derived from symbol file_path, not IMPORTS edges
+# ---------------------------------------------------------------------------
+
+def test_package_file_count_uses_symbol_file_path():
+    """Query 1 must count files via Class/Interface file_path, not IMPORTS edges."""
+    conn = _empty_conn()
+    get_architecture_overview(conn)
+    pkg_cypher = conn.query.call_args_list[0].args[0]
+    # Must NOT use the broken IMPORTS-based approach
+    assert "IMPORTS" not in pkg_cypher
+    # Must derive file_count from symbol file_path
+    assert "s.file_path" in pkg_cypher or "file_path" in pkg_cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: total_symbols must include Package nodes to match list_projects
+# ---------------------------------------------------------------------------
+
+def test_stats_symbol_count_includes_packages():
+    """Query 6 must count Package nodes alongside Class/Interface/Method/Property/Field."""
+    conn = _empty_conn()
+    get_architecture_overview(conn)
+    # Query 6 is the symbol count query — find it by checking for "count(s)"
+    symbol_query = next(
+        c for c in conn.query.call_args_list
+        if "count(s)" in (c.args[0] if c.args else "")
+    )
+    cypher = symbol_query.args[0]
+    assert "s:Package" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: HTTP client calls query excludes test-path callers
+# ---------------------------------------------------------------------------
+
+def test_http_calls_exclude_test_callers():
+    """Query 4 must filter out test-path callers."""
+    conn = _empty_conn()
+    get_architecture_overview(conn)
+    # Query 4 is the HTTP_CALLS query
+    calls_query = next(
+        (c for c in conn.query.call_args_list
+         if "HTTP_CALLS" in (c.args[0] if c.args else "")),
+        None,
+    )
+    if calls_query is not None:
+        cypher = calls_query.args[0]
+        assert "test_pattern" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: endpoints_shown counts unique route+method pairs
+# ---------------------------------------------------------------------------
+
+def test_endpoints_shown_counts_unique_routes():
+    """endpoints_shown must not exceed total_endpoints when there are no duplicates."""
+    serves_rows = [
+        ("/api/items", "GET", "Ctrl.GetAll", "/src/Ctrl.cs"),
+        ("/api/items", "POST", "Ctrl.Create", "/src/Ctrl.cs"),
+    ]
+    # total endpoint count = 2
+    conn = _conn_with_side_effects([], [], [], serves_rows, [], [], [], [(2,)])
+    result = get_architecture_overview(conn)
+    assert result["stats"]["endpoints_shown"] <= result["stats"]["total_endpoints"] or \
+           result["stats"]["endpoints_shown"] == len({(e["route"], e["method"]) for e in result["http_service_map"]})

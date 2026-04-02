@@ -237,6 +237,7 @@ def _build_base_exclusion_where() -> str:
         "AND NOT ()-[:IMPLEMENTS]->(m) "
         "AND NOT ()-[:DISPATCHES_TO]->(m) "
         "AND NOT (m)-[:OVERRIDES]->() "
+        "AND NOT coalesce(m.attributes, '[]') CONTAINS '\"override\"' "
         "AND NOT (m)<-[:CONTAINS]-(:Interface) "
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
@@ -352,12 +353,13 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     # Query 1: Package breakdown (limited)
     pkg_rows = conn.query(
         "MATCH (p:Package) "
-        "OPTIONAL MATCH (f:File)-[:IMPORTS]->(p) "
-        "WITH p, count(DISTINCT f) AS file_count "
         "OPTIONAL MATCH (s) "
-        "WHERE (s:Class OR s:Interface OR s:Method OR s:Property OR s:Field) "
-        "  AND s.full_name STARTS WITH (p.full_name + '.') "
-        "WITH p, file_count, count(DISTINCT s) AS symbol_count "
+        "WHERE (s:Class OR s:Interface) AND s.full_name STARTS WITH (p.full_name + '.') "
+        "WITH p, count(DISTINCT s.file_path) AS file_count "
+        "OPTIONAL MATCH (s2) "
+        "WHERE (s2:Class OR s2:Interface OR s2:Method OR s2:Property OR s2:Field) "
+        "  AND s2.full_name STARTS WITH (p.full_name + '.') "
+        "WITH p, file_count, count(DISTINCT s2) AS symbol_count "
         "RETURN p.name, file_count, symbol_count "
         "ORDER BY symbol_count DESC "
         "LIMIT $max_packages",
@@ -398,16 +400,17 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
         for r in serves_rows
     ]
 
-    # Query 4: Client-only HTTP calls (limited)
+    # Query 4: Client-only HTTP calls (limited, excluding test callers)
     remaining = max(max_endpoints - len(serves), 0)
     calls: list[dict] = []
     if remaining > 0:
         calls_rows = conn.query(
             "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
             "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
+            "AND NOT caller.file_path =~ $test_pattern "
             "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path "
             "LIMIT $lim",
-            {"lim": remaining},
+            {"lim": remaining, "test_pattern": _TEST_PATH_PATTERN},
         )
         calls = [
             {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
@@ -424,7 +427,7 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
 
     # Query 6: Total symbol count
     symbol_count_rows = conn.query(
-        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field "
+        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field OR s:Package "
         "RETURN count(s)"
     )
     total_symbols = symbol_count_rows[0][0] if symbol_count_rows else 0
@@ -435,17 +438,20 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     )
     total_endpoints = endpoint_count_rows[0][0] if endpoint_count_rows else 0
 
+    all_endpoints = serves + calls
+    unique_routes = {(e["route"], e["method"]) for e in all_endpoints}
+
     return {
         "packages": packages,
         "hotspots": hotspots,
-        "http_service_map": serves + calls,
+        "http_service_map": all_endpoints,
         "stats": {
             "total_files": total_files,
             "total_symbols": total_symbols,
             "total_packages": total_packages,
             "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
-            "endpoints_shown": len(serves) + len(calls),
+            "endpoints_shown": len(unique_routes),
             "files_by_language": files_by_language,
         },
     }
