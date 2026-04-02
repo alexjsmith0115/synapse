@@ -559,6 +559,24 @@ def test_smart_index_allowed_languages_none_passes_all():
     assert "typescript" in passed_names
 
 
+def test_synapps_service_facade_forwards_allowed_languages():
+    """Regression: SynappsService.smart_index must forward allowed_languages to IndexingService."""
+    from unittest.mock import MagicMock
+    from synapps.service import SynappsService
+
+    mock_indexing = MagicMock()
+    mock_indexing.smart_index.return_value = "ok"
+
+    svc = SynappsService.__new__(SynappsService)
+    svc._indexing = mock_indexing
+
+    svc.smart_index("/proj", allowed_languages=["python"])
+
+    mock_indexing.smart_index.assert_called_once_with(
+        "/proj", "csharp", None, allowed_languages=["python"],
+    )
+
+
 class TestInitWizardHookOffer:
     def test_init_offers_hook_installation(self, tmp_path: Path) -> None:
         """Verify the wizard calls _configure_agents for unified agent configuration."""

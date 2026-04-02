@@ -137,8 +137,8 @@ class SynappsService:
     def sync_project(self, path, plugin_files=None):
         return self._indexing.sync_project(path, plugin_files)
 
-    def smart_index(self, path, language="csharp", on_progress=None):
-        return self._indexing.smart_index(path, language, on_progress)
+    def smart_index(self, path, language="csharp", on_progress=None, allowed_languages=None):
+        return self._indexing.smart_index(path, language, on_progress, allowed_languages=allowed_languages)
 
     def index_method_implements(self):
         return self._indexing.index_method_implements()
