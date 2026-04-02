@@ -132,6 +132,57 @@ def test_execute_readonly_query_blocks_multiline_merge() -> None:
         execute_readonly_query(conn, "MATCH (n)\nMERGE (n)-[:X]->(m)")
 
 
+def test_execute_readonly_query_allows_create_in_string_literal() -> None:
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = []
+    execute_readonly_query(conn, "MATCH (m:Method) WHERE m.name CONTAINS 'create' RETURN m")
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_allows_uppercase_create_in_string_literal() -> None:
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = []
+    execute_readonly_query(conn, "MATCH (m:Method) WHERE m.full_name CONTAINS 'CREATE' RETURN m")
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_allows_double_quoted_mutation_keyword() -> None:
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = []
+    execute_readonly_query(conn, 'MATCH (m) WHERE m.name = "deleteOrder" RETURN m')
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_allows_property_named_set() -> None:
+    """Property access like n.set must not be treated as a SET statement."""
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = []
+    execute_readonly_query(conn, "MATCH (n) WHERE n.set = 1 RETURN n")
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_allows_property_named_delete() -> None:
+    """Property access like n.delete must not be treated as a DELETE statement."""
+    conn = MagicMock()
+    conn.query_with_timeout.return_value = []
+    execute_readonly_query(conn, "MATCH (n) WHERE n.delete = true RETURN n")
+    conn.query_with_timeout.assert_called_once()
+
+
+def test_execute_readonly_query_blocks_create_after_literal() -> None:
+    """Mutation keyword after a string literal is still blocked."""
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        execute_readonly_query(conn, "MATCH (m) WHERE m.name = 'foo' CREATE (n:Fake)")
+
+
+def test_execute_readonly_query_blocks_set_outside_literal() -> None:
+    """Statement-level SET (not property access) must be blocked."""
+    conn = _conn([])
+    with pytest.raises(ValueError):
+        execute_readonly_query(conn, "MATCH (n) SET n.name = 'test'")
+
+
 def test_search_symbols_rejects_invalid_kind() -> None:
     conn = _conn([])
     with pytest.raises(ValueError):
