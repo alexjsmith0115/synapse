@@ -1,5 +1,8 @@
+import logging
 from unittest.mock import MagicMock, patch, call
 from pathlib import Path
+
+import pytest
 
 from synapps.indexer.symbol_resolver import SymbolResolver, _ResolveStats
 from synapps.indexer.assignment_ref import AssignmentRef
@@ -616,3 +619,77 @@ def test_name_based_fallback_skipped_when_ambiguous():
     resolver._resolve_file("/proj/B.java", "source", tree, symbol_map)
 
     assert resolver._stats.calls_unresolved >= 1
+
+
+def test_resolve_file_open_file_exception_logs_skipped_counts(caplog):
+    """Regression: when open_file raises, the warning log must include the counts of
+    skipped call_sites and type_refs so operators can diagnose resolution failures."""
+    conn = MagicMock()
+    ls = _make_ls()
+
+    # open_file raises so the whole file resolution is skipped
+    ls.open_file.side_effect = RuntimeError("LSP process died")
+
+    # 5 call sites and 2 type refs that will be skipped
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [
+        ("A.B.method1", "foo", 1, 0),
+        ("A.B.method1", "bar", 2, 0),
+        ("A.B.method1", "baz", 3, 0),
+        ("A.B.method2", "qux", 4, 0),
+        ("A.B.method2", "quux", 5, 0),
+    ]
+    from synapps.indexer.type_ref import TypeRef
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = [
+        TypeRef(owner_full_name="A.B", type_name="Foo", line=1, col=5, ref_kind="field_type"),
+        TypeRef(owner_full_name="A.B", type_name="Bar", line=2, col=5, ref_kind="field_type"),
+    ]
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+    )
+    resolver._stats = _ResolveStats()
+
+    with caplog.at_level(logging.WARNING, logger="synapps.indexer.symbol_resolver"):
+        resolver._resolve_file("/proj/MyClass.cs", "class X {}", _mock_tree(), {})
+
+    # The warning must mention counts so operators know what was dropped
+    warning_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(warning_messages), "Expected a WARNING log but none was emitted"
+    warning_text = " ".join(warning_messages)
+    assert "5" in warning_text, f"Expected skipped call count '5' in warning: {warning_text!r}"
+    assert "2" in warning_text, f"Expected skipped type ref count '2' in warning: {warning_text!r}"
+
+    # Stats must reflect the skipped call sites
+    assert resolver._stats.calls_unresolved == 5
+
+
+def test_resolve_file_open_file_exception_increments_calls_unresolved():
+    """Regression: calls_unresolved stat must be incremented by all skipped call sites
+    when open_file raises, not just by 1."""
+    conn = MagicMock()
+    ls = _make_ls()
+    ls.open_file.side_effect = OSError("file not found in LSP workspace")
+
+    call_extractor = MagicMock()
+    call_extractor.extract.return_value = [
+        ("Pkg.Service.run", "helper", 10, 5),
+        ("Pkg.Service.run", "save", 11, 5),
+        ("Pkg.Service.run", "validate", 12, 5),
+    ]
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = []
+
+    resolver = SymbolResolver(
+        conn, ls,
+        call_extractor=call_extractor,
+        type_ref_extractor=type_ref_extractor,
+    )
+    resolver._stats = _ResolveStats()
+
+    resolver._resolve_file("/proj/Service.cs", "class X {}", _mock_tree(), {})
+
+    assert resolver._stats.calls_unresolved == 3

@@ -166,6 +166,15 @@ class SymbolResolver:
             s.lsp_definition_time, s.lsp_containing_time,
             s.callee_name_time, s.extraction_calls_time, s.extraction_typerefs_time,
         )
+        total = s.calls_resolved + s.calls_unresolved
+        if total > 0 and s.calls_unresolved > 0:
+            pct = s.calls_unresolved / total * 100
+            if pct > 30:
+                log.info(
+                    "Resolution summary: %d/%d calls unresolved (%.0f%%) — "
+                    "external library types likely not in symbol map",
+                    s.calls_unresolved, total, pct,
+                )
 
     def resolve_single_file(
         self,
@@ -238,7 +247,12 @@ class SymbolResolver:
                 for ref in type_refs:
                     self._resolve_type_ref(ref, rel_path)
         except Exception:
-            log.warning("LSP open_file failed for %s, skipping", rel_path)
+            log.warning(
+                "LSP open_file failed for %s, skipping %d calls + %d type refs",
+                rel_path, len(call_sites), len(type_refs),
+            )
+            if stats:
+                stats.calls_unresolved += len(call_sites)
 
         self._flush_pending()
 
