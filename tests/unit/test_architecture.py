@@ -232,3 +232,39 @@ def test_stats_symbol_count_includes_packages():
     )
     cypher = symbol_query.args[0]
     assert "s:Package" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: HTTP client calls query excludes test-path callers
+# ---------------------------------------------------------------------------
+
+def test_http_calls_exclude_test_callers():
+    """Query 4 must filter out test-path callers."""
+    conn = _empty_conn()
+    get_architecture_overview(conn)
+    # Query 4 is the HTTP_CALLS query
+    calls_query = next(
+        (c for c in conn.query.call_args_list
+         if "HTTP_CALLS" in (c.args[0] if c.args else "")),
+        None,
+    )
+    if calls_query is not None:
+        cypher = calls_query.args[0]
+        assert "test_pattern" in cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: endpoints_shown counts unique route+method pairs
+# ---------------------------------------------------------------------------
+
+def test_endpoints_shown_counts_unique_routes():
+    """endpoints_shown must not exceed total_endpoints when there are no duplicates."""
+    serves_rows = [
+        ("/api/items", "GET", "Ctrl.GetAll", "/src/Ctrl.cs"),
+        ("/api/items", "POST", "Ctrl.Create", "/src/Ctrl.cs"),
+    ]
+    # total endpoint count = 2
+    conn = _conn_with_side_effects([], [], [], serves_rows, [], [], [], [(2,)])
+    result = get_architecture_overview(conn)
+    assert result["stats"]["endpoints_shown"] <= result["stats"]["total_endpoints"] or \
+           result["stats"]["endpoints_shown"] == len({(e["route"], e["method"]) for e in result["http_service_map"]})

@@ -400,16 +400,17 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
         for r in serves_rows
     ]
 
-    # Query 4: Client-only HTTP calls (limited)
+    # Query 4: Client-only HTTP calls (limited, excluding test callers)
     remaining = max(max_endpoints - len(serves), 0)
     calls: list[dict] = []
     if remaining > 0:
         calls_rows = conn.query(
             "MATCH (caller:Method)-[:HTTP_CALLS]->(ep:Endpoint) "
             "WHERE NOT exists((ep)<-[:SERVES]-(:Method)) "
+            "AND NOT caller.file_path =~ $test_pattern "
             "RETURN ep.route, ep.http_method, caller.full_name, caller.file_path "
             "LIMIT $lim",
-            {"lim": remaining},
+            {"lim": remaining, "test_pattern": _TEST_PATH_PATTERN},
         )
         calls = [
             {"route": r[0], "method": r[1], "handler": r[2], "file_path": r[3], "direction": "calls"}
@@ -437,17 +438,20 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
     )
     total_endpoints = endpoint_count_rows[0][0] if endpoint_count_rows else 0
 
+    all_endpoints = serves + calls
+    unique_routes = {(e["route"], e["method"]) for e in all_endpoints}
+
     return {
         "packages": packages,
         "hotspots": hotspots,
-        "http_service_map": serves + calls,
+        "http_service_map": all_endpoints,
         "stats": {
             "total_files": total_files,
             "total_symbols": total_symbols,
             "total_packages": total_packages,
             "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
-            "endpoints_shown": len(serves) + len(calls),
+            "endpoints_shown": len(unique_routes),
             "files_by_language": files_by_language,
         },
     }
