@@ -399,13 +399,14 @@ def suggest_similar_names(conn: GraphConnection, name: str, limit: int = 5) -> l
     # Extract the simple name (last segment after dots)
     simple = name.rsplit(".", 1)[-1]
     rows = conn.query(
-        "MATCH (n) WHERE n.name IS NOT NULL AND n.name CONTAINS $simple "
+        "MATCH (n) WHERE n.name IS NOT NULL AND n.full_name IS NOT NULL "
+        "AND n.name CONTAINS $simple "
         "RETURN DISTINCT n.full_name "
         "ORDER BY CASE WHEN n.name = $simple THEN 0 ELSE 1 END, n.full_name "
         "LIMIT $limit",
         {"simple": simple, "limit": limit},
     )
-    return [r[0] for r in rows]
+    return [r[0] for r in rows if r[0] is not None]
 
 
 def resolve_full_name_with_labels(
