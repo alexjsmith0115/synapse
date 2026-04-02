@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from synapps.graph.connection import GraphConnection
 
 _MUTATING_PATTERN = re.compile(r"\b(CREATE|MERGE|DELETE|SET|REMOVE|DROP)\b")
+_STRING_LITERAL_PATTERN = re.compile(r"'[^']*'|\"[^\"]*\"")
+_DOTTED_PROPERTY_PATTERN = re.compile(r"\w+\.\w+")
 
 _VALID_KINDS = frozenset({
     "Class", "Interface", "Method", "Property", "Field", "Namespace",
@@ -673,6 +675,8 @@ def find_http_dependency(conn: GraphConnection, route: str, http_method: str) ->
 
 def execute_readonly_query(conn: GraphConnection, cypher: str) -> list:
     """Prevents accidental writes via MCP by rejecting mutating Cypher statements."""
-    if _MUTATING_PATTERN.search(cypher.upper()):
+    stripped = _STRING_LITERAL_PATTERN.sub("", cypher)
+    stripped = _DOTTED_PROPERTY_PATTERN.sub("", stripped)
+    if _MUTATING_PATTERN.search(stripped.upper()):
         raise ValueError("Mutating Cypher statement not allowed")
     return conn.query_with_timeout(cypher)

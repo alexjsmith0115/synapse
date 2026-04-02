@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **Mutation guard false positives in `execute_query`** — `execute_readonly_query` now strips string literal content and dotted property access before checking for mutation keywords; queries like `WHERE m.name CONTAINS 'create'` or `WHERE n.set = 1` no longer raise a spurious `ValueError`
+
 ## [1.4.14] - 2026-04-02
 
 ### Added
