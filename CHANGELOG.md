@@ -6,10 +6,75 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.4.13] - 2026-04-01
+
+### Added
+- **C# ASP.NET Core Minimal API endpoint detection** — `MapGet`, `MapPost`, `MapPut`, `MapDelete`, and `MapPatch` calls now produce HTTP_ENDPOINT nodes in the graph
+- **`RestTemplate.exchange()` detection** — Java HTTP extractor now recognizes `RestTemplate.exchange()` calls with `HttpMethod.X` verb arguments
+- **MSTest attribute support** — `[TestMethod]` and `[DataTestMethod]` attributes now produce TESTS edges
+
+### Fixed
+- **7 Java tool issues** — import routing, `_clean_java_full_name`, per-file source root detection, anonymous class filter, `kind=4` NAMESPACE mapping, and accurate line numbers via `selectionRange.start.line`
+- **`scope=edit` empty-state visibility** — `get_context_for` with `scope=edit` now shows a clearer message when no callers/callees exist
+- **HTTP endpoint section in `get_context_for`** — edit scope now includes HTTP endpoints associated with the symbol
+- **Result limits** — `find_dead_code` and `find_untested` now accept a `limit` parameter to cap output size
+- **`_get_service` singleton invalidation** — CLI service cache now invalidates when the target project path changes
+- **`Repository.name`** — `upsert_repository` now derives `Repository.name` from `os.path.basename(path)` instead of storing the full path
+
+## [1.4.12] - 2026-04-01
+
+### Added
+- **Java package extraction** — package declarations are now extracted via tree-sitter and wired as Package CONTAINS edges in the graph
+
+### Fixed
+- **NUnit attribute support** — `[Test]` and `[TestCase]` attributes now produce TESTS edges (previously only `[Fact]`/`[Theory]` from xUnit were recognized)
+- **Java method attribute lookup** — parameter signatures are now stripped before matching attribute names, fixing false negatives on annotated methods
+
+## [1.4.11] - 2026-03-31
+
+### Fixed
+- **Cursor MCP config detection** — `synapps init` no longer requires `.cursor/` directory to pre-exist; the directory is created if needed
+
+## [1.4.10] - 2026-03-31
+
+### Added
+- **Agent instruction file installation** — `synapps init` now installs agent instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, etc.) into projects for immediate AI agent context
+
+## [1.4.8] - 2026-03-31
+
+### Fixed
+- **`find_usages` parameter cleanup** — removed misleading `include_test_breakdown` parameter that was accepted but silently ignored
+
+## [1.4.7] - 2026-03-31
+
+### Added
+- **Version display** — `synapps status` CLI command and `list_projects` MCP tool now include the Synapps version in their output
+- **Cross-language integration tests** — 30+ new integration tests ensuring MCP and CLI tool parity across all 4 language suites (C#, Python, TypeScript, Java)
+
+## [1.4.6] - 2026-03-31
+
+### Fixed
+- **DISPATCHES_TO callers included in caller lookups** — `find_callers` and `find_callers_with_sites` now include callers that reach a method via interface dispatch (DISPATCHES_TO edges), which were previously excluded
+
 ## [1.4.5] - 2026-03-31
 
 ### Fixed
 - **C# generic method call extraction** — generic invocations like `_service.Method<T>()` and `new List<string>()` now correctly produce CALLS edges; previously the `generic_name` AST node in `invocation_expression` and `object_creation_expression` was not matched by the tree-sitter query, silently dropping all generic method calls from the graph
+
+## [1.4.4] - 2026-03-30
+
+### Fixed
+- **Cross-file edges preserved during incremental reindex** — `reindex_file` no longer drops CALLS and DISPATCHES_TO edges to symbols defined in other files
+
+## [1.4.3] - 2026-03-30
+
+### Fixed
+- **Declaring-type lookup scoped to current file** — `_index_base_types()` now restricts declaring-type resolution to the current file, preventing cross-file false-positive base type matches
+
+## [1.4.2] - 2026-03-30
+
+### Changed
+- **LSP-based base type resolution** — `_index_base_types()` now uses Language Server Protocol for base type resolution instead of namespace disambiguation; all 4 language extractors return 5-tuples with position data; dead namespace disambiguation functions removed
 
 ## [1.4.1] - 2026-03-30
 
