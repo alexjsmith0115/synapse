@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-02
+
+### Added
+- **Indexing opt-out in init wizard** — users can skip Memgraph startup and indexing during `synapps init` while still persisting DB mode config
+- **Unified agent configuration** — init wizard now presents a single multi-select for all AI harnesses (Claude Code, Cursor, Copilot, etc.) with auto-detected ones pre-checked
+- **Java call resolution diagnostics** — `_resolve_file` now logs skipped call/type-ref counts on failure and emits a resolution summary when >30% of calls are unresolved
+
+### Fixed
+- **Init wizard language filter bug** — `smart_index` now respects `allowed_languages` parameter; previously all detected languages were indexed regardless of user selection
+- **`SynappsService.smart_index` facade** — `allowed_languages` parameter is now forwarded through the service facade (was silently dropped, causing the wizard's language filter to be unreachable)
+- **`get_context_for` TypeError regression** — `suggest_similar_names` query now guards against `None` `full_name` values; returns clean "Symbol not found" instead of raw TypeError
+- **Dead code inflation** — `_FRAMEWORK_ATTRIBUTES` now includes lowercase Java Spring/JPA annotations (`@bean`, `@getmapping`, etc.) matching `JavaAttributeExtractor`'s `.lower()` storage
+- **Architecture hotspots skewed by vendored JS** — `_VENDORED_PATH_PATTERN` extended to match `static/js/` directories and named CDN library files (angular.js, vue.js, jquery.js, etc.)
+- **Duplicate package names in `get_architecture`** — package query now returns `p.full_name` instead of `p.name` for fully-qualified package names
+- **Package `file_count: 0` in `get_architecture`** — replaced unreliable `STARTS WITH` string matching with `CONTAINS` edge traversal for accurate file counts
+
 ## [1.4.13] - 2026-04-01
 
 ### Added
