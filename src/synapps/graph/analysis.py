@@ -426,7 +426,7 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
 
     # Query 6: Total symbol count
     symbol_count_rows = conn.query(
-        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field "
+        "MATCH (s) WHERE s:Class OR s:Interface OR s:Method OR s:Property OR s:Field OR s:Package "
         "RETURN count(s)"
     )
     total_symbols = symbol_count_rows[0][0] if symbol_count_rows else 0

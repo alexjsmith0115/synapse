@@ -215,3 +215,20 @@ def test_package_file_count_uses_symbol_file_path():
     assert "IMPORTS" not in pkg_cypher
     # Must derive file_count from symbol file_path
     assert "s.file_path" in pkg_cypher or "file_path" in pkg_cypher
+
+
+# ---------------------------------------------------------------------------
+# Regression: total_symbols must include Package nodes to match list_projects
+# ---------------------------------------------------------------------------
+
+def test_stats_symbol_count_includes_packages():
+    """Query 6 must count Package nodes alongside Class/Interface/Method/Property/Field."""
+    conn = _empty_conn()
+    get_architecture_overview(conn)
+    # Query 6 is the symbol count query — find it by checking for "count(s)"
+    symbol_query = next(
+        c for c in conn.query.call_args_list
+        if "count(s)" in (c.args[0] if c.args else "")
+    )
+    cypher = symbol_query.args[0]
+    assert "s:Package" in cypher
