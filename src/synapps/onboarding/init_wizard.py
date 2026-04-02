@@ -176,7 +176,7 @@ def _offer_agent_instructions(console, project_path: str) -> list[str]:
     return install_agent_instructions(Path(project_path))
 
 
-def _print_summary(console, languages: list[str], report, mcp_clients: list[str], project_path: str, hook_agents: list[str] | None = None, agent_files: list[str] | None = None) -> None:
+def _print_summary(console, languages: list[str], report, mcp_clients: list[str], project_path: str, hook_agents: list[str] | None = None, agent_files: list[str] | None = None, indexed: bool = True) -> None:
     """Print a Rich table summarizing all wizard actions."""
     from rich.table import Table
 
@@ -195,14 +195,18 @@ def _print_summary(console, languages: list[str], report, mcp_clients: list[str]
     db_mode = "dedicated" if is_dedicated_instance(project_path) else "shared"
     table.add_row("Database mode", db_mode)
 
-    passed = sum(1 for r in report.checks if r.status == "pass")
-    failed = sum(1 for r in report.checks if r.status == "fail")
-    check_summary = f"{passed} passed"
-    if failed:
-        check_summary += f", {failed} failed"
-    table.add_row("Prerequisite checks", check_summary)
+    if report is not None:
+        passed = sum(1 for r in report.checks if r.status == "pass")
+        failed = sum(1 for r in report.checks if r.status == "fail")
+        check_summary = f"{passed} passed"
+        if failed:
+            check_summary += f", {failed} failed"
+        table.add_row("Prerequisite checks", check_summary)
 
-    table.add_row("Project indexed", "yes")
+    if indexed:
+        table.add_row("Project indexed", "yes")
+    else:
+        table.add_row("Project indexed", "skipped (run `synapps index <path>` to index)")
 
     if mcp_clients:
         table.add_row("MCP clients configured", ", ".join(mcp_clients))
@@ -243,6 +247,23 @@ def run_init(project_path: str, verbose: bool = False) -> None:
             f"  Then re-run: synapps init {project_path}",
         )
         raise typer.Exit(1)
+
+    # Step 0.5: Ask whether to index
+    want_index = typer.confirm("Index this project now?", default=True)
+
+    if not want_index:
+        # Persist DB config even when skipping indexing
+        if not _has_existing_db_config(project_path):
+            _prompt_db_mode(console, project_path)
+        # Skip to agent configuration
+        console.print("\n[bold]MCP client configuration:[/bold]")
+        configured_clients = _offer_mcp_config(console, project_path)
+        console.print("\n[bold]Agent hook configuration:[/bold]")
+        hook_agents = _offer_hooks(console, project_path)
+        console.print("\n[bold]Agent instruction files:[/bold]")
+        agent_files = _offer_agent_instructions(console, project_path)
+        _print_summary(console, [], None, configured_clients, project_path, hook_agents, agent_files, indexed=False)
+        return
 
     # Step 1: Detect languages
     detected = detect_languages(project_path)
@@ -294,7 +315,7 @@ def run_init(project_path: str, verbose: bool = False) -> None:
         def _on_progress(msg: str) -> None:
             progress.update(task, description=msg)
 
-        index_result = svc.smart_index(project_path, on_progress=_on_progress)
+        index_result = svc.smart_index(project_path, on_progress=_on_progress, allowed_languages=confirmed_languages)
 
     console.print(f"[green]Indexing complete:[/green] {index_result}")
 

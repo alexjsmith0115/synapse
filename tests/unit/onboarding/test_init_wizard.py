@@ -158,7 +158,7 @@ def _run_with_patches(project_path: str, opts: dict, *, has_existing_db_config: 
 
 
 def test_wizard_calls_smart_index():
-    opts = _common_patches(confirm_side_effect=[True, True, True, True])
+    opts = _common_patches(confirm_side_effect=[True, True, True, True, True])
     _, mock_svc, _ = _run_with_patches("/tmp/myproject", opts)
     mock_svc.return_value.smart_index.assert_called_once()
     call_args = mock_svc.return_value.smart_index.call_args
@@ -204,7 +204,7 @@ def test_wizard_shows_fix_on_failure(capsys):
         patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True),
         patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
         patch("synapps.onboarding.init_wizard._offer_agent_instructions", return_value=[]),
-        patch("typer.confirm", side_effect=[True, True]),
+        patch("typer.confirm", side_effect=[True, True, True]),
         patch("sys.stdin") as mock_stdin,
         patch("rich.console.Console.print", side_effect=capture_print) as mock_console_print,
     ):
@@ -222,7 +222,7 @@ def test_wizard_offers_mcp_config():
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     opts = _common_patches(
         mcp_clients=[client],
-        confirm_side_effect=[True, True],  # language confirm, mcp confirm
+        confirm_side_effect=[True, True, True],  # want_index, language confirm, mcp confirm
     )
     mock_write, _, _ = _run_with_patches("/tmp/myproject", opts)
     mock_write.assert_called_once()
@@ -232,14 +232,14 @@ def test_wizard_skips_mcp_when_declined():
     client = MCPClient("Claude Code", Path("/tmp/.config/mcp.json"), "mcpServers")
     opts = _common_patches(
         mcp_clients=[client],
-        confirm_side_effect=[True, False],  # language confirm, decline mcp
+        confirm_side_effect=[True, True, False],  # want_index, language confirm, decline mcp
     )
     mock_write, _, _ = _run_with_patches("/tmp/myproject", opts)
     mock_write.assert_not_called()
 
 
 def test_summary_printed():
-    opts = _common_patches(confirm_side_effect=[True, True, True, True])
+    opts = _common_patches(confirm_side_effect=[True, True, True, True, True])
 
     mock_doctor_service = MagicMock()
     mock_doctor_service.return_value.run.return_value = _make_report(
@@ -323,7 +323,7 @@ def test_docker_not_running_exits_with_error():
 
 def test_memgraph_auto_started_via_connection_manager():
     """Init should start Memgraph automatically instead of failing on a bolt check."""
-    opts = _common_patches(confirm_side_effect=[True, True, True, True])
+    opts = _common_patches(confirm_side_effect=[True, True, True, True, True])
     _, _, mock_cm = _run_with_patches("/tmp/myproject", opts)
     # ConnectionManager.get_connection() is called (which auto-starts Memgraph)
     mock_cm.return_value.get_connection.assert_called_once()
@@ -335,15 +335,15 @@ def test_memgraph_auto_started_via_connection_manager():
 
 def test_db_mode_prompt_shown_when_no_existing_config():
     """Init should ask shared vs dedicated when no db config exists."""
-    # confirm_side_effect: [language confirm, db mode (shared=True)]
-    opts = _common_patches(confirm_side_effect=[True, True])
+    # confirm_side_effect: [want_index, language confirm, db mode (shared=True)]
+    opts = _common_patches(confirm_side_effect=[True, True, True])
     _run_with_patches("/tmp/myproject", opts, has_existing_db_config=False)
 
 
 def test_db_mode_prompt_skipped_when_config_exists():
     """Init should skip db mode prompt when project already has db config."""
-    # confirm_side_effect: [language confirm] — no db mode confirm needed
-    opts = _common_patches(confirm_side_effect=[True])
+    # confirm_side_effect: [want_index, language confirm] — no db mode confirm needed
+    opts = _common_patches(confirm_side_effect=[True, True])
     _run_with_patches("/tmp/myproject", opts, has_existing_db_config=True)
 
 
@@ -391,6 +391,73 @@ def test_write_db_config_preserves_existing_keys(tmp_path):
     config = json.loads((config_dir / "config.json").read_text())
     assert config["dedicated_instance"] is False
     assert config["existing_key"] == "value"
+
+
+# ---------------------------------------------------------------------------
+# Indexing opt-out flow
+# ---------------------------------------------------------------------------
+
+def test_wizard_skips_indexing_when_declined():
+    """Declining 'Index now?' must skip Memgraph startup and indexing entirely."""
+    mock_cm = MagicMock()
+    mock_svc = MagicMock()
+
+    with (
+        patch("synapps.onboarding.init_wizard.detect_languages", return_value=[("python", 10)]),
+        patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[]),
+        patch("synapps.onboarding.init_wizard.write_mcp_config"),
+        patch("synapps.onboarding.init_wizard.ConnectionManager", mock_cm),
+        patch("synapps.onboarding.init_wizard.ensure_schema"),
+        patch("synapps.onboarding.init_wizard.SynappsService", mock_svc),
+        patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod,
+        patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True),
+        patch("synapps.onboarding.init_wizard._write_db_config"),
+        patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
+        patch("synapps.onboarding.init_wizard._offer_mcp_config", return_value=[]),
+        patch("synapps.onboarding.init_wizard._offer_agent_instructions", return_value=[]),
+        patch("typer.confirm", side_effect=[False]),  # decline indexing
+        patch("sys.stdin") as mock_stdin,
+    ):
+        mock_docker_mod.from_env.return_value = MagicMock()
+        mock_docker_mod.errors = docker.errors
+        mock_stdin.isatty.return_value = True
+        from synapps.onboarding.init_wizard import run_init
+        run_init("/tmp/myproject")
+
+    mock_cm.assert_not_called()
+    mock_svc.assert_not_called()
+
+
+def test_wizard_skips_indexing_persists_db_config():
+    """Declining 'Index now?' with no existing DB config must still call _write_db_config."""
+    mock_write_db_config = MagicMock()
+    mock_cm = MagicMock()
+    mock_svc = MagicMock()
+
+    with (
+        patch("synapps.onboarding.init_wizard.detect_languages", return_value=[("python", 10)]),
+        patch("synapps.onboarding.init_wizard.detect_mcp_clients", return_value=[]),
+        patch("synapps.onboarding.init_wizard.write_mcp_config"),
+        patch("synapps.onboarding.init_wizard.ConnectionManager", mock_cm),
+        patch("synapps.onboarding.init_wizard.ensure_schema"),
+        patch("synapps.onboarding.init_wizard.SynappsService", mock_svc),
+        patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod,
+        patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=False),
+        patch("synapps.onboarding.init_wizard._write_db_config", mock_write_db_config),
+        patch("synapps.onboarding.init_wizard._offer_hooks", return_value=[]),
+        patch("synapps.onboarding.init_wizard._offer_mcp_config", return_value=[]),
+        patch("synapps.onboarding.init_wizard._offer_agent_instructions", return_value=[]),
+        patch("typer.confirm", side_effect=[False, True]),  # decline indexing, accept shared DB
+        patch("sys.stdin") as mock_stdin,
+    ):
+        mock_docker_mod.from_env.return_value = MagicMock()
+        mock_docker_mod.errors = docker.errors
+        mock_stdin.isatty.return_value = True
+        from synapps.onboarding.init_wizard import run_init
+        run_init("/tmp/myproject")
+
+    mock_write_db_config.assert_called_once()
+    mock_svc.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -493,8 +560,12 @@ class TestInitWizardHookOffer:
              patch("synapps.onboarding.init_wizard.ensure_schema"), \
              patch("synapps.onboarding.init_wizard.SynappsService") as mock_svc, \
              patch("synapps.onboarding.init_wizard._has_existing_db_config", return_value=True), \
+             patch("synapps.onboarding.init_wizard.docker") as mock_docker_mod, \
+             patch("typer.confirm", return_value=True), \
              patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
+            mock_docker_mod.from_env.return_value = MagicMock()
+            mock_docker_mod.errors = docker.errors
             mock_report = MagicMock()
             mock_report.checks = []
             mock_report.has_failures = False
