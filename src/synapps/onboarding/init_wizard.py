@@ -138,7 +138,7 @@ def _prompt_multiselect(
 
     enabled = set(pre_checked)
     _CONTINUE = "__continue__"
-    cursor_idx = 0
+    last_picked = None
 
     while True:
         choices = []
@@ -151,15 +151,11 @@ def _prompt_multiselect(
         picked = inquirer.select(
             message=prompt_label,
             choices=choices,
-            default=cursor_idx,
+            default=last_picked,
             instruction="(enter to toggle, select Continue when done)",
         ).execute()
 
-        # Remember cursor position for next iteration
-        for i, c in enumerate(choices):
-            if isinstance(c, dict) and c.get("value") == picked:
-                cursor_idx = i
-                break
+        last_picked = picked
 
         if picked == _CONTINUE:
             break
