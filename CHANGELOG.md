@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **Dead code false positive: `configure()` in Spring Security classes** — `find_dead_code` and `find_untested` now exclude `configure()` (lowercase) in classes ending with `Configurer` or `Adapter` in addition to `Configuration`; covers Spring Security `WebSecurityConfigurerAdapter` overrides (BUG-03)
+- **Dead code false positive: Java `@Override` methods** — `_FRAMEWORK_ATTRIBUTES` now includes `"override"` (lowercase); excludes gRPC service methods and other Java methods that override external framework base classes not present in the index (BUG-04)
+
 ## [1.4.14] - 2026-04-02
 
 ### Added
