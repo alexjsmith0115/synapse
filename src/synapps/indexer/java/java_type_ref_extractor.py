@@ -32,6 +32,7 @@ class JavaTypeRefExtractor:
         symbol_map: dict[tuple[str, int], str],
         class_lines: list[tuple[int, str]] = (),
         *,
+        field_symbol_map: dict[tuple[str, int], str] | None = None,
         module_name_resolver=None,
     ) -> list[TypeRef]:
         """Return TypeRef instances for all non-primitive type references."""
@@ -43,14 +44,19 @@ class JavaTypeRefExtractor:
         )
 
         results: list[TypeRef] = []
-        self._walk(tree.root_node, file_path, method_lines, list(class_lines), results)
+        self._walk(
+            tree.root_node, file_path, method_lines, list(class_lines),
+            field_symbol_map or {}, results,
+        )
         return results
 
     # ------------------------------------------------------------------
     # Tree walk
     # ------------------------------------------------------------------
 
-    def _walk(self, node, file_path, method_lines, class_lines, results: list[TypeRef]) -> None:
+    def _walk(
+        self, node, file_path, method_lines, class_lines, field_map, results: list[TypeRef],
+    ) -> None:
         node_type = node.type
 
         if node_type == "formal_parameter":
@@ -60,16 +66,23 @@ class JavaTypeRefExtractor:
             self._handle_return_type(node, file_path, method_lines, results)
 
         elif node_type == "field_declaration":
-            self._handle_typed_node(node, file_path, class_lines or method_lines, results, "field_type")
+            # Use field-level owner if available; fall back to class scope for REFERENCES edge source
+            field_owner = field_map.get((file_path, node.start_point[0]))
+            if field_owner:
+                self._handle_typed_node_with_owner(node, field_owner, results, "field_type")
+            else:
+                self._handle_typed_node(
+                    node, file_path, class_lines or method_lines, results, "field_type",
+                )
 
         elif node_type == "local_variable_declaration":
             self._handle_typed_node(node, file_path, method_lines, results, "field_type")
 
         for child in node.children:
-            self._walk(child, file_path, method_lines, class_lines, results)
+            self._walk(child, file_path, method_lines, class_lines, field_map, results)
 
     # ------------------------------------------------------------------
-    # Node handlers
+    # Node handlers — scope-based (original)
     # ------------------------------------------------------------------
 
     def _handle_typed_node(
@@ -142,6 +155,72 @@ class JavaTypeRefExtractor:
                 self._emit_type_ref(child, file_path, scope_lines, results, ref_kind)
             elif child.type == "generic_type":
                 self._handle_generic_type(child, file_path, scope_lines, results, ref_kind)
+
+    # ------------------------------------------------------------------
+    # Node handlers — pre-resolved owner (field_symbol_map path)
+    # ------------------------------------------------------------------
+
+    def _handle_typed_node_with_owner(
+        self, node, owner_full_name: str, results: list[TypeRef], ref_kind: str,
+    ) -> None:
+        """Like _handle_typed_node but uses a pre-resolved owner rather than scope lookup."""
+        for child in node.children:
+            if child.type == "type_identifier":
+                self._emit_type_ref_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "generic_type":
+                self._handle_generic_type_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "array_type":
+                self._handle_array_type_with_owner(child, owner_full_name, results, ref_kind)
+
+    def _handle_generic_type_with_owner(
+        self, node, owner_full_name: str, results: list[TypeRef], ref_kind: str,
+    ) -> None:
+        for child in node.children:
+            if child.type == "type_identifier":
+                self._emit_type_ref_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "type_arguments":
+                self._handle_type_arguments_with_owner(child, owner_full_name, results, ref_kind)
+
+    def _handle_type_arguments_with_owner(
+        self, node, owner_full_name: str, results: list[TypeRef], ref_kind: str,
+    ) -> None:
+        for child in node.children:
+            if child.type == "type_identifier":
+                self._emit_type_ref_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "generic_type":
+                self._handle_generic_type_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "wildcard":
+                for wc_child in child.children:
+                    if wc_child.type == "type_identifier":
+                        self._emit_type_ref_with_owner(wc_child, owner_full_name, results, ref_kind)
+                    elif wc_child.type == "generic_type":
+                        self._handle_generic_type_with_owner(wc_child, owner_full_name, results, ref_kind)
+            elif child.type == "array_type":
+                self._handle_array_type_with_owner(child, owner_full_name, results, ref_kind)
+
+    def _handle_array_type_with_owner(
+        self, node, owner_full_name: str, results: list[TypeRef], ref_kind: str,
+    ) -> None:
+        for child in node.children:
+            if child.type == "type_identifier":
+                self._emit_type_ref_with_owner(child, owner_full_name, results, ref_kind)
+            elif child.type == "generic_type":
+                self._handle_generic_type_with_owner(child, owner_full_name, results, ref_kind)
+
+    def _emit_type_ref_with_owner(
+        self, type_node, owner_full_name: str, results: list[TypeRef], ref_kind: str,
+    ) -> None:
+        """Create a TypeRef using a pre-resolved owner (bypasses scope lookup)."""
+        name = node_text(type_node)
+        if name in _PRIMITIVE_TYPES:
+            return
+        results.append(TypeRef(
+            owner_full_name=owner_full_name,
+            type_name=name,
+            line=type_node.start_point[0],
+            col=type_node.start_point[1],
+            ref_kind=ref_kind,
+        ))
 
     # ------------------------------------------------------------------
     # Helpers

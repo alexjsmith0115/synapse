@@ -302,3 +302,76 @@ public class OrderService {
         "Expected no TypeRef for RestTemplate when class_lines is empty "
         f"(broken baseline), but got: {rest_template_refs}"
     )
+
+
+# ---------------------------------------------------------------------------
+# field_symbol_map: field-level owner for REFERENCES edges (FILD-02)
+# ---------------------------------------------------------------------------
+
+
+def test_field_ref_uses_field_owner(extractor):
+    """When field_symbol_map provides a field full_name, TypeRef.owner_full_name is the field.
+
+    The REFERENCES edge source must be the Field node (com.example.AnimalService.animal),
+    not the enclosing class (com.example.AnimalService).
+    """
+    source = """\
+package com.example;
+
+public class AnimalService {
+    private IAnimal animal;
+}
+"""
+    # field 'animal' at line 3 (0-indexed) in the source above
+    class_lines = [(2, "com.example.AnimalService")]
+    field_symbol_map = {(FILE, 3): "com.example.AnimalService.animal"}
+    results = extractor.extract(FILE, _parse(source), {}, class_lines, field_symbol_map=field_symbol_map)
+    ianimal_refs = [r for r in results if r.type_name == "IAnimal"]
+    assert ianimal_refs, "Expected a TypeRef for IAnimal field"
+    assert ianimal_refs[0].owner_full_name == "com.example.AnimalService.animal", (
+        f"Expected owner 'com.example.AnimalService.animal', got {ianimal_refs[0].owner_full_name!r}"
+    )
+    assert ianimal_refs[0].ref_kind == "field_type"
+
+
+def test_field_ref_fallback_to_class(extractor):
+    """When field_symbol_map has no entry for a field_declaration, fall back to class scope."""
+    source = """\
+package com.example;
+
+public class AnimalService {
+    private IAnimal animal;
+}
+"""
+    class_lines = [(2, "com.example.AnimalService")]
+    # field_symbol_map provided but does not contain this field
+    results = extractor.extract(FILE, _parse(source), {}, class_lines, field_symbol_map={})
+    ianimal_refs = [r for r in results if r.type_name == "IAnimal"]
+    assert ianimal_refs, "Expected a TypeRef for IAnimal field"
+    assert ianimal_refs[0].owner_full_name == "com.example.AnimalService", (
+        f"Expected class-level fallback owner 'com.example.AnimalService', "
+        f"got {ianimal_refs[0].owner_full_name!r}"
+    )
+
+
+def test_backward_compat_no_field_map(extractor):
+    """Calling extract() without field_symbol_map kwarg behaves identically to before.
+
+    Field declarations use the class-level owner (from class_lines scope lookup).
+    """
+    source = """\
+package com.example;
+
+public class AnimalService {
+    private IAnimal animal;
+}
+"""
+    class_lines = [(2, "com.example.AnimalService")]
+    # No field_symbol_map argument — backward-compatible call
+    results = extractor.extract(FILE, _parse(source), {}, class_lines)
+    ianimal_refs = [r for r in results if r.type_name == "IAnimal"]
+    assert ianimal_refs, "Expected a TypeRef for IAnimal field"
+    assert ianimal_refs[0].owner_full_name == "com.example.AnimalService", (
+        f"Expected class-level owner 'com.example.AnimalService', "
+        f"got {ianimal_refs[0].owner_full_name!r}"
+    )
