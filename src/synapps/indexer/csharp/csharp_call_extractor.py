@@ -24,6 +24,14 @@ _CALLS_QUERY = """
         (generic_name (identifier) @name)
     ]
 )
+(invocation_expression
+    function: (conditional_access_expression
+        (member_binding_expression name: [
+            (identifier) @name
+            (generic_name (identifier) @name)
+        ])
+    )
+)
 """
 
 
