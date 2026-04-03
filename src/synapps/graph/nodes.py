@@ -70,17 +70,19 @@ def upsert_method(
     language: str = "",
     is_classmethod: bool = False,
     is_async: bool = False,
+    stub: bool = False,
 ) -> None:
     conn.execute(
         "MERGE (n:Method {full_name: $full_name}) "
         "SET n.name = $name, n.signature = $sig, n.is_abstract = $is_abstract, n.is_static = $is_static, "
         "n.file_path = $file_path, n.line = $line, n.end_line = $end_line, n.language = $language, "
-        "n.is_classmethod = $is_classmethod, n.is_async = $is_async",
+        "n.is_classmethod = $is_classmethod, n.is_async = $is_async, n.stub = $stub",
         {
             "full_name": full_name, "name": name, "sig": signature,
             "is_abstract": is_abstract, "is_static": is_static,
             "file_path": file_path, "line": line, "end_line": end_line,
             "language": language, "is_classmethod": is_classmethod, "is_async": is_async,
+            "stub": stub,
         },
     )
 

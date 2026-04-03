@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 - **`find_dependencies` returns `fields` section for Java classes** — when a class has typed `Field` nodes (e.g. `@Autowired` fields), `find_dependencies` now returns a dict with `"dependencies"` and `"fields"` keys; classes without typed fields continue to return a plain list (backward-compatible)
+- **External framework call stub recording** — new `ExternalCallStubber` class and `EXTERNAL_FRAMEWORK_METHODS` allowlist (8 types: RestTemplate, MongoTemplate, JdbcTemplate, KafkaTemplate, RabbitTemplate, ObjectMapper, WebClient, DiscoveryClient) create synthetic stub `Method` nodes so CALLS edges can be recorded for framework method invocations; stubs are excluded from dead code detection via a new `stub` property on `Method` nodes
+- **`stub` field on `Method` nodes** — `upsert_method` now accepts a `stub=False` parameter; stub methods are written with `n.stub = true` in the graph and excluded from dead code queries via `coalesce(m.stub, false)`
+- **`JavaCallExtractor` returns 5-tuples with receiver variable name** — `extract()` now returns `(caller, callee, line, col, receiver_name)` where `receiver_name` is the variable identifier before the dot for `receiver.method()` calls, or `None` for bare calls and constructors
 
 ## [1.4.15] - 2026-04-02
 
