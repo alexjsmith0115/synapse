@@ -6,12 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.4.17] - 2026-04-03
+
 ### Added
-- **`JavaFieldTypeExtractor`** — new extractor producing `(field_name, type_name)` pairs for Java field declarations; handles simple, generic (`List<T>` → `"List"`), array (`T[]` → `"T"`), and multi-declarator fields; skips primitives
+- **`JavaFieldTypeExtractor`** — new extractor for Java field type pairs; handles simple, generic, array, and multi-declarator fields
 
 ### Fixed
-- **Java field annotations silently dropped** — `JavaAttributeExtractor._declaration_name` now descends into `variable_declarator` for `field_declaration` nodes; `@Autowired`, `@Inject`, and other field-level annotations are now correctly captured
-- **Generic C# types lose IMPLEMENTS/INHERITS edges** — classes whose `full_name` contains `<` (e.g. `IRepository<T>`) lost all structural outgoing edges (IMPLEMENTS, INHERITS, and method-level DISPATCHES_TO) because the `file_type_names` lookup key included generic parameters while the tree-sitter extractor returns bare identifiers; generic params are now stripped from the key
+- **Java field annotations silently dropped** — `JavaAttributeExtractor` now descends into `variable_declarator` for `field_declaration` nodes
+- **Generic C# types lose IMPLEMENTS/INHERITS edges** — classes with `<` in `full_name` (e.g. `IRepository<T>`) lost all structural outgoing edges because the base-type lookup key included generic parameters while tree-sitter returns bare identifiers; params are now stripped from the key
 
 ## [1.4.15] - 2026-04-02
 
