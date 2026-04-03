@@ -512,6 +512,21 @@ def test_generic_method_call_via_find_callees(mcp_server: FastMCP) -> None:
     )
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_null_conditional_call_via_find_callees(mcp_server: FastMCP) -> None:
+    """D-01/D-02 regression: obj?.Method() must produce a CALLS edge."""
+    result = run(mcp_server.call_tool("find_callees", {
+        "method_full_name": "SynappsTest.Services.NullConditionalHost.RunIfPresent"
+    }))
+    callees = result_json(result)
+    callee_names = [c.get("name", "") for c in (callees or [])]
+    assert "GetTaskAsync" in callee_names, (
+        f"NullConditionalHost.RunIfPresent calls _service?.GetTaskAsync() "
+        f"but find_callees returned: {callee_names}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # DISPATCHES_TO edge verification
 # ---------------------------------------------------------------------------

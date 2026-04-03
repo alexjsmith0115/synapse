@@ -144,3 +144,88 @@ namespace MyNs {
     results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
     callee_names = [callee for _, callee, *_ in results]
     assert "Compute" not in callee_names
+
+
+def test_extracts_null_conditional_call(extractor):
+    """obj?.Method() must produce a CALLS edge for the method name."""
+    source = """\
+namespace MyNs {
+    class MyClass {
+        public void Caller() {
+            _service?.Execute();
+        }
+    }
+}
+"""
+    symbol_map = {("/proj/Foo.cs", 2): "MyNs.MyClass.Caller"}
+    results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
+    callee_names = [callee for _, callee, *_ in results]
+    assert "Execute" in callee_names
+
+
+def test_extracts_chained_null_conditional(extractor):
+    """obj?.Method1()?.Method2() must produce CALLS edges for both method names."""
+    source = """\
+namespace MyNs {
+    class MyClass {
+        public void Caller() {
+            obj?.Method1()?.Method2();
+        }
+    }
+}
+"""
+    symbol_map = {("/proj/Foo.cs", 2): "MyNs.MyClass.Caller"}
+    results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
+    callee_names = [callee for _, callee, *_ in results]
+    assert "Method1" in callee_names
+    assert "Method2" in callee_names
+
+
+def test_extracts_null_conditional_generic(extractor):
+    """obj?.Method<T>() must produce a CALLS edge for the generic method name."""
+    source = """\
+namespace MyNs {
+    class MyClass {
+        public void Caller() {
+            _svc?.Process<string>();
+        }
+    }
+}
+"""
+    symbol_map = {("/proj/Foo.cs", 2): "MyNs.MyClass.Caller"}
+    results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
+    callee_names = [callee for _, callee, *_ in results]
+    assert "Process" in callee_names
+
+
+def test_extracts_null_conditional_in_null_coalescing(extractor):
+    """obj?.Method() ?? fallback must still produce a CALLS edge for the method name."""
+    source = """\
+namespace MyNs {
+    class MyClass {
+        public void Caller() {
+            var result = _svc?.Execute() ?? "default";
+        }
+    }
+}
+"""
+    symbol_map = {("/proj/Foo.cs", 2): "MyNs.MyClass.Caller"}
+    results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
+    callee_names = [callee for _, callee, *_ in results]
+    assert "Execute" in callee_names
+
+
+def test_does_not_extract_null_conditional_indexer(extractor):
+    """items?[0] must NOT produce any callee (element_binding_expression, not member_binding_expression)."""
+    source = """\
+namespace MyNs {
+    class MyClass {
+        public void Caller() {
+            var item = items?[0];
+        }
+    }
+}
+"""
+    symbol_map = {("/proj/Foo.cs", 2): "MyNs.MyClass.Caller"}
+    results = extractor.extract("/proj/Foo.cs", _parse(source), symbol_map)
+    assert len(results) == 0

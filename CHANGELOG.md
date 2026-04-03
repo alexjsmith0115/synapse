@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Mutation guard false positives in `execute_query`** — `execute_readonly_query` now strips string literal content and dotted property access before checking for mutation keywords; queries like `WHERE m.name CONTAINS 'create'` or `WHERE n.set = 1` no longer raise a spurious `ValueError`
 - **Dead code false positive: `configure()` in Spring Security classes** — `find_dead_code` and `find_untested` now exclude `configure()` (lowercase) in classes ending with `Configurer` or `Adapter` in addition to `Configuration`; covers Spring Security `WebSecurityConfigurerAdapter` overrides (BUG-03)
 - **Dead code false positive: Java `@Override` methods** — `_FRAMEWORK_ATTRIBUTES` now includes `"override"` (lowercase); excludes gRPC service methods and other Java methods that override external framework base classes not present in the index (BUG-04)
+- **C# null-conditional calls not indexed** — `obj?.Method()` patterns now produce CALLS edges; previously all `?.` call sites were silently dropped from the call graph
 
 ## [1.4.14] - 2026-04-02
 
