@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 - **`find_dependencies` returns `fields` section for Java classes** — when a class has typed `Field` nodes (e.g. `@Autowired` fields), `find_dependencies` now returns a dict with `"dependencies"` and `"fields"` keys; classes without typed fields continue to return a plain list (backward-compatible)
+- **Spring Data stub injection foundation** — `spring_data_stubs.py` defines `CRUD_REPOSITORY_METHODS` (11 methods), `JPA_REPOSITORY_METHODS` (6 methods), `SPRING_DATA_PARENTS` (5 base interfaces), and `inject_spring_data_stubs()` which creates stub `Method` nodes for inherited Spring Data methods on concrete repository interfaces; enables CALLS edges to repository methods that have no source definition
+- **`upsert_method` stub param** — `stub: bool = False` keyword argument writes `n.stub` on `Method` nodes; stub methods are excluded from `find_dead_code` and `find_untested` via `AND NOT coalesce(m.stub, false)` in the shared exclusion clause
 
 ## [1.4.15] - 2026-04-02
 
