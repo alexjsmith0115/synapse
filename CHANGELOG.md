@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-04-03
+
+### Fixed
+- **C#/TypeScript/Python indexing crash** — `CSharpTypeRefExtractor`, `TypeScriptTypeRefExtractor`, and `PythonTypeRefExtractor` now accept the `field_symbol_map` keyword argument added in 1.5.0 for Java field-level REFERENCES; previously indexing any non-Java project raised `TypeError: extract() got an unexpected keyword argument 'field_symbol_map'`
+
 ## [1.5.0] - 2026-04-03
 
 ### Added

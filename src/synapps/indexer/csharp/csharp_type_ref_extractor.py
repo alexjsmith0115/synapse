@@ -51,6 +51,8 @@ class CSharpTypeRefExtractor:
         tree: Tree,
         symbol_map: dict[tuple[str, int], str],
         class_lines: list[tuple[int, str]] = (),
+        *,
+        field_symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> list[TypeRef]:
         method_lines = sorted(
             (line, full_name)
