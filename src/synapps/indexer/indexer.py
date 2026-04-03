@@ -516,6 +516,15 @@ class Indexer:
             if sym.kind == SymbolKind.FIELD
         }
 
+        # External framework call stubber: produces synthetic CALLS edges for allowlisted
+        # framework types (RestTemplate, MongoTemplate, etc.). Java-only; strict 8-type allowlist.
+        # Constructed here (after Spring Data stubs exist in the graph) so field type_name
+        # values are already populated for the ExternalCallStubber graph query.
+        external_call_stubber = None
+        if self._language == "java":
+            from synapps.indexer.java.external_call_stubs import ExternalCallStubber
+            external_call_stubber = ExternalCallStubber(self._conn, language=self._language)
+
         resolver = SymbolResolver(
             self._conn,
             self._lsp.language_server,
@@ -529,6 +538,7 @@ class Indexer:
             class_lines_per_file=resolver_class_lines,
             import_map=import_map,
             field_symbol_map=field_symbol_map,
+            external_call_stubber=external_call_stubber,
         )
         if single_file:
             resolver.resolve_single_file(single_file, symbol_map, class_symbol_map=class_symbol_map)

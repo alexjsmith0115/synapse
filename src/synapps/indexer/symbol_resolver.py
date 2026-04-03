@@ -87,6 +87,7 @@ class SymbolResolver:
         class_lines_per_file: dict[str, list[tuple[int, str]]] | None = None,
         import_map: dict[str, dict[str, str]] | None = None,
         field_symbol_map: dict[tuple[str, int], str] | None = None,
+        external_call_stubber: object | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -100,6 +101,7 @@ class SymbolResolver:
         self._parsed_cache = parsed_cache
         self._class_lines_per_file = class_lines_per_file
         self._field_symbol_map = field_symbol_map or {}
+        self._external_call_stubber = external_call_stubber
         self._unresolved_sites: list[str] = []
         self._callee_name_cache: dict[str, str] = {}
         self._pending_calls: list[dict] = []
@@ -252,11 +254,17 @@ class SymbolResolver:
 
         try:
             with self._ls.open_file(rel_path):
-                for caller_full_name, callee_simple, call_line_1, call_col_0, *_ in call_sites:
+                for call_site in call_sites:
+                    if len(call_site) >= 5:
+                        caller_full_name, callee_simple, call_line_1, call_col_0, receiver_name = call_site[:5]
+                    else:
+                        caller_full_name, callee_simple, call_line_1, call_col_0 = call_site[:4]
+                        receiver_name = None
                     self._resolve_call(
                         caller_full_name, rel_path, call_line_1 - 1, call_col_0,
                         callee_simple, symbol_map=symbol_map,
                         call_line_1=call_line_1, call_col_0=call_col_0,
+                        receiver_name=receiver_name,
                     )
                 for ref in type_refs:
                     self._resolve_type_ref(ref, rel_path)
@@ -283,6 +291,7 @@ class SymbolResolver:
         symbol_map: dict[tuple[str, int], str] | None = None,
         call_line_1: int | None = None,
         call_col_0: int | None = None,
+        receiver_name: str | None = None,
     ) -> None:
         stats = getattr(self, "_stats", None)
 
@@ -303,6 +312,8 @@ class SymbolResolver:
                 caller_full_name, callee_simple_name or "",
                 caller_abs, call_line_1, call_col_0,
             ):
+                return
+            if self._try_external_stub(caller_full_name, receiver_name, callee_simple_name, call_line_1, call_col_0, stats):
                 return
             self._unresolved_sites.append(
                 f"Unresolved (no definitions): {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
@@ -408,6 +419,8 @@ class SymbolResolver:
             stats.lsp_containing_time += time.monotonic() - t_cs
 
         if symbol is None:
+            if self._try_external_stub(caller_full_name, receiver_name, callee_simple_name, call_line_1, call_col_0, stats):
+                return
             self._unresolved_sites.append(
                 f"Unresolved (no containing symbol): {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
             )
@@ -426,6 +439,8 @@ class SymbolResolver:
                 if c.get("kind") in _METHOD_KINDS and c.get("name") == callee_simple_name
             ]
             if len(method_children) != 1:
+                if self._try_external_stub(caller_full_name, receiver_name, callee_simple_name, call_line_1, call_col_0, stats):
+                    return
                 self._unresolved_sites.append(
                     f"Unresolved (class not method): {caller_full_name} -> {callee_simple_name} at {rel_path}:{line_0 + 1}"
                 )
@@ -456,6 +471,32 @@ class SymbolResolver:
             self._pending_module_calls.append(row)
         else:
             self._pending_calls.append(row)
+
+    def _try_external_stub(
+        self,
+        caller_full_name: str,
+        receiver_name: str | None,
+        callee_simple_name: str | None,
+        call_line_1: int | None,
+        call_col_0: int | None,
+        stats: _ResolveStats | None,
+    ) -> bool:
+        """Attempt to create a CALLS edge to an external framework stub node.
+
+        Returns True if a stub was created and the call was recorded, False otherwise.
+        Only fires when an ExternalCallStubber is configured and receiver_name is known.
+        """
+        if not self._external_call_stubber or not receiver_name:
+            return False
+        stub_full_name = self._external_call_stubber.maybe_stub(
+            caller_full_name, receiver_name, callee_simple_name or "",
+        )
+        if not stub_full_name:
+            return False
+        self._upsert_call(caller_full_name, stub_full_name, call_line_1, call_col_0)
+        if stats:
+            stats.calls_resolved += 1
+        return True
 
     def _flush_pending(self) -> None:
         """Batch-write all accumulated CALLS and REFERENCES edges."""
