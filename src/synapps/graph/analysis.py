@@ -205,6 +205,10 @@ _EXCLUDED_METHOD_NAMES = [
     "Up", "Down", "BuildTargetModel", "BuildModel", "OnModelCreating", "CreateDbContext",
     # Java / JVM entry points
     "main", "Main",
+    # .NET / Java lifecycle -- always framework-invoked, never called directly
+    "Dispose", "DisposeAsync", "Close", "Finalize",
+    # .NET MAUI / Blazor component lifecycle
+    "OnNavigatedTo", "OnInitialized", "OnInitializedAsync",
 ]
 
 # Framework decorator/attribute names that mark methods as entry points.

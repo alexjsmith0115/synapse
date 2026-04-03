@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Dead code false positive: `configure()` in Spring Security classes** — `find_dead_code` and `find_untested` now exclude `configure()` (lowercase) in classes ending with `Configurer` or `Adapter` in addition to `Configuration`; covers Spring Security `WebSecurityConfigurerAdapter` overrides (BUG-03)
 - **Dead code false positive: Java `@Override` methods** — `_FRAMEWORK_ATTRIBUTES` now includes `"override"` (lowercase); excludes gRPC service methods and other Java methods that override external framework base classes not present in the index (BUG-04)
 - **C# null-conditional calls not indexed** — `obj?.Method()` patterns now produce CALLS edges; previously all `?.` call sites were silently dropped from the call graph
+- **Dead code false positives for lifecycle methods** — `_EXCLUDED_METHOD_NAMES` now includes `Dispose`, `DisposeAsync`, `Close`, `Finalize`, `OnNavigatedTo`, `OnInitialized`, and `OnInitializedAsync`; these are always framework-invoked and never have callers in the graph
+
+### Changed
+- **`find_callees` docstring** — documents the known graph boundary: calls to external framework types (Spring Data, JDK stdlib, .NET BCL, Entity Framework) are not indexed; agents should use `get_context_for` for call sites involving framework methods
+- **Server instructions** — added `KNOWN GRAPH BOUNDARIES` section so AI agents understand at session init that only project-defined symbols appear as CALLS edges
 
 ## [1.4.14] - 2026-04-02
 
