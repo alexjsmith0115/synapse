@@ -672,3 +672,68 @@ def test_main_method_not_in_untested(java_mcp: FastMCP) -> None:
     assert "Application.main" not in output, (
         "main(String[]) entry point appeared in find_untested — exclusion is broken"
     )
+
+
+# ---------------------------------------------------------------------------
+# CALL-01 / CALL-02 — Spring Data stub Method nodes
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_spring_data_stub_nodes_exist(java_mcp: FastMCP) -> None:
+    """CALL-01/02: search_symbols finds OrderRepository stub methods (save, count)."""
+    result = run(java_mcp.call_tool("search_symbols", {
+        "query": "OrderRepository.save",
+    }))
+    symbols = result_json(result)
+    assert isinstance(symbols, list)
+    assert len(symbols) >= 1, f"Expected at least one OrderRepository.save stub, got: {symbols}"
+    full_names = [s.get("full_name", "") for s in symbols]
+    assert any("OrderRepository" in fn and "save" in fn for fn in full_names), (
+        f"Expected OrderRepository.save in results, got: {full_names}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_spring_data_stub_has_stub_property(java_service) -> None:
+    """CALL-01/02: Stub Method nodes have stub=true property in the graph."""
+    rows = java_service._conn.query(
+        "MATCH (m:Method) WHERE m.full_name CONTAINS 'OrderRepository' "
+        "AND m.name = 'save' "
+        "RETURN m.stub"
+    )
+    assert rows, "No OrderRepository.save stub found in graph"
+    stub_val = rows[0][0]
+    assert stub_val is True, f"Expected stub=True, got: {stub_val}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_spring_data_callees_resolved(java_mcp: FastMCP) -> None:
+    """CALL-03: find_callees for OrderService.createAnimal returns OrderRepository.save stub."""
+    result = run(java_mcp.call_tool("find_callees", {
+        "full_name": "com.synappstest.OrderService.createAnimal",
+    }))
+    callees = result_json(result)
+    assert isinstance(callees, list), f"Expected list of callees, got: {type(callees)}"
+    callee_names = [c.get("full_name", "") for c in callees]
+    assert any("OrderRepository" in fn and "save" in fn for fn in callee_names), (
+        f"Expected OrderRepository.save callee, got: {callee_names}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_spring_data_stubs_excluded_from_dead_code(java_mcp: FastMCP) -> None:
+    """CALL-04: find_dead_code does not return any stub Method node."""
+    result = run(java_mcp.call_tool("find_dead_code", {}))
+    data = result_json(result)
+    methods = data.get("methods", [])
+    stub_methods = [
+        m for m in methods
+        if "OrderRepository" in m.get("full_name", "")
+    ]
+    assert stub_methods == [], (
+        f"find_dead_code returned stub methods that should be excluded: {stub_methods}"
+    )
