@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **C# null-conditional calls not indexed** — `obj?.Method()` patterns now produce CALLS edges; previously all `?.` call sites were silently dropped from the call graph
+
 ## [1.4.14] - 2026-04-02
 
 ### Added
