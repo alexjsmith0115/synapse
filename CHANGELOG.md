@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- **Dead code exclusions for ASP.NET Core Startup/Program conventions** — `find_dead_code` and `find_untested` now exclude `Configure` and `ConfigureServices` in `Startup` and `Program` classes; `ConfigureWebHost`, `CreateHostBuilder`, and `CreateWebHostBuilder` are excluded by name; `Authorize`, `AllowAnonymous`, `GlobalSetup`, and `GlobalCleanup` attributes are excluded as framework entry points
 - **`find_dependencies` returns `fields` section for Java classes** — when a class has typed `Field` nodes (e.g. `@Autowired` fields), `find_dependencies` now returns a dict with `"dependencies"` and `"fields"` keys; classes without typed fields continue to return a plain list (backward-compatible)
 - **External framework call stub recording** — new `ExternalCallStubber` class and `EXTERNAL_FRAMEWORK_METHODS` allowlist (8 types: RestTemplate, MongoTemplate, JdbcTemplate, KafkaTemplate, RabbitTemplate, ObjectMapper, WebClient, DiscoveryClient) create synthetic stub `Method` nodes so CALLS edges can be recorded for framework method invocations; stubs are excluded from dead code detection via a new `stub` property on `Method` nodes
 - **`stub` field on `Method` nodes** — `upsert_method` now accepts a `stub=False` parameter; stub methods are written with `n.stub = true` in the graph and excluded from dead code queries via `coalesce(m.stub, false)`

@@ -115,9 +115,9 @@ class TestBuildExclusionWhere:
         assert "'Configure'" in self.clause
 
     def test_configure_uses_in_list_for_both_cases(self) -> None:
-        # The implementation should use m.name IN ['configure', 'Configure'] rather than
-        # two separate equality checks.
-        assert "m.name IN ['configure', 'Configure']" in self.clause
+        # The implementation should use m.name IN [...] rather than separate equality checks.
+        # The list now includes 'ConfigureServices' for .NET Startup conventions.
+        assert "m.name IN ['configure', 'Configure', 'ConfigureServices']" in self.clause
 
     # --- BUG-04: gRPC @Override exclusion via attribute check ---
 

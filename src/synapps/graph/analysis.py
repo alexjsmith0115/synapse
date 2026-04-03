@@ -209,6 +209,8 @@ _EXCLUDED_METHOD_NAMES = [
     "Dispose", "DisposeAsync", "Close", "Finalize",
     # .NET MAUI / Blazor component lifecycle
     "OnNavigatedTo", "OnInitialized", "OnInitializedAsync",
+    # ASP.NET Core IWebHostBuilder / Program conventions (always framework-invoked)
+    "ConfigureWebHost", "CreateHostBuilder", "CreateWebHostBuilder",
 ]
 
 # Framework decorator/attribute names that mark methods as entry points.
@@ -236,6 +238,10 @@ _FRAMEWORK_ATTRIBUTES = [
     # C# test attributes (PascalCase)
     "TestMethod", "DataTestMethod", "Fact", "Theory",
     "SetUp", "TearDown", "OneTimeSetUp", "OneTimeTearDown",
+    # ASP.NET auth attributes — framework invokes authorized/anonymous routes (PascalCase)
+    "Authorize", "AllowAnonymous",
+    # BenchmarkDotNet lifecycle attributes (PascalCase)
+    "GlobalSetup", "GlobalCleanup",
 ]
 
 
@@ -257,9 +263,10 @@ def _build_base_exclusion_where() -> str:
         "AND NOT m.name STARTS WITH 'main(' "
         "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
         "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name IN ['configure', 'Configure'] AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
+        "AND NOT (m.name IN ['configure', 'Configure', 'ConfigureServices'] AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
         "WHERE cfg:Class AND (cfg.name ENDS WITH 'Configuration' "
-        "OR cfg.name ENDS WITH 'Configurer' OR cfg.name ENDS WITH 'Adapter') }) "
+        "OR cfg.name ENDS WITH 'Configurer' OR cfg.name ENDS WITH 'Adapter' "
+        "OR cfg.name = 'Startup' OR cfg.name = 'Program') }) "
         f"AND NOT ({attr_checks}) "
         "AND NOT coalesce(m.stub, false) "
         "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
