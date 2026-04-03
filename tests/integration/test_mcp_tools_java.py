@@ -185,12 +185,47 @@ def test_find_usages(java_mcp: FastMCP) -> None:
 @pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_find_dependencies(java_mcp: FastMCP) -> None:
-    """find_dependencies returns list without error for AnimalService."""
+    """find_dependencies returns result without error for AnimalService."""
     result = run(java_mcp.call_tool("find_dependencies", {
         "full_name": "com.synappstest.AnimalService"
     }))
     deps = result_json(result)
-    assert isinstance(deps, list)
+    assert isinstance(deps, (list, dict)), f"Expected list or dict result, got: {type(deps)}"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(15)
+def test_find_dependencies_fields(java_mcp: FastMCP) -> None:
+    """FILD-04: find_dependencies returns 'fields' section with @Autowired fields for Java classes."""
+    result = run(java_mcp.call_tool("find_dependencies", {
+        "full_name": "com.synappstest.AnimalService"
+    }))
+    deps = result_json(result)
+    # AnimalService has @Autowired private IAnimal animal — should return dict with fields section
+    assert isinstance(deps, dict), (
+        f"Expected dict with 'fields' key for AnimalService (has @Autowired fields), got: {type(deps).__name__}: {deps}"
+    )
+    assert "fields" in deps, f"Expected 'fields' key in result, got keys: {list(deps.keys())}"
+    fields = deps["fields"]
+    assert isinstance(fields, list), f"Expected 'fields' to be a list, got: {type(fields)}"
+    assert len(fields) >= 1, f"Expected at least 1 field entry, got: {fields}"
+
+    # Verify shape of each field entry
+    for f in fields:
+        assert "name" in f, f"Field entry missing 'name': {f}"
+        assert "type_name" in f, f"Field entry missing 'type_name': {f}"
+        assert "annotations" in f, f"Field entry missing 'annotations': {f}"
+        assert isinstance(f["annotations"], list), f"'annotations' should be a list: {f}"
+
+    # Verify @Autowired IAnimal field is present
+    animal_field = next((f for f in fields if f.get("name") == "animal"), None)
+    assert animal_field is not None, f"Expected field 'animal' in fields list, got: {fields}"
+    assert animal_field["type_name"] == "IAnimal", (
+        f"Expected type_name='IAnimal' for field 'animal', got: {animal_field['type_name']}"
+    )
+    assert "autowired" in animal_field["annotations"], (
+        f"Expected 'autowired' in annotations for field 'animal', got: {animal_field['annotations']}"
+    )
 
 
 @pytest.mark.integration
