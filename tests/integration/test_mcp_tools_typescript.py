@@ -116,7 +116,7 @@ def test_find_related_symbols(typescript_mcp: FastMCP) -> None:
 def test_get_hierarchy(typescript_mcp: FastMCP) -> None:
     """get_hierarchy for Dog returns Animal in parent chain."""
     result = run(typescript_mcp.call_tool("get_hierarchy", {
-        "class_name": "src/animals.Dog"
+        "full_name": "src/animals.Dog"
     }))
     hierarchy = result_json(result)
     assert "parents" in hierarchy
@@ -131,7 +131,7 @@ def test_get_hierarchy(typescript_mcp: FastMCP) -> None:
 def test_find_implementations(typescript_mcp: FastMCP) -> None:
     """find_implementations for IAnimal returns its subclasses."""
     result = run(typescript_mcp.call_tool("find_implementations", {
-        "interface_name": "src/animals.IAnimal"
+        "full_name": "src/animals.IAnimal"
     }))
     impls = result_json(result)
     assert isinstance(impls, list)
@@ -150,7 +150,7 @@ def test_find_implementations(typescript_mcp: FastMCP) -> None:
 def test_find_callees(typescript_mcp: FastMCP) -> None:
     """find_callees returns a list (possibly empty) without error for TypeScript method."""
     result = run(typescript_mcp.call_tool("find_callees", {
-        "method_full_name": "src/services.Greeter.greet"
+        "full_name": "src/services.Greeter.greet"
     }))
     callees = result_json(result)
     assert isinstance(callees, list)
@@ -161,7 +161,7 @@ def test_find_callees(typescript_mcp: FastMCP) -> None:
 def test_get_call_depth(typescript_mcp: FastMCP) -> None:
     """find_callees with depth param returns dict with callees key for a TypeScript method."""
     result = run(typescript_mcp.call_tool("find_callees", {
-        "method_full_name": "src/services.Greeter.greet",
+        "full_name": "src/services.Greeter.greet",
         "depth": 3,
     }))
     depth_result = result_json(result)
@@ -312,7 +312,7 @@ def test_get_context_for_edit_scope_rejects_field(typescript_mcp: FastMCP) -> No
 def test_find_entry_points(typescript_mcp: FastMCP) -> None:
     """find_entry_points returns dict with entry_points key without error."""
     result = run(typescript_mcp.call_tool("find_entry_points", {
-        "method": "src/services.AnimalService.getGreeting",
+        "full_name": "src/services.AnimalService.getGreeting",
     }))
     ep = result_json(result)
     assert isinstance(ep, dict)

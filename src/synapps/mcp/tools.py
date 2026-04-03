@@ -205,7 +205,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return f"Synced: {result.updated} updated, {result.deleted} deleted, {result.unchanged} unchanged"
 
     @mcp.tool()
-    def find_implementations(interface_name: str, limit: int = 50) -> list[dict] | dict:
+    def find_implementations(full_name: str, limit: int = 50) -> list[dict] | dict:
         """Find all classes that implement the given interface.
 
         Accepts both full names (e.g. "MyNs.IFoo") and short names (e.g. "IFoo").
@@ -213,11 +213,11 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         _auto_sync_check()
-        return service.find_implementations(interface_name, limit=limit)
+        return service.find_implementations(full_name, limit=limit)
 
     @mcp.tool()
     def find_callees(
-        method_full_name: str,
+        full_name: str,
         include_interface_dispatch: bool = True,
         limit: int = 50,
         depth: int | None = None,
@@ -241,20 +241,20 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         _auto_sync_check()
         try:
             if depth is not None:
-                return service.get_call_depth(method_full_name, depth)
-            return service.find_callees(method_full_name, include_interface_dispatch, limit=limit)
+                return service.get_call_depth(full_name, depth)
+            return service.find_callees(full_name, include_interface_dispatch, limit=limit)
         except ValueError as e:
             return {"error": str(e)}
 
     @mcp.tool()
-    def get_hierarchy(class_name: str) -> dict:
+    def get_hierarchy(full_name: str) -> dict:
         """Get the inheritance hierarchy for a class or interface (supports short names)."""
         _auto_sync_check()
         try:
-            result = service.get_hierarchy(class_name)
+            result = service.get_hierarchy(full_name)
         except ValueError as e:
             return {"error": str(e)}
-        warning = service._staleness_warning(class_name)
+        warning = service._staleness_warning(full_name)
         if warning:
             result["_staleness_warning"] = warning
         return result
@@ -408,7 +408,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
 
     @mcp.tool()
     def find_entry_points(
-        method: str,
+        full_name: str,
         max_depth: int = 8,
         exclude_pattern: str = "",
         exclude_test_callers: bool = True,
@@ -425,7 +425,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         """
         _auto_sync_check()
         try:
-            return service.find_entry_points(method, max_depth, exclude_pattern, exclude_test_callers)
+            return service.find_entry_points(full_name, max_depth, exclude_pattern, exclude_test_callers)
         except ValueError as e:
             return {"error": str(e)}
 
@@ -508,7 +508,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     @mcp.tool()
     def find_tests_for(
         path: str,
-        method_full_name: str,
+        full_name: str,
     ) -> list[dict]:
         """[Experimental] Find test methods that directly cover a production method via TESTS edges.
 
@@ -517,12 +517,12 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         and the callee is a production method.
 
         path: project root path (must be indexed)
-        method_full_name: fully qualified name of the production method (short names supported via resolution)
+        full_name: fully qualified name of the production method (short names supported via resolution)
         Returns [{full_name, file_path, line}] — one entry per test method covering the target.
         """
         _auto_sync_check()
         try:
-            return service.find_tests_for(method_full_name=method_full_name)
+            return service.find_tests_for(full_name)
         except ValueError as e:
             return {"error": str(e)}
 

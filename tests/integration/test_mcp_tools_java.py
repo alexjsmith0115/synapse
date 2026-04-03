@@ -123,7 +123,7 @@ def test_search_symbols_language_filter(java_mcp: FastMCP) -> None:
 def test_find_implementations(java_mcp: FastMCP) -> None:
     """find_implementations for IAnimal returns its implementing classes."""
     result = run(java_mcp.call_tool("find_implementations", {
-        "interface_name": "com.synappstest.IAnimal"
+        "full_name": "com.synappstest.IAnimal"
     }))
     impls = result_json(result)
     assert isinstance(impls, list)
@@ -137,7 +137,7 @@ def test_find_implementations(java_mcp: FastMCP) -> None:
 def test_get_hierarchy(java_mcp: FastMCP) -> None:
     """get_hierarchy for Dog returns Animal in parent chain."""
     result = run(java_mcp.call_tool("get_hierarchy", {
-        "class_name": "com.synappstest.Dog"
+        "full_name": "com.synappstest.Dog"
     }))
     hierarchy = result_json(result)
     assert "parents" in hierarchy
@@ -152,7 +152,7 @@ def test_get_hierarchy(java_mcp: FastMCP) -> None:
 def test_find_callees(java_mcp: FastMCP) -> None:
     """find_callees returns a list (possibly empty) without error for Java method."""
     result = run(java_mcp.call_tool("find_callees", {
-        "method_full_name": "com.synappstest.AnimalService.greet"
+        "full_name": "com.synappstest.AnimalService.greet"
     }))
     callees = result_json(result)
     assert isinstance(callees, list)
@@ -283,7 +283,7 @@ def test_get_context_for_edit_scope_rejects_field(java_mcp: FastMCP) -> None:
 def test_find_entry_points(java_mcp: FastMCP) -> None:
     """find_entry_points returns dict with entry_points key without error."""
     result = run(java_mcp.call_tool("find_entry_points", {
-        "method": "com.synappstest.AnimalService.greet",
+        "full_name": "com.synappstest.AnimalService.greet",
     }))
     ep = result_json(result)
     assert isinstance(ep, dict)
@@ -295,7 +295,7 @@ def test_find_entry_points(java_mcp: FastMCP) -> None:
 def test_get_call_depth(java_mcp: FastMCP) -> None:
     """find_callees with depth param returns dict with callees key without error."""
     result = run(java_mcp.call_tool("find_callees", {
-        "method_full_name": "com.synappstest.AnimalService.greet",
+        "full_name": "com.synappstest.AnimalService.greet",
         "depth": 3,
     }))
     depth_result = result_json(result)

@@ -122,7 +122,7 @@ def test_get_hierarchy_ambiguous_returns_error_dict() -> None:
     mock_mcp.tool = capture_tool
 
     register_tools(mock_mcp, mock_service)
-    result = tools["get_hierarchy"](class_name="Path")
+    result = tools["get_hierarchy"](full_name="Path")
     assert "error" in result
     assert "Ambiguous" in result["error"]
 
@@ -177,7 +177,7 @@ def test_find_callees_with_depth_delegates_to_get_call_depth() -> None:
     service = MagicMock()
     service.get_call_depth.return_value = {"root": "Ns.M", "callees": [], "depth_limit": 3}
     fns = _register(service)
-    result = fns["find_callees"](method_full_name="Ns.M", depth=3)
+    result = fns["find_callees"](full_name="Ns.M", depth=3)
     service.get_call_depth.assert_called_once_with("Ns.M", 3)
     service.find_callees.assert_not_called()
     assert result["depth_limit"] == 3
@@ -187,7 +187,7 @@ def test_find_callees_without_depth_uses_normal_path() -> None:
     service = MagicMock()
     service.find_callees.return_value = [{"name": "callee"}]
     fns = _register(service)
-    result = fns["find_callees"](method_full_name="Ns.M")
+    result = fns["find_callees"](full_name="Ns.M")
     service.find_callees.assert_called_once_with("Ns.M", True, limit=50)
     service.get_call_depth.assert_not_called()
 

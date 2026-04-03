@@ -59,14 +59,14 @@ def _build_depth_tree(root_label: str, items: list[dict], name_key: str = "full_
 
 
 
-def hierarchy_tree(class_name: str, data: dict) -> TreeNode:
+def hierarchy_tree(full_name: str, data: dict) -> TreeNode:
     categories: list[TreeNode] = []
     for key, label in [("parents", "Parents"), ("children", "Children"), ("implements", "Implements")]:
         items = data.get(key, [])
         if items:
             children = [TreeNode(label=item.get("full_name", "?")) for item in items]
             categories.append(TreeNode(label=label, children=children))
-    return TreeNode(label=class_name, children=categories)
+    return TreeNode(label=full_name, children=categories)
 
 
 def _merge_paths_into_tree(root_label: str, paths: list[list[str]], skip_first: bool = True) -> TreeNode:

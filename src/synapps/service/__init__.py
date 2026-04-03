@@ -159,24 +159,24 @@ class SynappsService:
         result = get_symbol(self._conn, full_name)
         return _p(result) if result is not None else None
 
-    def find_implementations(self, interface_name: str, limit: int = 50) -> list[dict] | dict:
-        interface_name = self._resolve(interface_name, preference="interface")
-        result = [_slim(item, "full_name", "file_path", "line") for item in find_implementations(self._conn, interface_name)]
+    def find_implementations(self, full_name: str, limit: int = 50) -> list[dict] | dict:
+        full_name = self._resolve(full_name, preference="interface")
+        result = [_slim(item, "full_name", "file_path", "line") for item in find_implementations(self._conn, full_name)]
         return _apply_limit(result, limit)
 
-    def find_callers(self, method_full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = True, limit: int = 50) -> list[dict] | dict:
-        method_full_name = self._resolve(method_full_name, preference="concrete")
-        result = [_slim(item, "full_name", "file_path", "line") for item in find_callers(self._conn, method_full_name, include_interface_dispatch, exclude_test_callers)]
+    def find_callers(self, full_name: str, include_interface_dispatch: bool = True, exclude_test_callers: bool = True, limit: int = 50) -> list[dict] | dict:
+        full_name = self._resolve(full_name, preference="concrete")
+        result = [_slim(item, "full_name", "file_path", "line") for item in find_callers(self._conn, full_name, include_interface_dispatch, exclude_test_callers)]
         return _apply_limit(result, limit)
 
-    def find_callees(self, method_full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict] | dict:
-        method_full_name = self._resolve(method_full_name, preference="concrete")
-        result = [_slim(item, "full_name", "name", "file_path", "line") for item in find_callees(self._conn, method_full_name, include_interface_dispatch)]
+    def find_callees(self, full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict] | dict:
+        full_name = self._resolve(full_name, preference="concrete")
+        result = [_slim(item, "full_name", "name", "file_path", "line") for item in find_callees(self._conn, full_name, include_interface_dispatch)]
         return _apply_limit(result, limit)
 
-    def get_hierarchy(self, class_name: str) -> dict:
-        class_name = self._resolve(class_name)
-        raw = get_hierarchy(self._conn, class_name)
+    def get_hierarchy(self, full_name: str) -> dict:
+        full_name = self._resolve(full_name)
+        raw = get_hierarchy(self._conn, full_name)
         return {
             "parents": [_slim(n, "full_name", "file_path") for n in raw["parents"]],
             "children": [_slim(n, "full_name", "file_path") for n in raw["children"]],
@@ -425,23 +425,23 @@ class SynappsService:
 
     def find_entry_points(
         self,
-        method: str,
+        full_name: str,
         max_depth: int = 8,
         exclude_pattern: str = "",
         exclude_test_callers: bool = True,
     ) -> dict:
-        method = self._resolve(method, preference="concrete")
-        return find_entry_points(self._conn, method, max_depth, exclude_pattern, exclude_test_callers)
+        full_name = self._resolve(full_name, preference="concrete")
+        return find_entry_points(self._conn, full_name, max_depth, exclude_pattern, exclude_test_callers)
 
-    def get_call_depth(self, method: str, depth: int = 3) -> dict:
-        method = self._resolve(method, preference="concrete")
-        return get_call_depth(self._conn, method, depth)
+    def get_call_depth(self, full_name: str, depth: int = 3) -> dict:
+        full_name = self._resolve(full_name, preference="concrete")
+        return get_call_depth(self._conn, full_name, depth)
 
-    def analyze_change_impact(self, method: str) -> str:
-        method = self._resolve(method, preference="concrete")
-        data = analyze_change_impact(self._conn, method)
+    def analyze_change_impact(self, full_name: str) -> str:
+        full_name = self._resolve(full_name, preference="concrete")
+        data = analyze_change_impact(self._conn, full_name)
 
-        lines = [f"## Change Impact: {method}"]
+        lines = [f"## Change Impact: {full_name}"]
 
         total = data["total_affected"]
         dc = len(data["direct_callers"])
@@ -471,9 +471,9 @@ class SynappsService:
 
         return "\n".join(lines)
 
-    def find_type_impact(self, type_name: str, limit: int = 50) -> dict:
-        type_name = self._resolve(type_name)
-        result = find_type_impact(self._conn, type_name)
+    def find_type_impact(self, full_name: str, limit: int = 50) -> dict:
+        full_name = self._resolve(full_name)
+        result = find_type_impact(self._conn, full_name)
         if len(result["references"]) > limit:
             result["_total_references"] = len(result["references"])
             result["references"] = result["references"][:limit]
@@ -488,11 +488,11 @@ class SynappsService:
     def find_dead_code(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:
         return find_dead_code(self._conn, exclude_pattern=exclude_pattern, limit=limit, offset=offset)
 
-    def find_tests_for(self, method_full_name: str) -> list[dict]:
-        method_full_name = self._resolve(method_full_name)
-        result = query_find_tests_for(self._conn, method_full_name)
+    def find_tests_for(self, full_name: str) -> list[dict]:
+        full_name = self._resolve(full_name)
+        result = query_find_tests_for(self._conn, full_name)
         if not result:
-            result = query_find_test_coverage(self._conn, method_full_name)
+            result = query_find_test_coverage(self._conn, full_name)
         return result
 
     def find_untested(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0) -> dict:

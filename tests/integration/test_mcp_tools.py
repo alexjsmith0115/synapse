@@ -62,7 +62,7 @@ def test_controller_calls_service_method(
     """Bug 1 regression: every TaskController action must have a CALLS edge
     to its corresponding ITaskService method."""
     result = run(mcp_server.call_tool("find_callees", {
-        "method_full_name": controller_method
+        "full_name": controller_method
     }))
     callees = result_json(result)
     callee_names = [c.get("name", "") for c in (callees or [])]
@@ -154,7 +154,7 @@ def test_search_symbols_language_filter(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_find_implementations_task_service(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("find_implementations", {
-        "interface_name": "SynappsTest.Services.ITaskService"
+        "full_name": "SynappsTest.Services.ITaskService"
     }))
     impls = result_json(result)
     names = [i["full_name"] for i in impls]
@@ -165,7 +165,7 @@ def test_find_implementations_task_service(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_find_implementations_project_service(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("find_implementations", {
-        "interface_name": "SynappsTest.Services.IProjectService"
+        "full_name": "SynappsTest.Services.IProjectService"
     }))
     impls = result_json(result)
     names = [i["full_name"] for i in impls]
@@ -176,7 +176,7 @@ def test_find_implementations_project_service(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_find_callees(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("find_callees", {
-        "method_full_name": "SynappsTest.Controllers.TaskController.Create"
+        "full_name": "SynappsTest.Controllers.TaskController.Create"
     }))
     callees = result_json(result)
     names = [c.get("name", "") for c in callees]
@@ -187,7 +187,7 @@ def test_find_callees(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_get_hierarchy_controller(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("get_hierarchy", {
-        "class_name": "SynappsTest.Controllers.TaskController"
+        "full_name": "SynappsTest.Controllers.TaskController"
     }))
     hierarchy = result_json(result)
     parent_names = [p.get("full_name", "") for p in hierarchy["parents"]]
@@ -198,7 +198,7 @@ def test_get_hierarchy_controller(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_get_hierarchy_model(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("get_hierarchy", {
-        "class_name": "SynappsTest.Models.TaskItem"
+        "full_name": "SynappsTest.Models.TaskItem"
     }))
     hierarchy = result_json(result)
     parent_names = [p.get("full_name", "") for p in hierarchy["parents"]]
@@ -330,7 +330,7 @@ def test_get_context_for_edit_scope_rejects_field(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_find_entry_points(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("find_entry_points", {
-        "method": "SynappsTest.Services.ProjectService.ValidateProjectAsync",
+        "full_name": "SynappsTest.Services.ProjectService.ValidateProjectAsync",
         "exclude_test_callers": False,
     }))
     ep = result_json(result)
@@ -357,7 +357,7 @@ def test_get_context_for_impact(mcp_server: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_get_call_depth(mcp_server: FastMCP) -> None:
     result = run(mcp_server.call_tool("find_callees", {
-        "method_full_name": "SynappsTest.Controllers.TaskController.Create",
+        "full_name": "SynappsTest.Controllers.TaskController.Create",
         "depth": 3,
     }))
     depth_result = result_json(result)
@@ -502,7 +502,7 @@ def test_generic_method_call_creates_calls_edge(service: SynappsService) -> None
 def test_generic_method_call_via_find_callees(mcp_server: FastMCP) -> None:
     """find_callees must return the target of a generic method invocation."""
     result = run(mcp_server.call_tool("find_callees", {
-        "method_full_name": "SynappsTest.Controllers.TaskController.Convert"
+        "full_name": "SynappsTest.Controllers.TaskController.Convert"
     }))
     callees = result_json(result)
     callee_names = [c.get("name", "") for c in (callees or [])]
@@ -517,7 +517,7 @@ def test_generic_method_call_via_find_callees(mcp_server: FastMCP) -> None:
 def test_null_conditional_call_via_find_callees(mcp_server: FastMCP) -> None:
     """D-01/D-02 regression: obj?.Method() must produce a CALLS edge."""
     result = run(mcp_server.call_tool("find_callees", {
-        "method_full_name": "SynappsTest.Services.NullConditionalHost.RunIfPresent"
+        "full_name": "SynappsTest.Services.NullConditionalHost.RunIfPresent"
     }))
     callees = result_json(result)
     callee_names = [c.get("name", "") for c in (callees or [])]
