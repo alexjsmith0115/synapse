@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Fixed
+- **Unified MCP tool parameter names to `full_name`** — all symbol-identifying parameters across MCP tools, service layer, and CLI now consistently use `full_name` instead of the previous mix of `method_full_name`, `interface_name`, `class_name`, and `method`
 - **Dead code false positive: Java `main(String[])` entry point** — `find_dead_code` and `find_untested` now exclude methods whose name starts with `main(` in addition to the existing `'main'` IN-list check; covers JDT LS name storage variant `"main(String[])"` (DEAD-01, DEAD-02)
 
 ## [1.4.15] - 2026-04-02
