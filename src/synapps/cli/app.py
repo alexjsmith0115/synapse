@@ -264,7 +264,7 @@ def source(full_name: str, include_class: bool = False) -> None:
 
 @app.command(rich_help_panel="Relationships & Traversal")
 def callers(
-    method_full_name: str,
+    full_name: str,
     include_tests: bool = typer.Option(False, "--include-tests", help="Include test callers"),
     tree: bool = typer.Option(False, "--tree", "-t", help="Display as ASCII tree"),
 ) -> None:
@@ -273,17 +273,17 @@ def callers(
     When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
     if not _require_label(
-        svc, method_full_name, "Method",
+        svc, full_name, "Method",
         "'{name}' is a {actual}, not a Method. Try a specific method like '{name}.MethodName'.",
     ):
         raise typer.Exit(1)
-    results = svc.find_callers(method_full_name, exclude_test_callers=not include_tests)
+    results = svc.find_callers(full_name, exclude_test_callers=not include_tests)
     if not results:
         typer.echo("No results.")
         return
     if tree:
         items, annotation = _unwrap_truncated(results)
-        typer.echo(render_tree(callers_tree(method_full_name, items, annotation=annotation)))
+        typer.echo(render_tree(callers_tree(full_name, items, annotation=annotation)))
     else:
         # NOTE: if _apply_limit truncates, `results` is a dict and this iterates keys.
         # Pre-existing issue — fixing it is out of scope for --tree (see spec: Future Direction).
@@ -293,49 +293,49 @@ def callers(
 
 @app.command(rich_help_panel="Relationships & Traversal")
 def callees(
-    method_full_name: str,
+    full_name: str,
     tree: bool = typer.Option(False, "--tree", "-t", help="Display as ASCII tree"),
 ) -> None:
     """Find all methods called by a given method."""
     svc = _get_service()
     if not _require_label(
-        svc, method_full_name, "Method",
+        svc, full_name, "Method",
         "'{name}' is a {actual}, not a Method. Try a specific method like '{name}.MethodName'.",
     ):
         raise typer.Exit(1)
-    results = svc.find_callees(method_full_name)
+    results = svc.find_callees(full_name)
     if not results:
         typer.echo("No results.")
         return
     if tree:
         items, annotation = _unwrap_truncated(results)
-        typer.echo(render_tree(callees_tree(method_full_name, items, annotation=annotation)))
+        typer.echo(render_tree(callees_tree(full_name, items, annotation=annotation)))
     else:
         for item in results:
             typer.echo(_fmt(item))
 
 
 @app.command(rich_help_panel="Relationships & Traversal")
-def implementations(interface_name: str) -> None:
+def implementations(full_name: str) -> None:
     """Find all concrete implementations of an interface or abstract class.
 
     When a short type name matches both an interface and concrete class, the interface is preferred. Method-level ambiguity still requires a qualified name."""
     svc = _get_service()
-    sym = svc.get_symbol(interface_name)
+    sym = svc.get_symbol(full_name)
     if sym is None:
-        typer.echo(f"Symbol not found: {interface_name}", err=True)
+        typer.echo(f"Symbol not found: {full_name}", err=True)
         raise typer.Exit(1)
     labels = sym.get("_labels", [])
     is_abstract_class = "Class" in labels and sym.get("is_abstract") is True
     if "Interface" not in labels and not is_abstract_class:
         actual = labels[0] if labels else "Unknown"
         typer.echo(
-            f"'{interface_name}' is a {actual}. To find what interfaces it implements, "
-            f"use: synapps hierarchy {interface_name}",
+            f"'{full_name}' is a {actual}. To find what interfaces it implements, "
+            f"use: synapps hierarchy {full_name}",
             err=True,
         )
         raise typer.Exit(1)
-    results = svc.find_implementations(interface_name)
+    results = svc.find_implementations(full_name)
     if not results:
         typer.echo("No results.")
         return
@@ -345,13 +345,13 @@ def implementations(interface_name: str) -> None:
 
 @app.command(rich_help_panel="Relationships & Traversal")
 def hierarchy(
-    class_name: str,
+    full_name: str,
     tree: bool = typer.Option(False, "--tree", "-t", help="Display as ASCII tree"),
 ) -> None:
     """Show the full inheritance chain for a class."""
-    result = _get_service().get_hierarchy(class_name)
+    result = _get_service().get_hierarchy(full_name)
     if tree:
-        typer.echo(render_tree(hierarchy_tree(class_name, result)))
+        typer.echo(render_tree(hierarchy_tree(full_name, result)))
     else:
         parents = result["parents"]
         children = result["children"]

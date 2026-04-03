@@ -104,7 +104,7 @@ def test_search_symbols_language_filter(python_mcp: FastMCP) -> None:
 def test_find_implementations(python_mcp: FastMCP) -> None:
     """find_implementations for IAnimal returns its subclasses via INHERITS edges."""
     result = run(python_mcp.call_tool("find_implementations", {
-        "interface_name": "synappspytest.animals.IAnimal"
+        "full_name": "synappspytest.animals.IAnimal"
     }))
     impls = result_json(result)
     assert isinstance(impls, list)
@@ -119,7 +119,7 @@ def test_find_implementations(python_mcp: FastMCP) -> None:
 def test_get_hierarchy(python_mcp: FastMCP) -> None:
     """get_hierarchy for Dog returns Animal/IAnimal in parent chain."""
     result = run(python_mcp.call_tool("get_hierarchy", {
-        "class_name": "synappspytest.animals.Dog"
+        "full_name": "synappspytest.animals.Dog"
     }))
     hierarchy = result_json(result)
     assert "parents" in hierarchy
@@ -134,7 +134,7 @@ def test_get_hierarchy(python_mcp: FastMCP) -> None:
 def test_find_callees(python_mcp: FastMCP) -> None:
     """find_callees returns callees (possibly empty for Python fixture) without error."""
     result = run(python_mcp.call_tool("find_callees", {
-        "method_full_name": "synappspytest.services.AnimalService.get_greeting"
+        "full_name": "synappspytest.services.AnimalService.get_greeting"
     }))
     callees = result_json(result)
     assert isinstance(callees, list)
@@ -261,7 +261,7 @@ def test_get_context_for_edit_scope_rejects_field(python_mcp: FastMCP) -> None:
 def test_find_entry_points(python_mcp: FastMCP) -> None:
     """find_entry_points returns dict without error (may be empty for Python fixture)."""
     result = run(python_mcp.call_tool("find_entry_points", {
-        "method": "synappspytest.services.AnimalService.get_greeting",
+        "full_name": "synappspytest.services.AnimalService.get_greeting",
     }))
     ep = result_json(result)
     assert isinstance(ep, dict)
@@ -273,7 +273,7 @@ def test_find_entry_points(python_mcp: FastMCP) -> None:
 def test_get_call_depth(python_mcp: FastMCP) -> None:
     """find_callees with depth param returns dict with callees key without error."""
     result = run(python_mcp.call_tool("find_callees", {
-        "method_full_name": "synappspytest.services.AnimalService.get_greeting",
+        "full_name": "synappspytest.services.AnimalService.get_greeting",
         "depth": 3,
     }))
     depth_result = result_json(result)
