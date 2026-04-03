@@ -145,7 +145,7 @@ public class MyClass {
 """
     symbol_map = {("/proj/MyClass.java", 1): "com.example.MyClass.caller"}
     results = extractor.extract("/proj/MyClass.java", _parse(source), symbol_map)
-    lines = [line for _, _, line, _ in results]
+    lines = [line for _, _, line, *_ in results]
     # helper() is on line 3 (1-indexed)
     assert 3 in lines
 
@@ -369,3 +369,112 @@ public class Factory {
     results = extractor.extract("/proj/Factory.java", _parse(source), symbol_map)
     callees = [callee for _, callee, *_ in results]
     assert "Widget" in callees
+
+
+# ---------------------------------------------------------------------------
+# Receiver variable name (5-tuple) tests
+# ---------------------------------------------------------------------------
+
+
+def test_receiver_name_captured_for_instance_call(extractor):
+    """receiver.method() → 5th element is the receiver variable name."""
+    source = """\
+class OrderService {
+    public void createOrder() {
+        orderRepository.save(new Order());
+    }
+}
+"""
+    symbol_map = {("/proj/OrderService.java", 1): "com.example.OrderService.createOrder"}
+    results = extractor.extract("/proj/OrderService.java", _parse(source), symbol_map)
+    save_entries = [(caller, callee, line, col, receiver) for caller, callee, line, col, receiver in results if callee == "save"]
+    assert len(save_entries) == 1
+    assert save_entries[0][4] == "orderRepository"
+
+
+def test_receiver_name_none_for_bare_call(extractor):
+    """Bare method call (no receiver) → receiver_name is None."""
+    source = """\
+class OrderService {
+    public void plain() {
+        doSomething();
+    }
+}
+"""
+    symbol_map = {("/proj/OrderService.java", 1): "com.example.OrderService.plain"}
+    results = extractor.extract("/proj/OrderService.java", _parse(source), symbol_map)
+    assert len(results) == 1
+    caller, callee, line, col, receiver = results[0]
+    assert callee == "doSomething"
+    assert receiver is None
+
+
+def test_receiver_name_none_for_constructor_call(extractor):
+    """new Foo() constructor call → receiver_name is None."""
+    source = """\
+class Factory {
+    public Animal createAnimal() {
+        return new Cat();
+    }
+}
+"""
+    symbol_map = {("/proj/Factory.java", 1): "com.example.Factory.createAnimal"}
+    results = extractor.extract("/proj/Factory.java", _parse(source), symbol_map)
+    cat_entries = [(caller, callee, line, col, receiver) for caller, callee, line, col, receiver in results if callee == "Cat"]
+    assert len(cat_entries) == 1
+    assert cat_entries[0][4] is None
+
+
+def test_receiver_name_for_chained_call_is_none_or_not_identifier(extractor):
+    """Chained a.b().c() → outermost call 'c' has a method_invocation object, not identifier → receiver_name is None."""
+    source = """\
+class MyClass {
+    public void run() {
+        foo.bar().baz();
+    }
+}
+"""
+    symbol_map = {("/proj/MyClass.java", 1): "com.example.MyClass.run"}
+    results = extractor.extract("/proj/MyClass.java", _parse(source), symbol_map)
+    baz_entries = [(caller, callee, line, col, receiver) for caller, callee, line, col, receiver in results if callee == "baz"]
+    assert len(baz_entries) == 1
+    # baz() receiver is the result of bar(), a method_invocation — not a plain identifier
+    assert baz_entries[0][4] is None
+
+
+def test_extract_returns_5_tuples(extractor):
+    """All returned entries must be 5-tuples."""
+    source = """\
+class MyClass {
+    public void caller() {
+        obj.method();
+        bare();
+    }
+}
+"""
+    symbol_map = {("/proj/MyClass.java", 1): "com.example.MyClass.caller"}
+    results = extractor.extract("/proj/MyClass.java", _parse(source), symbol_map)
+    assert len(results) > 0
+    for entry in results:
+        assert len(entry) == 5, f"Expected 5-tuple, got {len(entry)}-tuple: {entry}"
+
+
+def test_caller_callee_line_col_unchanged(extractor):
+    """Existing 4-element behavior (caller, callee, line, col) is preserved."""
+    source = """\
+class OrderService {
+    public Animal createAnimal() {
+        return orderRepository.save(new Cat());
+    }
+    public void plain() {
+        doSomething();
+    }
+}
+"""
+    symbol_map = {("/proj/OrderService.java", 1): "com.example.OrderService.createAnimal"}
+    results = extractor.extract("/proj/OrderService.java", _parse(source), symbol_map)
+    for caller, callee, line, col, receiver in results:
+        assert caller == "com.example.OrderService.createAnimal"
+        assert isinstance(callee, str) and callee
+        assert isinstance(line, int) and line >= 1
+        assert isinstance(col, int) and col >= 0

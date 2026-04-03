@@ -252,7 +252,7 @@ class SymbolResolver:
 
         try:
             with self._ls.open_file(rel_path):
-                for caller_full_name, callee_simple, call_line_1, call_col_0 in call_sites:
+                for caller_full_name, callee_simple, call_line_1, call_col_0, *_ in call_sites:
                     self._resolve_call(
                         caller_full_name, rel_path, call_line_1 - 1, call_col_0,
                         callee_simple, symbol_map=symbol_map,

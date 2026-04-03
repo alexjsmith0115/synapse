@@ -22,7 +22,10 @@ _CLASS_SCOPE_TYPES = {"class_body", "interface_body", "enum_body"}
 class JavaCallExtractor:
     """
     Parses a Java source file with tree-sitter and returns call sites as
-    (caller_full_name, callee_simple_name, line_1indexed, col_0indexed) tuples.
+    (caller_full_name, callee_simple_name, line_1indexed, col_0indexed, receiver_name) tuples.
+
+    receiver_name is the variable identifier before the dot for receiver.method() calls,
+    or None for bare calls, constructors, and chained/complex receivers.
 
     Detects method_invocation (including chained calls) and
     object_creation_expression (new Foo()) per D-17.
@@ -48,13 +51,14 @@ class JavaCallExtractor:
         *,
         module_name_resolver=None,
         class_lines=None,
-    ) -> list[tuple[str, str, int, int]]:
+    ) -> list[tuple[str, str, int, int, str | None]]:
         """
         :param file_path: absolute path (used as key prefix in symbol_map).
         :param tree: pre-parsed tree-sitter Tree.
         :param symbol_map: maps (file_path, 0-indexed line) -> method full_name.
         :returns: list of (caller_full_name, callee_simple_name,
-                  1-indexed call line, 0-indexed call column).
+                  1-indexed call line, 0-indexed call column, receiver_name).
+                  receiver_name is the variable identifier before the dot, or None.
         """
         self._sites_seen = 0
 
@@ -64,8 +68,8 @@ class JavaCallExtractor:
             if fp == file_path
         )
 
-        results: list[tuple[str, str, int, int]] = []
-        seen: set[tuple[str, str, int, int]] = set()
+        results: list[tuple[str, str, int, int, str | None]] = []
+        seen: set[tuple[str, str, int, int, str | None]] = set()
 
         cursor = self._QueryCursor(self._query)
         for _pattern_idx, captures in cursor.matches(tree.root_node):
@@ -88,12 +92,39 @@ class JavaCallExtractor:
 
                 self._sites_seen += 1
 
-                entry = (caller, callee_name, call_line_0 + 1, call_col_0)
+                receiver_name = self._get_receiver_name(node)
+                entry = (caller, callee_name, call_line_0 + 1, call_col_0, receiver_name)
                 if entry not in seen:
                     seen.add(entry)
                     results.append(entry)
 
         return results
+
+    @staticmethod
+    def _get_receiver_name(callee_node) -> str | None:
+        """
+        Extract the receiver variable name from a method_invocation node.
+
+        Returns the plain identifier before the dot only — chained calls,
+        'this', 'super', and class-name receivers all return None since they
+        are not simple field variable references.
+        """
+        parent = callee_node.parent
+        while parent is not None and parent.type != "method_invocation":
+            parent = parent.parent
+        if parent is None:
+            return None
+
+        for child in parent.children:
+            if child == callee_node:
+                break
+            if child.type == "identifier":
+                return node_text(child)
+            # Non-identifier object (chained call, 'this', 'super', type name, etc.)
+            # — stop; we only capture simple variable receivers
+            if child.type not in {".", "(", ")"}:
+                break
+        return None
 
     @staticmethod
     def _get_call_scope(node) -> str:
