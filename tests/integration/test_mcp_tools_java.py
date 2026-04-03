@@ -568,3 +568,32 @@ def test_java_imports_edges(java_mcp: FastMCP) -> None:
         f"Expected at least one class-level IMPORTS edge (e.g. to Formatter or Animal), "
         f"got imported names: {imported_names}"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_main_method_not_in_dead_code(java_mcp: FastMCP) -> None:
+    """DEAD-01: Java main(String[]) entry point must NOT appear in find_dead_code results."""
+    result = run(java_mcp.call_tool("find_dead_code", {
+        "path": JAVA_FIXTURE_PATH,
+    }))
+    output = text(result)
+    # main() has no callers within the project — it would appear as dead code if not excluded.
+    # It must be excluded by the name-based filter in _build_base_exclusion_where.
+    assert "Application.main" not in output, (
+        "main(String[]) entry point appeared in find_dead_code — exclusion is broken"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(30)
+def test_main_method_not_in_untested(java_mcp: FastMCP) -> None:
+    """DEAD-02: Java main(String[]) entry point must NOT appear in find_untested results."""
+    result = run(java_mcp.call_tool("find_untested", {
+        "path": JAVA_FIXTURE_PATH,
+    }))
+    output = text(result)
+    # main() has no TESTS edges — it would appear as untested if not excluded.
+    assert "Application.main" not in output, (
+        "main(String[]) entry point appeared in find_untested — exclusion is broken"
+    )
