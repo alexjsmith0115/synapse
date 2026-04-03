@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 - **Java field annotations silently dropped** — `JavaAttributeExtractor._declaration_name` now descends into `variable_declarator` for `field_declaration` nodes; `@Autowired`, `@Inject`, and other field-level annotations are now correctly captured
+- **Generic C# types lose IMPLEMENTS/INHERITS edges** — classes whose `full_name` contains `<` (e.g. `IRepository<T>`) lost all structural outgoing edges (IMPLEMENTS, INHERITS, and method-level DISPATCHES_TO) because the `file_type_names` lookup key included generic parameters while the tree-sitter extractor returns bare identifiers; generic params are now stripped from the key
 
 ## [1.4.15] - 2026-04-02
 
