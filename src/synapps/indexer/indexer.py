@@ -489,6 +489,14 @@ class Indexer:
         for entries in resolver_class_lines.values():
             entries.sort()
 
+        # Build field_symbol_map so the type-ref extractor can attribute REFERENCES edges
+        # to Field nodes rather than their enclosing class (FILD-02).
+        field_symbol_map: dict[tuple[str, int], str] = {
+            (sym.file_path, sym.line): sym.full_name
+            for sym in all_symbols
+            if sym.kind == SymbolKind.FIELD
+        }
+
         resolver = SymbolResolver(
             self._conn,
             self._lsp.language_server,
@@ -501,6 +509,7 @@ class Indexer:
             parsed_cache=parsed_cache,
             class_lines_per_file=resolver_class_lines,
             import_map=import_map,
+            field_symbol_map=field_symbol_map,
         )
         if single_file:
             resolver.resolve_single_file(single_file, symbol_map, class_symbol_map=class_symbol_map)

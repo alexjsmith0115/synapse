@@ -86,6 +86,7 @@ class SymbolResolver:
         parsed_cache: dict[str, ParsedFile] | None = None,
         class_lines_per_file: dict[str, list[tuple[int, str]]] | None = None,
         import_map: dict[str, dict[str, str]] | None = None,
+        field_symbol_map: dict[tuple[str, int], str] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -98,6 +99,7 @@ class SymbolResolver:
         self._assignment_position_map = assignment_position_map or {}
         self._parsed_cache = parsed_cache
         self._class_lines_per_file = class_lines_per_file
+        self._field_symbol_map = field_symbol_map or {}
         self._unresolved_sites: list[str] = []
         self._callee_name_cache: dict[str, str] = {}
         self._pending_calls: list[dict] = []
@@ -221,7 +223,19 @@ class SymbolResolver:
         t0 = time.monotonic()
         call_sites = self._call_extractor.extract(file_path, tree, symbol_map)
         t1 = time.monotonic()
-        type_refs = self._type_ref_extractor.extract(file_path, tree, symbol_map, class_lines or []) if self._type_ref_extractor else []
+        if self._type_ref_extractor:
+            # Build per-file field_symbol_map slice for field-level REFERENCES ownership
+            file_field_map = {
+                (fp, line): full_name
+                for (fp, line), full_name in self._field_symbol_map.items()
+                if fp == file_path
+            }
+            type_refs = self._type_ref_extractor.extract(
+                file_path, tree, symbol_map, class_lines or [],
+                field_symbol_map=file_field_map if file_field_map else None,
+            )
+        else:
+            type_refs = []
         t2 = time.monotonic()
         if stats:
             stats.extraction_calls_time += t1 - t0

@@ -194,6 +194,46 @@ def test_find_dependencies(java_mcp: FastMCP) -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.timeout(15)
+def test_field_type_name(java_mcp: FastMCP) -> None:
+    """FILD-01: Field nodes have non-empty type_name after indexing."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (f:Field {name: 'animal'}) "
+            "WHERE f.file_path CONTAINS 'AnimalService' "
+            "RETURN f.type_name"
+        ),
+    }))
+    data = result_json(result)
+    assert len(data) >= 1, f"Expected Field node 'animal' in AnimalService, got: {data}"
+    type_names = [row["row"][0] for row in data if row["row"][0]]
+    assert any(tn == "IAnimal" for tn in type_names), (
+        f"Expected type_name='IAnimal' on field 'animal', got: {type_names}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(15)
+def test_field_references(java_mcp: FastMCP) -> None:
+    """FILD-02: REFERENCES edges exist from Field nodes to project-defined types."""
+    result = run(java_mcp.call_tool("execute_query", {
+        "cypher": (
+            "MATCH (f:Field {name: 'animal'})-[:REFERENCES]->(t) "
+            "WHERE f.file_path CONTAINS 'AnimalService' "
+            "RETURN t.full_name, t.name"
+        ),
+    }))
+    data = result_json(result)
+    assert len(data) >= 1, (
+        f"Expected REFERENCES edge from Field 'animal' to IAnimal, got: {data}"
+    )
+    target_names = [row["row"][0] for row in data if row["row"][0]]
+    assert any("IAnimal" in n for n in target_names), (
+        f"Expected target containing 'IAnimal', got: {target_names}"
+    )
+
+
+@pytest.mark.integration
 @pytest.mark.timeout(10)
 def test_get_context_for(java_mcp: FastMCP) -> None:
     """get_context_for returns context string for a Java class."""
