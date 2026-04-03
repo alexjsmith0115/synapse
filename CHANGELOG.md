@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **`JavaFieldTypeExtractor`** — new extractor producing `(field_name, type_name)` pairs for Java field declarations; handles simple, generic (`List<T>` → `"List"`), array (`T[]` → `"T"`), and multi-declarator fields; skips primitives
+
+### Fixed
+- **Java field annotations silently dropped** — `JavaAttributeExtractor._declaration_name` now descends into `variable_declarator` for `field_declaration` nodes; `@Autowired`, `@Inject`, and other field-level annotations are now correctly captured
+
 ## [1.4.15] - 2026-04-02
 
 ### Fixed
