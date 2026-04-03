@@ -35,6 +35,8 @@ class IndexSymbol:
     """Full names of base classes or implemented interfaces."""
     parent_full_name: str | None = None
     """full_name of the enclosing symbol, or None if top-level in the file."""
+    type_name: str = ""
+    """Declared type for FIELD symbols (e.g. "IAnimal"); empty string for all other kinds."""
 
 
 @runtime_checkable

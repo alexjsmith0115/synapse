@@ -174,3 +174,51 @@ def test_empty_source(extractor):
 def test_whitespace_source(extractor):
     results = extractor.extract("/proj/MyClass.java", _parse("   \n  "))
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Field annotations (regression for _declaration_name bug on field_declaration)
+# ---------------------------------------------------------------------------
+
+
+def test_field_annotation_autowired(extractor):
+    """@Autowired on a field should be captured with field name."""
+    source = """\
+public class MyService {
+    @Autowired
+    private OrderRepository repo;
+}
+"""
+    results = extractor.extract("/proj/MyService.java", _parse(source))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "repo" in names_and_attrs
+    assert "autowired" in names_and_attrs["repo"]
+
+
+def test_field_annotation_inject(extractor):
+    """@Inject on a field should be captured with field name."""
+    source = """\
+public class MyService {
+    @Inject
+    private IAnimal animal;
+}
+"""
+    results = extractor.extract("/proj/MyService.java", _parse(source))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    assert "animal" in names_and_attrs
+    assert "inject" in names_and_attrs["animal"]
+
+
+def test_field_multiple_declarators_annotation(extractor):
+    """@Value on a multi-declarator field: only first declarator name extracted."""
+    source = """\
+public class MyService {
+    @Value
+    private String a, b;
+}
+"""
+    results = extractor.extract("/proj/MyService.java", _parse(source))
+    names_and_attrs = {name: attrs for name, attrs in results}
+    # _declaration_name returns the first declarator name
+    assert "a" in names_and_attrs
+    assert "value" in names_and_attrs["a"]

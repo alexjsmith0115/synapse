@@ -6,9 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **`JavaFieldTypeExtractor`** — new extractor producing `(field_name, type_name)` pairs for Java field declarations; handles simple, generic (`List<T>` → `"List"`), array (`T[]` → `"T"`), and multi-declarator fields; skips primitives
+
 ### Fixed
-- **Unified MCP tool parameter names to `full_name`** — all symbol-identifying parameters across MCP tools, service layer, and CLI now consistently use `full_name` instead of the previous mix of `method_full_name`, `interface_name`, `class_name`, and `method`
-- **Dead code false positive: Java `main(String[])` entry point** — `find_dead_code` and `find_untested` now exclude methods whose name starts with `main(` in addition to the existing `'main'` IN-list check; covers JDT LS name storage variant `"main(String[])"` (DEAD-01, DEAD-02)
+- **Java field annotations silently dropped** — `JavaAttributeExtractor._declaration_name` now descends into `variable_declarator` for `field_declaration` nodes; `@Autowired`, `@Inject`, and other field-level annotations are now correctly captured
 
 ## [1.4.15] - 2026-04-02
 
