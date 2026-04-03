@@ -6,26 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-03
+
 ### Added
 - **Dead code exclusions for ASP.NET Core Startup/Program conventions** — `find_dead_code` and `find_untested` now exclude `Configure` and `ConfigureServices` in `Startup` and `Program` classes; `ConfigureWebHost`, `CreateHostBuilder`, and `CreateWebHostBuilder` are excluded by name; `Authorize`, `AllowAnonymous`, `GlobalSetup`, and `GlobalCleanup` attributes are excluded as framework entry points
-- **`find_dependencies` returns `fields` section for Java classes** — when a class has typed `Field` nodes (e.g. `@Autowired` fields), `find_dependencies` now returns a dict with `"dependencies"` and `"fields"` keys; classes without typed fields continue to return a plain list (backward-compatible)
 - **External framework call stub recording** — new `ExternalCallStubber` class and `EXTERNAL_FRAMEWORK_METHODS` allowlist (8 types: RestTemplate, MongoTemplate, JdbcTemplate, KafkaTemplate, RabbitTemplate, ObjectMapper, WebClient, DiscoveryClient) create synthetic stub `Method` nodes so CALLS edges can be recorded for framework method invocations; stubs are excluded from dead code detection via a new `stub` property on `Method` nodes
-- **`stub` field on `Method` nodes** — `upsert_method` now accepts a `stub=False` parameter; stub methods are written with `n.stub = true` in the graph and excluded from dead code queries via `coalesce(m.stub, false)`
+- **End-to-end external framework call recording for Java** — `SymbolResolver` now accepts an `ExternalCallStubber` and invokes it at all unresolved call-site exit points; both full-index and file-reindex paths record `RestTemplate`, `MongoTemplate`, and other allowlisted framework calls as `CALLS` edges to synthetic stub nodes
 - **`JavaCallExtractor` returns 5-tuples with receiver variable name** — `extract()` now returns `(caller, callee, line, col, receiver_name)` where `receiver_name` is the variable identifier before the dot for `receiver.method()` calls, or `None` for bare calls and constructors
-- **End-to-end external framework call recording for Java** — `SymbolResolver` now accepts an `ExternalCallStubber` and invokes it at all unresolved call-site exit points; `ExternalCallStubber` is constructed inside `_resolve_calls_and_refs` for Java projects so both full-index and file-reindex paths record `RestTemplate`, `MongoTemplate`, and other allowlisted framework calls as `CALLS` edges to synthetic stub nodes
-
-## [1.4.15] - 2026-04-02
+- **Spring Data repository stub injection** — Spring Data interfaces (extending `CrudRepository`, `JpaRepository`, etc.) now get synthetic stub `Method` nodes for common CRUD operations (`save`, `findById`, `delete`, etc.), allowing CALLS edges from service classes to repository methods
+- **Java field type extraction and `find_dependencies` fields section** — `JavaFieldTypeExtractor` extracts declared types from Java fields; `find_dependencies` now returns a `"fields"` section for classes with typed `Field` nodes (backward-compatible: classes without typed fields return a plain list)
+- **`stub` field on `Method` nodes** — `upsert_method` now accepts a `stub=False` parameter; stub methods are written with `n.stub = true` in the graph and excluded from dead code queries via `coalesce(m.stub, false)`
+- **Dead code `main(String[])` exclusion** — JDT LS stores Java main methods as `main(String[])` not `main`; `_build_base_exclusion_where` now handles both forms
 
 ### Fixed
-- **Mutation guard false positives in `execute_query`** — `execute_readonly_query` now strips string literal content and dotted property access before checking for mutation keywords; queries like `WHERE m.name CONTAINS 'create'` or `WHERE n.set = 1` no longer raise a spurious `ValueError`
-- **Dead code false positive: `configure()` in Spring Security classes** — `find_dead_code` and `find_untested` now exclude `configure()` (lowercase) in classes ending with `Configurer` or `Adapter` in addition to `Configuration`; covers Spring Security `WebSecurityConfigurerAdapter` overrides (BUG-03)
-- **Dead code false positive: Java `@Override` methods** — `_FRAMEWORK_ATTRIBUTES` now includes `"override"` (lowercase); excludes gRPC service methods and other Java methods that override external framework base classes not present in the index (BUG-04)
-- **C# null-conditional calls not indexed** — `obj?.Method()` patterns now produce CALLS edges; previously all `?.` call sites were silently dropped from the call graph
-- **Dead code false positives for lifecycle methods** — `_EXCLUDED_METHOD_NAMES` now includes `Dispose`, `DisposeAsync`, `Close`, `Finalize`, `OnNavigatedTo`, `OnInitialized`, and `OnInitializedAsync`; these are always framework-invoked and never have callers in the graph
+- **Dead code false positives for Java `main()`, `configure()`, and `@Override`** — extended exclusion patterns for Spring Security adapters/configurers and Java `@Override` annotation
+- **Dead code false positives for lifecycle methods** — `Dispose`, `DisposeAsync`, `Close`, `Finalize`, `OnNavigatedTo`, `OnInitialized`, and `OnInitializedAsync` excluded
+- **C# null-conditional calls not indexed** — `obj?.Method()` patterns now produce CALLS edges
+- **Mutation guard false positives in `execute_query`** — string literals and dotted property access stripped before keyword checking
+- **Architecture stats accuracy** — Package and Endpoint nodes added to `total_symbols` count; HTTP client calls removed from architecture overview to reduce noise
+- **Dead code pagination** — `find_dead_code` and `find_untested` use Python-level offset slicing instead of Cypher SKIP
+- **C# generic IMPLEMENTS/INHERITS edges** — restored edges for generic C# types like `Repository<T>`
 
 ### Changed
-- **`find_callees` docstring** — documents the known graph boundary: calls to external framework types (Spring Data, JDK stdlib, .NET BCL, Entity Framework) are not indexed; agents should use `get_context_for` for call sites involving framework methods
-- **Server instructions** — added `KNOWN GRAPH BOUNDARIES` section so AI agents understand at session init that only project-defined symbols appear as CALLS edges
+- **`find_callees` and server instructions** — document known graph boundary: calls to external framework types are not indexed; agents should use `get_context_for` for framework call sites
 
 ## [1.4.14] - 2026-04-02
 
