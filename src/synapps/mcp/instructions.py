@@ -44,6 +44,11 @@ EFFICIENCY:
 "structure" for overview, "method" for focused, "edit" for modification prep, "impact" for change analysis.
 - Use search_symbols with kind, namespace, or file_path filters to narrow results.
 
+KNOWN GRAPH BOUNDARIES:
+- Only project-defined symbols are indexed. Calls to external framework types (Spring Data, \
+RestTemplate, JDK stdlib, .NET BCL, Entity Framework) do not appear as CALLS edges. \
+Use get_context_for to read call sites directly when framework method calls are needed.
+
 CLI-ONLY TOOLS (not available via MCP):
 - synapps doctor -- check runtime environment and dependencies
 - synapps delete <path> -- delete a project and all its graph data

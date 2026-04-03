@@ -231,6 +231,12 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         depth: if provided, returns all methods reachable up to N levels deep (like a call tree).
         When depth is set, include_interface_dispatch and limit are ignored.
         Returns {root, callees: [{full_name, file_path, depth}], depth_limit}.
+
+        Known graph boundary:
+        - Calls to external framework types (Spring Data repositories, RestTemplate, JDK stdlib,
+          .NET BCL, Entity Framework) are not indexed because external type sources are not parsed.
+          Only calls to project-defined methods on project-defined types appear in the graph.
+          Inspect call sites directly (via get_context_for) when framework method calls are needed.
         """
         _auto_sync_check()
         try:
