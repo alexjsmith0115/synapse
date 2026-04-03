@@ -101,6 +101,14 @@ class JavaAttributeExtractor:
 
     def _declaration_name(self, node) -> str | None:
         """Extract the simple name from a declaration node."""
+        if node.type == "field_declaration":
+            # Field name lives inside variable_declarator, not as a direct identifier child
+            for child in node.children:
+                if child.type == "variable_declarator":
+                    for vc in child.children:
+                        if vc.type == "identifier":
+                            return node_text(vc)
+            return None
         for child in node.children:
             if child.type == "identifier":
                 return node_text(child)
