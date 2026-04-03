@@ -276,6 +276,25 @@ class Indexer:
         # from the parent method to the callback so traversal tools can walk through them.
         self._index_callback_edges(symbols_by_file)
 
+        # Spring Data stub injection: create inherited method stubs on concrete
+        # repository interfaces AFTER INHERITS edges exist so the graph query finds them.
+        if self._language == "java":
+            from synapps.indexer.java.spring_data_stubs import inject_spring_data_stubs
+            t_stubs = time.monotonic()
+            inject_spring_data_stubs(self._conn, language=self._language)
+            log.info("Spring Data stub injection: %.1fs", time.monotonic() - t_stubs)
+
+            # Add Spring Data stub methods to name_to_full_names so the symbol resolver
+            # can match repository.save() calls when LSP resolves to an external JAR.
+            stub_rows = self._conn.query(
+                "MATCH (m:Method) WHERE coalesce(m.stub, false) = true "
+                "RETURN m.name, m.full_name"
+            )
+            for stub_name, stub_full_name in stub_rows:
+                name_to_full_names.setdefault(stub_name, []).append(stub_full_name)
+            if stub_rows:
+                log.info("Added %d stub method entries to name_to_full_names", len(stub_rows))
+
         if on_progress:
             on_progress("Resolving call edges...")
 
