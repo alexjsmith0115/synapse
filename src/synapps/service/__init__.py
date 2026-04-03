@@ -14,6 +14,7 @@ from synapps.graph.lookups import (
     suggest_similar_names,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
+    find_field_dependencies as query_find_field_dependencies,
     find_http_endpoints as query_find_http_endpoints,
     find_http_dependency as query_find_http_dependency,
     find_tests_for as query_find_tests_for,
@@ -329,11 +330,15 @@ class SynappsService:
 
     def find_dependencies(self, full_name: str, depth: int = 1, limit: int = 50) -> list[dict] | dict:
         full_name = self._resolve(full_name)
-        result = [
+        refs = [
             {"type": _slim(r["type"], "full_name", "file_path"), "depth": r["depth"]}
             for r in query_find_dependencies(self._conn, full_name, depth)
         ]
-        return _apply_limit(result, limit)
+        result = _apply_limit(refs, limit)
+        fields = query_find_field_dependencies(self._conn, full_name)
+        if fields:
+            return {"dependencies": result, "fields": fields}
+        return result
 
     def find_http_endpoints(
         self,

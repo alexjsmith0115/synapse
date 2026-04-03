@@ -313,6 +313,29 @@ def find_dependencies(conn: GraphConnection, full_name: str, depth: int = 1) -> 
     return [{"type": row[0], "depth": row[1]} for row in rows]
 
 
+def find_field_dependencies(conn: GraphConnection, full_name: str) -> list[dict]:
+    """Return annotated field dependencies for a class — Field nodes with non-empty type_name.
+
+    Augments find_dependencies with field-level DI info for Java classes where @Autowired,
+    @Inject, etc. are the primary dependency injection mechanism.
+    """
+    import json as _json
+    rows = conn.query(
+        "MATCH (cls {full_name: $full_name})-[:CONTAINS]->(f:Field) "
+        "WHERE f.type_name IS NOT NULL AND f.type_name <> '' "
+        "RETURN f.name, f.type_name, f.attributes",
+        {"full_name": full_name},
+    )
+    result = []
+    for name, type_name, attributes_raw in rows:
+        try:
+            annotations = _json.loads(attributes_raw) if attributes_raw else []
+        except (ValueError, TypeError):
+            annotations = []
+        result.append({"name": name, "type_name": type_name, "annotations": annotations})
+    return result
+
+
 def get_containing_type(conn: GraphConnection, full_name: str) -> dict | None:
     rows = conn.query(
         "MATCH (parent)-[:CONTAINS]->(n {full_name: $full_name}) "

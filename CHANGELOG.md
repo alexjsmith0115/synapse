@@ -6,9 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Changed
-- **Java field REFERENCES edges now originate from Field nodes** — `JavaTypeRefExtractor.extract()` accepts a new `field_symbol_map` keyword argument; when provided, `field_declaration` nodes use the Field node's `full_name` as the `REFERENCES` edge source instead of the enclosing class, enabling `find_dependencies` and `get_context_for` to traverse field-specific dependency chains (FILD-02)
-- **`SymbolResolver` passes `field_symbol_map` to Java type-ref extractor** — resolver now builds and forwards a per-file field symbol map so the extractor receives field `full_name` values without breaking existing C#/TypeScript/Python call sites
+### Added
+- **`find_dependencies` returns `fields` section for Java classes** — when a class has typed `Field` nodes (e.g. `@Autowired` fields), `find_dependencies` now returns a dict with `"dependencies"` and `"fields"` keys; classes without typed fields continue to return a plain list (backward-compatible)
 
 ## [1.4.15] - 2026-04-02
 
