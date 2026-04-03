@@ -727,7 +727,7 @@ def test_spring_data_callees_resolved(java_mcp: FastMCP) -> None:
 @pytest.mark.timeout(10)
 def test_spring_data_stubs_excluded_from_dead_code(java_mcp: FastMCP) -> None:
     """CALL-04: find_dead_code does not return any stub Method node."""
-    result = run(java_mcp.call_tool("find_dead_code", {}))
+    result = run(java_mcp.call_tool("find_dead_code", {"path": JAVA_FIXTURE_PATH}))
     data = result_json(result)
     methods = data.get("methods", [])
     stub_methods = [
