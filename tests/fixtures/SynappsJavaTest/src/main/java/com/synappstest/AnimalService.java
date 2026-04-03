@@ -2,9 +2,15 @@ package com.synappstest;
 
 import java.util.List;
 import java.util.ArrayList;
+import org.springframework.beans.factory.annotation.Autowired;
+import javax.inject.Inject;
 
 public class AnimalService {
-    private final IAnimal animal;
+    @Autowired
+    private IAnimal animal;
+
+    @Inject
+    private Formatter formatter;
 
     public AnimalService(IAnimal animal) {
         this.animal = animal;

@@ -604,6 +604,19 @@ class Indexer:
             else:
                 upsert_contains_symbol(self._conn, symbol.parent_full_name, symbol.full_name)
 
+        # Java field type post-pass: patch Field nodes with type_name after initial upsert
+        if self._language == "java" and parsed_file is not None:
+            from synapps.indexer.java.java_field_type_extractor import JavaFieldTypeExtractor
+            name_to_type = dict(JavaFieldTypeExtractor().extract(file_path, parsed_file.tree))
+            for symbol in symbols:
+                if symbol.kind == SymbolKind.FIELD:
+                    symbol.type_name = name_to_type.get(symbol.name, "")
+                    upsert_field(
+                        self._conn, symbol.full_name, symbol.name, symbol.type_name,
+                        file_path=symbol.file_path, line=symbol.line,
+                        end_line=symbol.end_line, language=self._language,
+                    )
+
         # Wire Java Package -> Class/Interface CONTAINS edges (per D-05, D-06)
         if self._language == "java" and parsed_file is not None:
             pkg_name = _extract_java_package(parsed_file.tree)
@@ -734,7 +747,7 @@ class Indexer:
             case SymbolKind.PROPERTY:
                 upsert_property(self._conn, symbol.full_name, symbol.name, "", file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
             case SymbolKind.FIELD:
-                upsert_field(self._conn, symbol.full_name, symbol.name, "", file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
+                upsert_field(self._conn, symbol.full_name, symbol.name, symbol.type_name, file_path=symbol.file_path, line=symbol.line, end_line=symbol.end_line, language=self._language)
             case _:
                 log.debug("Skipping symbol of unhandled kind: %s", symbol.kind)
 
