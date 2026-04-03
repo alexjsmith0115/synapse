@@ -30,6 +30,15 @@ class TestExcludedMethodNames:
     def test_contains_constructor(self) -> None:
         assert "constructor" in _EXCLUDED_METHOD_NAMES
 
+    def test_contains_configure_web_host(self) -> None:
+        assert "ConfigureWebHost" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_create_host_builder(self) -> None:
+        assert "CreateHostBuilder" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_create_web_host_builder(self) -> None:
+        assert "CreateWebHostBuilder" in _EXCLUDED_METHOD_NAMES
+
 
 class TestFrameworkAttributes:
     def test_contains_override(self) -> None:
@@ -44,6 +53,18 @@ class TestFrameworkAttributes:
 
     def test_contains_requestmapping(self) -> None:
         assert "requestmapping" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_authorize(self) -> None:
+        assert "Authorize" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_allow_anonymous(self) -> None:
+        assert "AllowAnonymous" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_global_setup(self) -> None:
+        assert "GlobalSetup" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_global_cleanup(self) -> None:
+        assert "GlobalCleanup" in _FRAMEWORK_ATTRIBUTES
 
 
 class TestBuildExclusionWhere:
@@ -144,3 +165,14 @@ class TestBuildExclusionWhere:
 
     def test_clause_excludes_overrides_edge(self) -> None:
         assert "(m)-[:OVERRIDES]->()" in self.clause
+
+    # --- .NET Startup/Program convention exclusions ---
+
+    def test_configure_services_in_name_check(self) -> None:
+        assert "'ConfigureServices'" in self.clause
+
+    def test_startup_class_excluded(self) -> None:
+        assert "cfg.name = 'Startup'" in self.clause
+
+    def test_program_class_excluded(self) -> None:
+        assert "cfg.name = 'Program'" in self.clause
