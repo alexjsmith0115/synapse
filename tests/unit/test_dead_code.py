@@ -454,3 +454,42 @@ def test_contains_on_initialized_async() -> None:
 def test_build_exclusion_where_excludes_dispose() -> None:
     where = _build_base_exclusion_where()
     assert "'Dispose'" in where
+
+
+# ---------------------------------------------------------------------------
+# Regression: .NET Startup/Program convention methods excluded
+# ---------------------------------------------------------------------------
+
+def test_dotnet_startup_configure_services_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert "'ConfigureServices'" in cypher
+
+
+def test_dotnet_startup_class_name_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert "cfg.name = 'Startup'" in cypher
+
+
+def test_dotnet_program_class_name_excluded_via_cypher():
+    conn = _conn_with_side_effects([], [(0,)])
+    find_dead_code(conn)
+    cypher = conn.query.call_args_list[0].args[0]
+    assert "cfg.name = 'Program'" in cypher
+
+
+def test_dotnet_framework_attributes_excluded_via_cypher():
+    where = _build_base_exclusion_where()
+    assert '"Authorize"' in where
+    assert '"AllowAnonymous"' in where
+    assert '"GlobalSetup"' in where
+    assert '"GlobalCleanup"' in where
+
+
+def test_dotnet_convention_method_names_excluded():
+    assert "ConfigureWebHost" in _EXCLUDED_METHOD_NAMES
+    assert "CreateHostBuilder" in _EXCLUDED_METHOD_NAMES
+    assert "CreateWebHostBuilder" in _EXCLUDED_METHOD_NAMES
