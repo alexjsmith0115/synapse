@@ -100,3 +100,36 @@ def test_get_hierarchy_value_error_returns_400():
     response = client.get("/api/get_hierarchy?full_name=A.B")
     assert response.status_code == 400
     assert response.json()["detail"] == "Not found"
+
+
+def test_get_context_for_basic():
+    client, svc = _make_client()
+    svc.get_context_for.return_value = "## Target: A.B\n..."
+    response = client.get("/api/get_context_for?full_name=A.B")
+    assert response.status_code == 200
+    assert response.json() == "## Target: A.B\n..."
+    svc.get_context_for.assert_called_once_with("A.B", scope=None, max_lines=-1)
+
+
+def test_get_context_for_with_scope():
+    client, svc = _make_client()
+    svc.get_context_for.return_value = "scoped"
+    response = client.get("/api/get_context_for?full_name=A.B&scope=edit")
+    assert response.status_code == 200
+    svc.get_context_for.assert_called_once_with("A.B", scope="edit", max_lines=-1)
+
+
+def test_get_context_for_value_error_returns_400():
+    client, svc = _make_client()
+    svc.get_context_for.side_effect = ValueError("Ambiguous")
+    response = client.get("/api/get_context_for?full_name=X.Y")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Ambiguous"
+
+
+def test_get_context_for_none_returns_404():
+    client, svc = _make_client()
+    svc.get_context_for.return_value = None
+    response = client.get("/api/get_context_for?full_name=X.Y")
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()

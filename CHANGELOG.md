@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 - **Context menu popover** — clicking a symbol name now shows a context menu with Find Usages, Find Callees, Get Hierarchy (Class/Interface only per D-05), and Open in Editor; replaces the broken handleSymbolClick -> empty search tab behavior
 - **Incremental graph updates** — node expansion now adds new nodes without repositioning existing ones (D-11); new top-level queries fully reset the graph (D-12); uses graphKey prop to distinguish reset vs incremental paths
+- **`GET /api/get_context_for` endpoint** — new backend route in `navigate.py` returning the full context string for a symbol; accepts `full_name` and optional `scope` params; `max_lines=-1` (unlimited); returns 400 on ambiguous name, 404 when symbol not found
 
 ### Fixed
 - **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx

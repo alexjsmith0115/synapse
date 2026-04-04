@@ -45,4 +45,17 @@ def router(service: SynappsService) -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @r.get("/get_context_for")
+    def get_context_for(
+        full_name: str,
+        scope: str | None = None,
+    ) -> str:
+        try:
+            result = service.get_context_for(full_name, scope=scope, max_lines=-1)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Symbol '{full_name}' not found.")
+        return result
+
     return r
