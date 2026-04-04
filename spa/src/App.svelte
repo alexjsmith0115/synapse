@@ -1,17 +1,50 @@
 <script>
   import Header from './lib/ui/Header.svelte';
   import ToolSidebar from './lib/tools/ToolSidebar.svelte';
+  import ToolForm from './lib/tools/ToolForm.svelte';
+  import ResultPanel from './lib/tools/ResultPanel.svelte';
   import { initTheme } from './lib/stores/theme.js';
   import { onMount } from 'svelte';
 
   let activeTool = $state('');
+  let result = $state(null);
+  let resultType = $state('table');
+  let error = $state(null);
+  let loading = $state(false);
 
   onMount(() => {
     initTheme();
   });
 
+  function handleResult(data, type) {
+    result = data;
+    resultType = type;
+    error = null;
+  }
+
+  function handleError(msg) {
+    error = msg;
+    result = null;
+  }
+
+  function handleLoading(isLoading) {
+    loading = isLoading;
+    if (isLoading) error = null;
+  }
+
+  function handleSymbolClick(symbolName) {
+    // Navigate to search_symbols tool; pre-fill is a stretch goal
+    activeTool = 'search_symbols';
+    result = null;
+    error = null;
+    loading = false;
+  }
+
   function handleSelectTool(toolId) {
     activeTool = toolId;
+    result = null;
+    error = null;
+    loading = false;
   }
 </script>
 
@@ -31,8 +64,19 @@
         </div>
       {:else}
         <div class="tool-content">
-          <!-- Plan 04 will add ToolForm + ResultPanel here -->
-          <p>Tool: {activeTool}</p>
+          <ToolForm
+            toolId={activeTool}
+            onResult={handleResult}
+            onError={handleError}
+            onLoading={handleLoading}
+          />
+          <ResultPanel
+            {result}
+            {resultType}
+            {error}
+            {loading}
+            onSymbolClick={handleSymbolClick}
+          />
         </div>
       {/if}
     </main>
