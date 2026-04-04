@@ -49,6 +49,7 @@
                   <SymbolLink
                     name={row[col.key] || ''}
                     fullName={row.full_name || row[col.key] || ''}
+                    kind={row.kind || ''}
                     filePath={row.file_path || ''}
                     line={row.line || 0}
                     onNavigate={onSymbolClick}

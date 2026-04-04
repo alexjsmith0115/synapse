@@ -3,6 +3,7 @@
   import ToolSidebar from './lib/tools/ToolSidebar.svelte';
   import ToolForm from './lib/tools/ToolForm.svelte';
   import ResultPanel from './lib/tools/ResultPanel.svelte';
+  import ContextMenu from './lib/ui/ContextMenu.svelte';
   import { initTheme } from './lib/stores/theme.svelte.js';
   import { tools } from './lib/tools/toolConfig.js';
   import { apiCall } from './lib/api.js';
@@ -15,6 +16,8 @@
   let error = $state(null);
   let loading = $state(false);
   let projectRoot = $state('');
+
+  let contextMenu = $state(null);
 
   // Cache for autoRun tool results (e.g. get_architecture)
   let cachedResults = $state({});
@@ -45,12 +48,30 @@
     if (isLoading) error = null;
   }
 
-  function handleSymbolClick(symbolName) {
-    // Navigate to search_symbols tool; pre-fill is a stretch goal
-    activeTool = 'search_symbols';
+  function handleSymbolClick(symbolData, event) {
+    // D-04: show context menu popover on symbol click
+    if (event && typeof event === 'object' && 'clientX' in event) {
+      event.stopPropagation?.();
+      contextMenu = {
+        x: event.clientX,
+        y: event.clientY,
+        symbolData,
+      };
+    }
+  }
+
+  function handleContextAction(action, symbolData) {
+    contextMenu = null;
+    activeTool = action;
     result = null;
     error = null;
     loading = false;
+    // Pre-fill of form with symbolData.full_name is a future enhancement
+    // requiring ToolForm to accept initial values via props.
+  }
+
+  function closeContextMenu() {
+    contextMenu = null;
   }
 
   async function handleSelectTool(toolId) {
@@ -133,6 +154,15 @@
       {/if}
     </main>
   </div>
+  {#if contextMenu}
+    <ContextMenu
+      x={contextMenu.x}
+      y={contextMenu.y}
+      symbolData={contextMenu.symbolData}
+      onAction={handleContextAction}
+      onClose={closeContextMenu}
+    />
+  {/if}
 </div>
 
 <style>
