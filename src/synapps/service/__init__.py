@@ -223,7 +223,7 @@ class SynappsService:
 
     _USAGES_SUPPORTED_LABELS = {"Method", "Property", "Field", "Class", "Interface"}
 
-    def find_usages(self, full_name: str, exclude_test_callers: bool = True, limit: int = 20) -> str:
+    def find_usages(self, full_name: str, exclude_test_callers: bool = True, limit: int = 20, structured: bool = False) -> str | list[dict]:
         full_name = self._resolve(full_name)
         symbol = get_symbol(self._conn, full_name)
         if symbol is None:
@@ -247,6 +247,18 @@ class SynappsService:
             else:
                 caller_list = callers
                 total = len(callers)
+
+            if structured:
+                return [
+                    {
+                        "full_name": c["full_name"],
+                        "kind": "Method",
+                        "file_path": c.get("file_path", ""),
+                        "line": c.get("line", 0),
+                    }
+                    for c in caller_list
+                ]
+
             lines = [f"## Usages of {full_name} ({kind})", f"\n{total} callers:\n"]
             for c in caller_list:
                 fp = self._rel_path(c.get("file_path", ""))
@@ -255,6 +267,20 @@ class SynappsService:
             if total > len(caller_list):
                 lines.append(f"\n... and {total - len(caller_list)} more")
             return "\n".join(lines)
+
+        # Class or Interface — structured mode returns list of dicts
+        if structured:
+            raw_refs = [
+                {"full_name": _slim(r["symbol"], "full_name").get("full_name", "?"),
+                 "file_path": _slim(r["symbol"], "file_path").get("file_path", ""),
+                 "kind": r["kind"],
+                 "line": _slim(r["symbol"], "line").get("line", 0)}
+                for r in query_find_type_references(self._conn, full_name)
+            ]
+            if exclude_test_callers:
+                test_re = re.compile(_TEST_PATH_PATTERN)
+                raw_refs = [r for r in raw_refs if not test_re.match(r.get("file_path", ""))]
+            return raw_refs[:limit]
 
         # Class or Interface — compact tiered summary
         kind = "Interface" if "Interface" in labels else "Class"

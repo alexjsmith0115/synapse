@@ -16,7 +16,7 @@ def router(service: SynappsService) -> APIRouter:
         limit: int = 20,
     ) -> str | list | dict:
         try:
-            result = service.find_usages(full_name, exclude_test_callers, limit=limit)
+            result = service.find_usages(full_name, exclude_test_callers, limit=limit, structured=True)
             return serialize_result(result)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))

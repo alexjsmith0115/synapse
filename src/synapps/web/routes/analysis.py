@@ -10,7 +10,7 @@ def router(service: SynappsService) -> APIRouter:
     r = APIRouter(tags=["Analysis"])
 
     @r.get("/get_architecture")
-    def get_architecture(path: str, limit: int = 10) -> dict:
+    def get_architecture(path: str | None = None, subdirectory: str | None = None, limit: int = 10) -> dict:
         try:
             result = service.get_architecture_overview(limit=limit)
             return serialize_result(result)
@@ -19,7 +19,8 @@ def router(service: SynappsService) -> APIRouter:
 
     @r.get("/find_dead_code")
     def find_dead_code(
-        path: str,
+        path: str | None = None,
+        subdirectory: str | None = None,
         exclude_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
@@ -32,7 +33,8 @@ def router(service: SynappsService) -> APIRouter:
 
     @r.get("/find_untested")
     def find_untested(
-        path: str,
+        path: str | None = None,
+        subdirectory: str | None = None,
         exclude_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
