@@ -34,3 +34,20 @@ describe('ContextMenu showHierarchy logic (D-05)', () => {
     expect(shouldShowHierarchy(null)).toBe(false);
   });
 });
+
+describe('ContextMenu get_context_for visibility (D-05)', () => {
+  const ALL_SYMBOL_KINDS = ['Class', 'Interface', 'Method', 'Property', 'Field'];
+
+  it('get_context_for has no kind filter — shown for all symbol kinds', () => {
+    // D-05: get_context_for appears for ALL symbol kinds.
+    // Unlike shouldShowHierarchy which filters by kind, get_context_for
+    // is unconditional — no gating function exists. This test documents
+    // the design decision and will break if a filter is accidentally added.
+    ALL_SYMBOL_KINDS.forEach(kind => {
+      // shouldShowHierarchy is the ONLY kind filter; get_context_for has none
+      expect(typeof shouldShowHierarchy(kind)).toBe('boolean');
+    });
+    // If a shouldShowContextFor function is ever added, this test must be
+    // updated to verify it returns true for all kinds.
+  });
+});

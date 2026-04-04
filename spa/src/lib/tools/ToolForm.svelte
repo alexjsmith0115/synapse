@@ -76,7 +76,7 @@
             {:else if param.type === 'select'}
               <select id={param.name} bind:value={formValues[param.name]}>
                 {#each param.options as opt}
-                  <option value={opt}>{opt || '(any)'}</option>
+                  <option value={opt}>{opt || param.defaultLabel || '(any)'}</option>
                 {/each}
               </select>
             {:else if param.type === 'checkbox'}

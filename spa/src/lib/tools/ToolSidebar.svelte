@@ -14,6 +14,7 @@
         { id: 'find_usages', label: 'Find Usages' },
         { id: 'find_callees', label: 'Find Callees' },
         { id: 'get_hierarchy', label: 'Get Hierarchy' },
+        { id: 'get_context_for', label: 'Context' },
       ],
     },
     {

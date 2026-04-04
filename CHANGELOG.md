@@ -29,6 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Context menu popover** — clicking a symbol name now shows a context menu with Find Usages, Find Callees, Get Hierarchy (Class/Interface only per D-05), and Open in Editor; replaces the broken handleSymbolClick -> empty search tab behavior
 - **Incremental graph updates** — node expansion now adds new nodes without repositioning existing ones (D-11); new top-level queries fully reset the graph (D-12); uses graphKey prop to distinguish reset vs incremental paths
 - **`GET /api/get_context_for` endpoint** — new backend route in `navigate.py` returning the full context string for a symbol; accepts `full_name` and optional `scope` params; `max_lines=-1` (unlimited); returns 400 on ambiguous name, 404 when symbol not found
+- **Context tool in sidebar and context menu** — `get_context_for` registered in `toolConfig.js` with `text` resultType and scope dropdown; appears as fourth item in Navigate sidebar; "Get Context" is the first item in the context menu for all symbol kinds (no kind guard)
+- **Scope dropdown `(full)` label** — `ToolForm.svelte` select option now renders `param.defaultLabel || '(any)'` so the `get_context_for` scope dropdown shows "(full)" for the empty option while all other selects continue showing "(any)"
+- **Text result styling** — `.text-result` CSS updated to `font-size: 14px`, `line-height: 1.6`, and explicit `font-family: monospace` per UI-SPEC
 
 ### Fixed
 - **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx
