@@ -240,8 +240,9 @@
     border-radius: 4px;
     padding: 16px;
     overflow-x: auto;
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 1.6;
+    font-family: monospace;
     white-space: pre-wrap;
     word-break: break-word;
   }

@@ -56,6 +56,19 @@ export const tools = {
       { name: 'full_name', label: 'Class or interface name', type: 'text', required: true, placeholder: 'e.g. IMyService' },
     ],
   },
+  get_context_for: {
+    label: 'Context',
+    category: 'Navigate',
+    endpoint: 'get_context_for',
+    method: 'GET',
+    cta: 'Get Context',
+    resultType: 'text',
+    params: [
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
+      { name: 'scope', label: 'Scope', type: 'select', required: false,
+        options: ['', 'structure', 'method', 'edit', 'impact'], defaultLabel: '(full)' },
+    ],
+  },
   get_architecture: {
     label: 'Architecture',
     category: 'Analysis',
