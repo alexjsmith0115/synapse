@@ -2,7 +2,7 @@
   import { apiCall } from '../api.js';
   import { tools } from './toolConfig.js';
 
-  const { toolId, onResult, onError, onLoading } = $props();
+  const { toolId, onResult, onError, onLoading, onRefresh } = $props();
   const config = $derived(tools[toolId]);
 
   let formValues = $state({});
@@ -51,47 +51,56 @@
 </script>
 
 {#if config}
-  <form class="tool-form" onsubmit={handleSubmit}>
-    <h2 class="heading">{config.label}</h2>
-    <div class="form-fields">
-      {#each config.params as param}
-        <div class="field">
-          <label class="label" for={param.name}>{param.label}</label>
-          {#if param.type === 'textarea'}
-            <textarea
-              id={param.name}
-              bind:value={formValues[param.name]}
-              placeholder={param.placeholder || ''}
-              required={param.required}
-              rows="4"
-            ></textarea>
-          {:else if param.type === 'select'}
-            <select id={param.name} bind:value={formValues[param.name]}>
-              {#each param.options as opt}
-                <option value={opt}>{opt || '(any)'}</option>
-              {/each}
-            </select>
-          {:else if param.type === 'checkbox'}
-            <label class="checkbox-label">
-              <input type="checkbox" bind:checked={formValues[param.name]} />
-              {param.label}
-            </label>
-          {:else}
-            <input
-              id={param.name}
-              type={param.type}
-              bind:value={formValues[param.name]}
-              placeholder={param.placeholder || ''}
-              required={param.required}
-            />
-          {/if}
-        </div>
-      {/each}
+  {#if config.autoRun}
+    <div class="tool-form">
+      <h2 class="heading">{config.label}</h2>
+      <button type="button" class="submit-btn" onclick={() => onRefresh?.(toolId)}>
+        {config.cta}
+      </button>
     </div>
-    <button type="submit" class="submit-btn" disabled={submitting}>
-      {submitting ? 'Loading...' : config.cta}
-    </button>
-  </form>
+  {:else}
+    <form class="tool-form" onsubmit={handleSubmit}>
+      <h2 class="heading">{config.label}</h2>
+      <div class="form-fields">
+        {#each config.params as param}
+          <div class="field">
+            <label class="label" for={param.name}>{param.label}</label>
+            {#if param.type === 'textarea'}
+              <textarea
+                id={param.name}
+                bind:value={formValues[param.name]}
+                placeholder={param.placeholder || ''}
+                required={param.required}
+                rows="4"
+              ></textarea>
+            {:else if param.type === 'select'}
+              <select id={param.name} bind:value={formValues[param.name]}>
+                {#each param.options as opt}
+                  <option value={opt}>{opt || '(any)'}</option>
+                {/each}
+              </select>
+            {:else if param.type === 'checkbox'}
+              <label class="checkbox-label">
+                <input type="checkbox" bind:checked={formValues[param.name]} />
+                {param.label}
+              </label>
+            {:else}
+              <input
+                id={param.name}
+                type={param.type}
+                bind:value={formValues[param.name]}
+                placeholder={param.placeholder || ''}
+                required={param.required}
+              />
+            {/if}
+          </div>
+        {/each}
+      </div>
+      <button type="submit" class="submit-btn" disabled={submitting}>
+        {submitting ? 'Loading...' : config.cta}
+      </button>
+    </form>
+  {/if}
 {/if}
 
 <style>

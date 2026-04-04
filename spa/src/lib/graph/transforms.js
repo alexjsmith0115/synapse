@@ -58,6 +58,52 @@ export function calleesToElements(data, rootName) {
 }
 
 /**
+ * Transform find_usages structured response to graph elements.
+ * Star layout: queried symbol at center, callers radiating outward with inward CALLS edges.
+ */
+export function usagesToElements(data, queriedName) {
+  const nodes = new Map();
+  const edges = [];
+
+  // Center node — the queried symbol
+  if (queriedName) {
+    const shortName = queriedName.split('.').pop();
+    nodes.set(queriedName, {
+      data: { id: queriedName, label: shortName, kind: 'Method', full_name: queriedName },
+    });
+  }
+
+  for (const item of (Array.isArray(data) ? data : [])) {
+    const fn = item.full_name;
+    if (!fn) continue;
+    const shortName = fn.split('.').pop();
+    if (!nodes.has(fn)) {
+      nodes.set(fn, {
+        data: {
+          id: fn,
+          label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+          kind: item.kind || 'Method',
+          full_name: fn,
+          file_path: item.file_path || '',
+          line: item.line || 0,
+        },
+      });
+    }
+    // Edge: caller -> center (inward -- callers CALL the queried symbol)
+    edges.push({
+      data: {
+        id: `e-${fn}-${queriedName}`,
+        source: fn,
+        target: queriedName,
+        label: 'CALLS',
+      },
+    });
+  }
+
+  return { nodes: [...nodes.values()], edges };
+}
+
+/**
  * Transform get_hierarchy response to graph elements.
  */
 export function hierarchyToElements(data) {

@@ -24,7 +24,7 @@ export const tools = {
     endpoint: 'find_usages',
     method: 'GET',
     cta: 'Run Query',
-    resultType: 'text',
+    resultType: 'graph',
     params: [
       { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
       { name: 'exclude_test_callers', label: 'Exclude test callers', type: 'checkbox', required: false, default: true },
@@ -61,12 +61,10 @@ export const tools = {
     category: 'Analysis',
     endpoint: 'get_architecture',
     method: 'GET',
-    cta: 'Run Query',
+    cta: 'Refresh',
     resultType: 'mixed',
-    params: [
-      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
-      { name: 'limit', label: 'Hotspot limit', type: 'number', required: false, default: 10 },
-    ],
+    autoRun: true,
+    params: [],
   },
   find_dead_code: {
     label: 'Dead Code',
@@ -76,7 +74,7 @@ export const tools = {
     cta: 'Run Query',
     resultType: 'table',
     params: [
-      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
+      { name: 'subdirectory', label: 'Subdirectory', type: 'text', required: false, placeholder: 'e.g. src/api (optional)' },
       { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
       { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
       { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },
@@ -90,7 +88,7 @@ export const tools = {
     cta: 'Run Query',
     resultType: 'table',
     params: [
-      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
+      { name: 'subdirectory', label: 'Subdirectory', type: 'text', required: false, placeholder: 'e.g. src/api (optional)' },
       { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
       { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
       { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },

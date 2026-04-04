@@ -7,6 +7,7 @@ export function getLayout(viewType) {
   switch (viewType) {
     case 'callees':
     case 'hierarchy':
+    case 'usages':
       return {
         name: 'dagre',
         rankDir: 'LR',

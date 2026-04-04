@@ -1,10 +1,10 @@
 <script>
   import DataTable from '../ui/DataTable.svelte';
   import CytoscapeGraph from '../graph/CytoscapeGraph.svelte';
-  import { calleesToElements, hierarchyToElements, cypherToElements, isGraphResult } from '../graph/transforms.js';
+  import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult } from '../graph/transforms.js';
   import { apiCall } from '../api.js';
 
-  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '' } = $props();
+  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '' } = $props();
 
   // Accumulated graph elements — persists across node expansions.
   // Reset when a new top-level query result arrives (via $effect on result).
@@ -22,6 +22,8 @@
       initial = calleesToElements(result, rootName);
     } else if (activeTool === 'get_hierarchy') {
       initial = hierarchyToElements({ ...result, target: result.target || queryParams?.full_name || '' });
+    } else if (activeTool === 'find_usages') {
+      initial = usagesToElements(result, queryParams?.full_name || '');
     } else {
       initial = { nodes: [], edges: [] };
     }
@@ -31,6 +33,7 @@
   const viewType = $derived(
     activeTool === 'find_callees' ? 'callees' :
     activeTool === 'get_hierarchy' ? 'hierarchy' :
+    activeTool === 'find_usages' ? 'usages' :
     'cypher'
   );
 
@@ -58,6 +61,24 @@
       } catch (err) {
         console.warn('Failed to expand node:', err.message);
       }
+    } else if (activeTool === 'find_usages' && nodeData.full_name) {
+      try {
+        const usages = await apiCall('find_usages', { full_name: nodeData.full_name, limit: 20 });
+        const newElements = usagesToElements(usages, nodeData.full_name);
+        const existingNodeIds = new Set(accumulatedGraphElements.nodes.map(n => n.data.id));
+        const existingEdgeIds = new Set(accumulatedGraphElements.edges.map(e => e.data.id));
+        const mergedNodes = [
+          ...accumulatedGraphElements.nodes,
+          ...newElements.nodes.filter(n => !existingNodeIds.has(n.data.id)),
+        ];
+        const mergedEdges = [
+          ...accumulatedGraphElements.edges,
+          ...newElements.edges.filter(e => !existingEdgeIds.has(e.data.id)),
+        ];
+        accumulatedGraphElements = { nodes: mergedNodes, edges: mergedEdges };
+      } catch (err) {
+        console.warn('Failed to expand usages node:', err.message);
+      }
     }
   }
 
@@ -66,7 +87,15 @@
     if (!data || !Array.isArray(data) || data.length === 0) return [];
     const row = data[0];
     if (typeof row !== 'object' || row === null) return [];
-    return Object.keys(row).map(key => ({ key, label: key.replace(/_/g, ' ') }));
+    const keys = Object.keys(row);
+    const hasLocation = keys.includes('file_path') && keys.includes('line');
+    const filtered = keys
+      .filter(key => hasLocation ? (key !== 'file_path' && key !== 'line') : true)
+      .map(key => ({ key, label: key.replace(/_/g, ' ') }));
+    if (hasLocation) {
+      filtered.push({ key: 'location', label: 'Location', synthetic: true });
+    }
+    return filtered;
   }
 
   // Extract table rows from various result shapes
@@ -106,7 +135,7 @@
         {/each}
       </div>
     {/if}
-    <DataTable columns={tableColumns} rows={tableRows} {onSymbolClick} />
+    <DataTable columns={tableColumns} rows={tableRows} {onSymbolClick} {projectRoot} />
   {:else if resultType === 'text'}
     <pre class="text-result">{typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>
   {:else if resultType === 'mixed'}
@@ -127,6 +156,7 @@
         columns={deriveColumns(result.hotspots)}
         rows={result.hotspots}
         {onSymbolClick}
+        {projectRoot}
       />
     {/if}
     {#if result.packages}
@@ -135,6 +165,7 @@
         columns={deriveColumns(result.packages)}
         rows={result.packages}
         {onSymbolClick}
+        {projectRoot}
       />
     {/if}
     {#if result.http_service_map}
@@ -143,6 +174,7 @@
         columns={deriveColumns(result.http_service_map)}
         rows={result.http_service_map}
         {onSymbolClick}
+        {projectRoot}
       />
     {/if}
   {:else if resultType === 'graph'}
