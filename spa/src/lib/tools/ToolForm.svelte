@@ -1,26 +1,35 @@
 <script>
+  import { untrack } from 'svelte';
   import { apiCall } from '../api.js';
   import { tools } from './toolConfig.js';
 
-  const { toolId, onResult, onError, onLoading, onRefresh } = $props();
+  const { toolId, initialValues = null, onResult, onError, onLoading, onRefresh, onClearInitialValues } = $props();
   const config = $derived(tools[toolId]);
 
   let formValues = $state({});
   let submitting = $state(false);
 
-  // Reset form values when tool changes, applying defaults
+  // Reset form values when tool changes, applying defaults and optional initialValues
   $effect(() => {
     if (config) {
       const vals = {};
       for (const p of config.params) {
         vals[p.name] = p.default !== undefined ? p.default : (p.type === 'checkbox' ? false : '');
       }
+      if (initialValues) {
+        for (const [k, v] of Object.entries(initialValues)) {
+          if (k in vals) vals[k] = v;
+        }
+      }
       formValues = vals;
+      if (initialValues) {
+        untrack(() => { submit(); });
+        onClearInitialValues?.();
+      }
     }
   });
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+  async function submit() {
     if (submitting) return;
 
     // Build params, converting empty strings to null for optional params
@@ -47,6 +56,11 @@
       submitting = false;
       onLoading?.(false);
     }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    await submit();
   }
 </script>
 

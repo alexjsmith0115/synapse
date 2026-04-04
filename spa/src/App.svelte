@@ -10,6 +10,7 @@
   import { onMount } from 'svelte';
 
   let activeTool = $state('');
+  let initialValues = $state(null);
   let result = $state(null);
   let resultType = $state('table');
   let queryParams = $state({});
@@ -62,12 +63,12 @@
 
   function handleContextAction(action, symbolData) {
     contextMenu = null;
-    activeTool = action;
     result = null;
     error = null;
     loading = false;
-    // Pre-fill of form with symbolData.full_name is a future enhancement
-    // requiring ToolForm to accept initial values via props.
+    // Set initialValues before activeTool so ToolForm's $effect sees both in the same batch
+    initialValues = { full_name: symbolData.full_name };
+    activeTool = action;
   }
 
   function closeContextMenu() {
@@ -75,6 +76,7 @@
   }
 
   async function handleSelectTool(toolId) {
+    initialValues = null;
     activeTool = toolId;
     error = null;
 
@@ -135,10 +137,12 @@
         <div class="tool-content">
           <ToolForm
             toolId={activeTool}
+            {initialValues}
             onResult={handleResult}
             onError={handleError}
             onLoading={handleLoading}
             onRefresh={handleRefresh}
+            onClearInitialValues={() => { initialValues = null; }}
           />
           <ResultPanel
             {result}
