@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`/api/config` endpoint** — new backend endpoint returning `project_root` for frontend path relativization
 - **`usagesToElements` graph transform** — new transform function converting `find_usages` API responses to Cytoscape graph elements with star topology
 
+- **Context menu popover** — clicking a symbol name now shows a context menu with Find Usages, Find Callees, Get Hierarchy (Class/Interface only per D-05), and Open in Editor; replaces the broken handleSymbolClick -> empty search tab behavior
+- **Incremental graph updates** — node expansion now adds new nodes without repositioning existing ones (D-11); new top-level queries fully reset the graph (D-12); uses graphKey prop to distinguish reset vs incremental paths
+
 ### Fixed
 - **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx
 - **Analysis routes required path param** — `get_architecture`, `find_dead_code`, and `find_untested` web routes now accept `path` as optional (`str | None = None`) so the SPA can call them without a vestigial path parameter
