@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calleesToElements, hierarchyToElements, cypherToElements, isGraphResult } from '../transforms.js';
+import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult } from '../transforms.js';
 
 describe('calleesToElements', () => {
   it('transforms flat array to {nodes, edges}', () => {
@@ -77,6 +77,50 @@ describe('hierarchyToElements', () => {
     };
     const result = hierarchyToElements(data);
     expect(result.edges[0].data.label).toBe('INHERITS');
+  });
+});
+
+describe('usagesToElements', () => {
+  it('creates center node and caller nodes with inward edges', () => {
+    const data = [
+      { full_name: 'A.Caller1', kind: 'Method', file_path: '/a.cs', line: 10 },
+      { full_name: 'B.Caller2', kind: 'Method', file_path: '/b.cs', line: 20 },
+    ];
+    const result = usagesToElements(data, 'X.Target');
+    expect(result.nodes).toHaveLength(3);
+    expect(result.edges).toHaveLength(2);
+    expect(result.edges[0].data.source).toBe('A.Caller1');
+    expect(result.edges[0].data.target).toBe('X.Target');
+    expect(result.edges[1].data.source).toBe('B.Caller2');
+    expect(result.edges[1].data.target).toBe('X.Target');
+  });
+
+  it('returns center node only when data is empty', () => {
+    const result = usagesToElements([], 'X.Target');
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].data.id).toBe('X.Target');
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('handles null/undefined data gracefully', () => {
+    const result = usagesToElements(null, 'X.Target');
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('truncates long caller labels', () => {
+    const data = [
+      { full_name: 'Some.Very.Long.ClassName.MethodName', kind: 'Method' },
+    ];
+    const result = usagesToElements(data, 'X.T');
+    const callerNode = result.nodes.find(n => n.data.id === 'Some.Very.Long.ClassName.MethodName');
+    expect(callerNode.data.label.length).toBeLessThanOrEqual(16);
+  });
+
+  it('edges have CALLS label', () => {
+    const data = [{ full_name: 'A.Caller', kind: 'Method' }];
+    const result = usagesToElements(data, 'X.Target');
+    expect(result.edges[0].data.label).toBe('CALLS');
   });
 });
 

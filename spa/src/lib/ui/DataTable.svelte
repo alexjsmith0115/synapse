@@ -1,9 +1,19 @@
 <script>
-  const { columns = [], rows = [], onSymbolClick } = $props();
+  const { columns = [], rows = [], onSymbolClick, projectRoot = '' } = $props();
   import SymbolLink from './SymbolLink.svelte';
 
   function isSymbolColumn(col) {
     return col.key === 'full_name' || col.key === 'name';
+  }
+
+  function relativePath(absPath, root) {
+    if (!absPath || !root) return absPath || '';
+    if (absPath.startsWith(root)) {
+      let rel = absPath.slice(root.length);
+      if (rel.startsWith('/')) rel = rel.slice(1);
+      return rel;
+    }
+    return absPath;
   }
 </script>
 
@@ -27,7 +37,15 @@
           <tr>
             {#each columns as col}
               <td>
-                {#if isSymbolColumn(col)}
+                {#if col.synthetic && col.key === 'location'}
+                  {#if row.file_path}
+                    <a href="vscode://file/{row.file_path}:{row.line}:1" class="location-link">
+                      {relativePath(row.file_path, projectRoot)}:{row.line}
+                    </a>
+                  {:else}
+                    —
+                  {/if}
+                {:else if isSymbolColumn(col)}
                   <SymbolLink
                     name={row[col.key] || ''}
                     fullName={row.full_name || row[col.key] || ''}
@@ -75,5 +93,13 @@
   }
   .empty-state .heading {
     margin-bottom: 8px;
+  }
+  .location-link {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .location-link:hover {
+    text-decoration: underline;
   }
 </style>

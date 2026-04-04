@@ -40,6 +40,31 @@ describe('toolConfig', () => {
     expect(tools.find_callees.resultType).toBe('graph');
   });
 
+  it('find_usages has graph resultType', () => {
+    expect(tools.find_usages.resultType).toBe('graph');
+  });
+
+  it('find_dead_code has no path param but has subdirectory param', () => {
+    const pathParam = tools.find_dead_code.params.find(p => p.name === 'path');
+    expect(pathParam).toBeUndefined();
+    const subdirParam = tools.find_dead_code.params.find(p => p.name === 'subdirectory');
+    expect(subdirParam).toBeDefined();
+    expect(subdirParam.required).toBe(false);
+  });
+
+  it('find_untested has no path param but has subdirectory param', () => {
+    const pathParam = tools.find_untested.params.find(p => p.name === 'path');
+    expect(pathParam).toBeUndefined();
+    const subdirParam = tools.find_untested.params.find(p => p.name === 'subdirectory');
+    expect(subdirParam).toBeDefined();
+  });
+
+  it('get_architecture has autoRun, empty params, and Refresh cta', () => {
+    expect(tools.get_architecture.autoRun).toBe(true);
+    expect(tools.get_architecture.params).toHaveLength(0);
+    expect(tools.get_architecture.cta).toBe('Refresh');
+  });
+
   it('contains all 9 expected tool IDs', () => {
     const expectedIds = [
       'search_symbols', 'find_usages', 'find_callees', 'get_hierarchy',

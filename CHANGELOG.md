@@ -19,6 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **SPA build script** — `scripts/build_spa.sh` runs `npm ci && npm run build` from the `spa/` directory for reproducible production builds
 - **Static file serving test** — `tests/unit/web/test_static.py` verifies that API routes are not shadowed by the SPA static file catch-all, and that `index.html` is served when the static directory exists
 
+- **find_usages graph rendering** — `find_usages` now renders as an interactive graph with star layout (queried symbol at center, callers radiating outward) instead of plain text; includes click-to-expand node exploration
+- **get_architecture auto-fire** — `get_architecture` now auto-fires on tab select with cached results; shows a Refresh button instead of a form with required path input
+- **Analysis tool path removal** — `find_dead_code` and `find_untested` no longer require a `path` input; replaced with optional `subdirectory` filter
+- **Location column** — table results now combine `file_path` and `line` into a single clickable Location column with `vscode://file/` links; display text shows relative paths (e.g. `src/MyService.cs:42`) instead of absolute paths
+- **`/api/config` endpoint** — new backend endpoint returning `project_root` for frontend path relativization
+- **`usagesToElements` graph transform** — new transform function converting `find_usages` API responses to Cytoscape graph elements with star topology
+
 ### Fixed
 - **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx
 - **Analysis routes required path param** — `get_architecture`, `find_dead_code`, and `find_untested` web routes now accept `path` as optional (`str | None = None`) so the SPA can call them without a vestigial path parameter

@@ -4,6 +4,8 @@
   import ToolForm from './lib/tools/ToolForm.svelte';
   import ResultPanel from './lib/tools/ResultPanel.svelte';
   import { initTheme } from './lib/stores/theme.svelte.js';
+  import { tools } from './lib/tools/toolConfig.js';
+  import { apiCall } from './lib/api.js';
   import { onMount } from 'svelte';
 
   let activeTool = $state('');
@@ -12,9 +14,18 @@
   let queryParams = $state({});
   let error = $state(null);
   let loading = $state(false);
+  let projectRoot = $state('');
+
+  // Cache for autoRun tool results (e.g. get_architecture)
+  let cachedResults = $state({});
 
   onMount(() => {
     initTheme();
+    // Fetch project root for path relativization
+    fetch('/api/config')
+      .then(r => r.json())
+      .then(data => { projectRoot = data.project_root || ''; })
+      .catch(() => { /* ignore -- paths will show absolute */ });
   });
 
   function handleResult(data, type, params = {}) {
@@ -42,11 +53,46 @@
     loading = false;
   }
 
-  function handleSelectTool(toolId) {
+  async function handleSelectTool(toolId) {
     activeTool = toolId;
-    result = null;
     error = null;
-    loading = false;
+
+    const config = tools[toolId];
+    if (config?.autoRun) {
+      // Use cached result if available
+      if (cachedResults[toolId]) {
+        result = cachedResults[toolId];
+        resultType = config.resultType;
+        queryParams = {};
+        loading = false;
+        return;
+      }
+      // Auto-fire the API call
+      loading = true;
+      result = null;
+      try {
+        const data = await apiCall(config.endpoint, {}, config.method);
+        cachedResults[toolId] = data;
+        result = data;
+        resultType = config.resultType;
+        queryParams = {};
+      } catch (err) {
+        error = err.message;
+        result = null;
+      } finally {
+        loading = false;
+      }
+    } else {
+      result = null;
+      loading = false;
+    }
+  }
+
+  function handleRefresh(toolId) {
+    // Clear cache and re-fire for autoRun tools
+    delete cachedResults[toolId];
+    cachedResults = { ...cachedResults };
+    handleSelectTool(toolId);
   }
 </script>
 
@@ -71,6 +117,7 @@
             onResult={handleResult}
             onError={handleError}
             onLoading={handleLoading}
+            onRefresh={handleRefresh}
           />
           <ResultPanel
             {result}
@@ -80,6 +127,7 @@
             {loading}
             onSymbolClick={handleSymbolClick}
             {activeTool}
+            {projectRoot}
           />
         </div>
       {/if}
