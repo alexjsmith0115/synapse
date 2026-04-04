@@ -17,6 +17,7 @@ def test_python_pass_when_version_exits_zero() -> None:
             mock_sub.TimeoutExpired = subprocess.TimeoutExpired
             result = PythonCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
     assert "/usr/bin/python3" in result.detail
 
 
@@ -51,16 +52,6 @@ def test_python_fail_when_timeout() -> None:
 
 def test_python_group_is_python() -> None:
     assert PythonCheck().group == "python"
-
-
-def test_python_pass_fix_is_none() -> None:
-    with patch("synapps.doctor.checks.python3.shutil") as mock_shutil:
-        with patch("synapps.doctor.checks.python3.subprocess") as mock_sub:
-            mock_shutil.which.return_value = "/usr/bin/python3"
-            mock_sub.run.return_value = MagicMock(returncode=0)
-            mock_sub.TimeoutExpired = subprocess.TimeoutExpired
-            result = PythonCheck().run()
-    assert result.fix is None
 
 
 # ---- PylspCheck tests (Pyright) ----

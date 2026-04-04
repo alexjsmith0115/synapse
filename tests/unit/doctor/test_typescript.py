@@ -20,6 +20,7 @@ def test_node_pass_when_version_exits_zero() -> None:
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = NodeCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
     assert "/usr/local/bin/node" in result.detail
 
 
@@ -56,16 +57,6 @@ def test_node_fail_when_timeout() -> None:
 
 def test_node_group_is_typescript() -> None:
     assert NodeCheck().group == "typescript"
-
-
-def test_node_pass_fix_is_none() -> None:
-    with patch("synapps.doctor.checks.node.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.node.subprocess") as mock_sub:
-        mock_shutil.which.return_value = "/usr/local/bin/node"
-        mock_sub.run.return_value.returncode = 0
-        mock_sub.TimeoutExpired = subprocess.TimeoutExpired
-        result = NodeCheck().run()
-    assert result.fix is None
 
 
 # --- TypeScriptLSCheck tests (npm check) ---

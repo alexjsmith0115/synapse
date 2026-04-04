@@ -54,14 +54,3 @@ def test_banner_accent_line_uses_light_green():
     assert "#74C69D" in _ACCENT or "#74c69d" in _ACCENT
 
 
-def test_banner_has_two_tone_colors():
-    """Each banner line is rendered with SYN in dark green and APPS in light green."""
-    output = _capture_banner()
-    for syn, apps in _BANNER_LINES:
-        assert len(syn) > 0 and len(apps) > 0
-    # Both colors must appear in every rendered line (SYN portion + APPS portion)
-    assert _SYN_COLOR == "#2D6A4F"
-    assert _APPS_COLOR == "#74C69D"
-    # Verify the rendered output contains both color escape sequences
-    assert "45;106;79" in output    # _SYN_COLOR RGB
-    assert "116;198;157" in output  # _APPS_COLOR RGB

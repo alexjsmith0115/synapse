@@ -32,6 +32,8 @@ def test_writes_calls_edge_when_lsp_resolves_callee():
     assert "CALLS" in call_args[0][0]
     assert call_args[0][1]["caller"] == "MyNs.MyClass.Caller"
     assert call_args[0][1]["callee"] == "MyNs.MyClass.Helper"
+    assert call_args[0][1]["line"] == 5
+    assert call_args[0][1]["col"] == 12
 
 
 def test_skips_edge_when_lsp_returns_none():
@@ -79,32 +81,6 @@ def test_index_calls_reads_all_cs_files(tmp_path):
     indexer.index_calls(str(tmp_path), {})
 
     assert extractor.extract.call_count == 2
-
-
-def test_writes_call_site_line_and_col():
-    conn = MagicMock()
-    ls = _make_ls()
-
-    callee_sym = {
-        "name": "Helper", "kind": 6,
-        "parent": {
-            "name": "MyClass", "kind": 5,
-            "parent": {"name": "MyNs", "kind": 3, "parent": None}
-        }
-    }
-    ls.request_defining_symbol.return_value = callee_sym
-
-    extractor = MagicMock()
-    # call_line_1=5, call_col_0=12
-    extractor.extract.return_value = [("MyNs.MyClass.Caller", "Helper", 5, 12)]
-
-    indexer = CallIndexer(conn, ls, extractor=extractor)
-    indexer._index_file("/proj/Foo.cs", "namespace X{}", {("/proj/Foo.cs", 3): "MyNs.MyClass.Caller"})
-
-    call_args = conn.execute.call_args
-    params = call_args[0][1]
-    assert params["line"] == 5  # 1-indexed, passed through from extractor
-    assert params["col"] == 12
 
 
 def test_skips_self_calls():

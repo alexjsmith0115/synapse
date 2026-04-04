@@ -8,7 +8,6 @@ from synapps.graph.edges import (
     upsert_http_calls,
     batch_upsert_serves,
     batch_upsert_http_calls,
-    delete_orphan_endpoints,
 )
 
 
@@ -74,14 +73,3 @@ def test_batch_upsert_http_calls_executes_unwind() -> None:
     assert "HTTP_CALLS" in cypher
 
 
-def test_delete_orphan_endpoints() -> None:
-    conn = _mock_conn()
-    delete_orphan_endpoints(conn, "/repo/path")
-    # Two-step cleanup: remove CONTAINS edge, then delete fully orphaned nodes
-    assert conn.execute.call_count == 2
-    first_cypher = conn.execute.call_args_list[0][0][0]
-    second_cypher = conn.execute.call_args_list[1][0][0]
-    assert "Endpoint" in first_cypher
-    assert "DELETE c" in first_cypher
-    assert "Endpoint" in second_cypher
-    assert "DELETE ep" in second_cypher

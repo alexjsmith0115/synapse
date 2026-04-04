@@ -25,7 +25,7 @@ def _record(keys: list[str], values: list) -> MagicMock:
     return row
 
 
-def test_analyze_change_impact_aggregates() -> None:
+def test_analyze_change_impact_returns_expected_sections() -> None:
     conn = MagicMock()
     conn.query.side_effect = [
         [["Direct.Caller", "/proj/D.cs"]],  # direct callers

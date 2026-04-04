@@ -31,7 +31,7 @@ def test_phase_creates_endpoint_nodes_and_edges() -> None:
     assert conn.execute.call_count >= 3
 
 
-def test_phase_skips_when_no_results() -> None:
+def test_phase_is_noop_when_no_results() -> None:
     conn = _mock_conn()
     phase = HttpPhase(conn, repo_path="/repo")
     phase.run([])
@@ -72,23 +72,6 @@ def test_rebuild_from_graph_queries_existing_data() -> None:
     assert defs == []
     assert calls == []
     assert conn.query.call_count == 2
-
-
-def test_conflict_warning_emitted() -> None:
-    conn = _mock_conn()
-    phase = HttpPhase(conn, repo_path="/repo")
-    result = HttpExtractionResult(
-        endpoint_defs=[
-            _def("/api/items", "GET", "CtrlA.GetAll", 10),
-            _def("/api/items", "GET", "CtrlB.GetAll", 20),
-        ],
-    )
-    with patch("synapps.indexer.http_phase.log") as mock_log:
-        phase.run([result])
-    mock_log.warning.assert_called_once()
-    warning_msg = mock_log.warning.call_args[0]
-    assert any("CtrlA.GetAll" in str(a) for a in warning_msg)
-    assert any("CtrlB.GetAll" in str(a) for a in warning_msg)
 
 
 def test_conflict_warning_emitted_once_per_pair() -> None:

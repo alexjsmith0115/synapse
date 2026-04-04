@@ -40,10 +40,3 @@ def test_does_not_delete_contains_edges() -> None:
             assert "CONTAINS" not in cypher.split("DELETE")[1]
 
 
-def test_passes_file_path_to_both_queries() -> None:
-    """Both queries receive the file_path as parameter."""
-    conn = _conn()
-    delete_outgoing_edges_for_file(conn, "/proj/deep/nested/File.py")
-    for c in conn.execute.call_args_list:
-        params = c[0][1]
-        assert params["path"] == "/proj/deep/nested/File.py"

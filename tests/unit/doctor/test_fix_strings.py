@@ -168,7 +168,7 @@ def test_jdtls_fix_platform_aware(system: str, expected_substr: str) -> None:
 # --- CSharpLSCheck (unchanged — verify fix still works) ---
 
 
-def test_csharp_ls_fix_unchanged() -> None:
+def test_csharp_ls_fix_contains_synapps_index() -> None:
     with patch("synapps.doctor.checks.csharp_ls.subprocess") as mock_sub, \
          patch("synapps.doctor.checks.csharp_ls.glob") as mock_glob:
         mock_sub.run.return_value.returncode = 0
@@ -182,7 +182,7 @@ def test_csharp_ls_fix_unchanged() -> None:
 # --- PylspCheck (unchanged — verify fix still works) ---
 
 
-def test_pylsp_fix_unchanged() -> None:
+def test_pylsp_fix_contains_pyright() -> None:
     with patch("synapps.doctor.checks.pylsp.subprocess") as mock_sub:
         mock_sub.run.return_value = MagicMock(returncode=1, stdout="", stderr="ModuleNotFoundError")
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired

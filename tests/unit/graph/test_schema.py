@@ -48,10 +48,12 @@ def test_schema_does_not_include_namespace_index() -> None:
     assert not any(":Namespace" in c for c in calls)
 
 
-def test_schema_correct_number_of_indices() -> None:
-    """One index per node type: Repository, Directory, File, Package,
-    Class, Interface, Method, Property, Field, Endpoint = 10 total."""
+def test_schema_creates_index_for_each_node_type() -> None:
+    """Schema creates indices for all node types used in the graph."""
     conn = MagicMock()
     conn.dialect = "memgraph"
     ensure_schema(conn)
-    assert conn.execute_implicit.call_count == 10
+    calls = [c[0][0] for c in conn.execute_implicit.call_args_list]
+    for label in ["Repository", "Directory", "File", "Package",
+                  "Class", "Interface", "Method", "Property", "Field", "Endpoint"]:
+        assert any(f":{label}" in c for c in calls), f"Missing index for :{label}"

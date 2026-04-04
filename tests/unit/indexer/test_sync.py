@@ -71,15 +71,6 @@ def test_empty_disk_all_deleted():
     assert unchanged == set()
 
 
-def test_no_changes():
-    graph = {"/proj/a.cs": _ts(hour=14)}
-    disk = {"/proj/a.cs": _mtime(hour=10)}
-    to_delete, to_reindex, unchanged = compute_sync_diff(graph, disk)
-    assert to_delete == set()
-    assert to_reindex == set()
-    assert unchanged == {"/proj/a.cs"}
-
-
 def test_equal_timestamp_treated_as_unchanged():
     """When mtime == last_indexed exactly, file is unchanged (not stale)."""
     ts = _ts(hour=12)

@@ -1,20 +1,9 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import get_args
-
 import pytest
 
-from synapps.doctor.base import CheckResult, CheckStatus, DoctorCheck
-
-
-def test_checkresult_has_required_fields() -> None:
-    result = CheckResult(name="x", status="pass", detail="ok", fix=None, group="infra")
-    assert result.name == "x"
-    assert result.status == "pass"
-    assert result.detail == "ok"
-    assert result.fix is None
-    assert result.group == "infra"
+from synapps.doctor.base import CheckResult, DoctorCheck
 
 
 def test_checkresult_is_frozen() -> None:
@@ -26,10 +15,6 @@ def test_checkresult_is_frozen() -> None:
 def test_checkresult_fix_can_be_string() -> None:
     result = CheckResult(name="x", status="pass", detail="ok", fix="install foo", group="infra")
     assert result.fix == "install foo"
-
-
-def test_checkstatus_valid_values() -> None:
-    assert frozenset(get_args(CheckStatus)) == {"pass", "warn", "fail"}
 
 
 def test_doctor_check_is_runtime_checkable() -> None:

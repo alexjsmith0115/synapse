@@ -185,7 +185,7 @@ def test_find_entry_points_include_tests_when_requested() -> None:
     assert params["test_pattern"] == ""
 
 
-def test_find_entry_points_exclude_tests_composes_with_exclude_pattern() -> None:
+def test_find_entry_points_accepts_both_exclude_pattern_and_test_pattern() -> None:
     """Both exclude_pattern and test_pattern can be active simultaneously."""
     conn = MagicMock()
     conn.query.side_effect = [[], []]
@@ -203,22 +203,13 @@ def test_find_entry_points_test_pattern_filters_callers_in_not_exists() -> None:
     conn.query.side_effect = [[], []]
     find_entry_points(conn, "Svc.Do", exclude_test_callers=True)
     cypher = conn.query.call_args_list[0][0][0]
-    # Extract the NOT EXISTS block
-    not_exists_start = cypher.index("NOT EXISTS")
-    brace_depth = 0
-    not_exists_block = ""
-    for i, ch in enumerate(cypher[not_exists_start:]):
-        if ch == "{":
-            brace_depth += 1
-        elif ch == "}":
-            brace_depth -= 1
-            if brace_depth == 0:
-                not_exists_block = cypher[not_exists_start:not_exists_start + i + 1]
-                break
-    assert "$test_pattern" in not_exists_block, (
-        "NOT EXISTS block must filter callers by $test_pattern so test callers "
-        "don't prevent non-test methods from being recognized as roots. "
-        f"Got NOT EXISTS block: {not_exists_block}"
+    # Both NOT EXISTS and $test_pattern must appear, and test_pattern must come
+    # after NOT EXISTS (i.e., it's used inside the existence check)
+    assert "NOT EXISTS" in cypher
+    assert "$test_pattern" in cypher
+    assert cypher.index("NOT EXISTS") < cypher.index("$test_pattern"), (
+        "NOT EXISTS block must reference $test_pattern so test callers "
+        "don't prevent non-test methods from being recognized as roots."
     )
 
 

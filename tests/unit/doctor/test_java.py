@@ -22,6 +22,7 @@ def test_java_pass_when_version_exits_zero() -> None:
         mock_sub.TimeoutExpired = subprocess.TimeoutExpired
         result = JavaCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
     assert "/usr/bin/java" in result.detail
 
 
@@ -58,16 +59,6 @@ def test_java_group_is_java() -> None:
     assert JavaCheck().group == "java"
 
 
-def test_java_pass_fix_is_none() -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.java.subprocess") as mock_sub:
-        mock_shutil.which.return_value = "/usr/bin/java"
-        mock_sub.run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
-        mock_sub.TimeoutExpired = subprocess.TimeoutExpired
-        result = JavaCheck().run()
-    assert result.fix is None
-
-
 # ---------------------------------------------------------------------------
 # JdtlsCheck tests (LANG-08)
 # ---------------------------------------------------------------------------
@@ -82,6 +73,7 @@ def test_jdtls_pass_when_launcher_jar_exists() -> None:
         ]
         result = JdtlsCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
     assert "org.eclipse.equinox.launcher" in result.detail
 
 
@@ -108,12 +100,3 @@ def test_jdtls_group_is_java() -> None:
     assert JdtlsCheck().group == "java"
 
 
-def test_jdtls_pass_fix_is_none() -> None:
-    with patch("synapps.doctor.checks.jdtls.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.jdtls.glob") as mock_glob:
-        mock_shutil.which.return_value = "/usr/bin/java"
-        mock_glob.glob.return_value = [
-            "/home/user/.solidlsp/language_servers/static/EclipseJDTLS/jdtls/plugins/org.eclipse.equinox.launcher_1.7.100.jar"
-        ]
-        result = JdtlsCheck().run()
-    assert result.fix is None

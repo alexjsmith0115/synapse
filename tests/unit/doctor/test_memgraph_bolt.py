@@ -14,6 +14,7 @@ def test_memgraph_warns_when_docker_unavailable() -> None:
         mock_docker.from_env.return_value.ping.side_effect = docker.errors.DockerException("no docker")
         result = MemgraphBoltCheck().run()
     assert result.status == "warn"
+    assert result.fix is None
     assert "Docker not available" in result.detail
 
 
@@ -57,9 +58,10 @@ def test_memgraph_pass_when_bolt_handshake_receives_4_bytes() -> None:
             mock_socket.create_connection.return_value = mock_conn
             result = MemgraphBoltCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
 
 
-def test_memgraph_pass_has_no_fix() -> None:
+def test_memgraph_warn_has_no_fix() -> None:
     mock_sock = MagicMock()
     mock_sock.recv.return_value = b"\x00\x04\x00\x00"
     mock_conn = MagicMock()
@@ -72,14 +74,6 @@ def test_memgraph_pass_has_no_fix() -> None:
         with patch("synapps.doctor.checks.memgraph_bolt.socket") as mock_socket:
             mock_socket.create_connection.return_value = mock_conn
             result = MemgraphBoltCheck().run()
-    assert result.fix is None
-
-
-def test_memgraph_warn_has_no_fix() -> None:
-    with patch("synapps.doctor.checks.memgraph_bolt.docker") as mock_docker:
-        mock_docker.errors.DockerException = docker.errors.DockerException
-        mock_docker.from_env.return_value.ping.side_effect = docker.errors.DockerException("no docker")
-        result = MemgraphBoltCheck().run()
     assert result.fix is None
 
 

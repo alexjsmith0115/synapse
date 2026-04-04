@@ -13,6 +13,7 @@ def test_docker_daemon_pass_when_ping_succeeds() -> None:
         mock_docker.from_env.return_value.ping.return_value = None
         result = DockerDaemonCheck().run()
     assert result.status == "pass"
+    assert result.fix is None
 
 
 def test_docker_daemon_fail_when_ping_raises() -> None:
@@ -51,13 +52,6 @@ def test_docker_daemon_fix_on_linux() -> None:
             result = DockerDaemonCheck().run()
     assert result.fix is not None
     assert "apt-get" in result.fix or "docker.io" in result.fix
-
-
-def test_docker_daemon_pass_has_no_fix() -> None:
-    with patch("synapps.doctor.checks.docker_daemon.docker") as mock_docker:
-        mock_docker.from_env.return_value.ping.return_value = None
-        result = DockerDaemonCheck().run()
-    assert result.fix is None
 
 
 def test_docker_daemon_group_is_core() -> None:

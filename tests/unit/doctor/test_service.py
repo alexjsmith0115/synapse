@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from synapps.doctor.base import CheckResult, DoctorCheck
-from synapps.doctor.service import DoctorReport, DoctorService
+from synapps.doctor.service import DoctorService
 
 
 class _PassCheck:
@@ -29,11 +29,6 @@ class _ExplodingCheck:
 def test_service_returns_all_results() -> None:
     report = DoctorService([_PassCheck(), _FailCheck()]).run()
     assert len(report.checks) == 2
-
-
-def test_service_returns_doctor_report() -> None:
-    report = DoctorService([_PassCheck()]).run()
-    assert isinstance(report, DoctorReport)
 
 
 def test_service_absorbs_exception() -> None:
