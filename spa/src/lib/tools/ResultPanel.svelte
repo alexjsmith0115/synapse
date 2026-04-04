@@ -9,6 +9,7 @@
   // Accumulated graph elements — persists across node expansions.
   // Reset when a new top-level query result arrives (via $effect on result).
   let accumulatedGraphElements = $state({ nodes: [], edges: [] });
+  let graphKey = $state(0);
 
   // When a new result arrives, compute the initial graph elements and reset accumulator
   $effect(() => {
@@ -27,6 +28,8 @@
     } else {
       initial = { nodes: [], edges: [] };
     }
+    // New query: increment graphKey to signal full reset in CytoscapeGraph
+    graphKey += 1;
     accumulatedGraphElements = initial;
   });
 
@@ -188,6 +191,7 @@
         elements={accumulatedGraphElements}
         {viewType}
         onNodeClick={handleNodeClick}
+        {graphKey}
       />
     {/if}
   {:else if resultType === 'raw'}

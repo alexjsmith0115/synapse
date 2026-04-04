@@ -5,6 +5,7 @@
   import coseBilkent from 'cytoscape-cose-bilkent';
   import { buildStyles } from './nodeStyles.js';
   import { getLayout } from './layouts.js';
+  import { computeGraphDiff } from './graphDiff.js';
 
   // Register layout extensions once
   cytoscape.use(dagre);
@@ -15,7 +16,10 @@
     viewType = 'callees',
     onNodeClick,
     onNodeDoubleClick,
+    graphKey = 0,
   } = $props();
+
+  let lastGraphKey = -1;
 
   let container;
   let cy;
@@ -86,16 +90,31 @@
     });
   });
 
-  // React to elements changes — update graph without recreating
+  // Incremental add or full reset based on graphKey
   $effect(() => {
-    if (cy && elements) {
-      const allElements = [...(elements.nodes || []), ...(elements.edges || [])];
+    if (!cy || !elements) return;
+    const allElements = [...(elements.nodes || []), ...(elements.edges || [])];
+    const existingIds = new Set(cy.elements().map(el => el.id()));
+    const diff = computeGraphDiff(allElements, existingIds, graphKey, lastGraphKey);
+
+    if (diff.mode === 'reset') {
+      lastGraphKey = graphKey;
+      cy.elements().remove();
       if (allElements.length > 0) {
-        cy.elements().remove();
         cy.add(allElements);
         cy.layout(getLayout(viewType)).run();
-        cy.fit(undefined, 50); // fit with 50px padding
+        cy.fit(undefined, 50);
       }
+      return;
+    }
+
+    if (diff.mode === 'noop') return;
+
+    // Incremental add — only layout new nodes to preserve existing positions
+    const added = cy.add(diff.newElements);
+    const newNodes = added.nodes();
+    if (newNodes.length > 0) {
+      newNodes.layout(getLayout(viewType)).run();
     }
   });
 
