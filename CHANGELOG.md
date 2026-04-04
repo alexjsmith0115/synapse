@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **Localhost web UI — SPA scaffold** — new `spa/` directory at repo root with Svelte 5 + Vite build tooling; builds to `src/synapps/web/static/`; includes full CSS design system (green palette, light/dark themes), app shell layout (48px header, 240px sidebar, flex content area), dark mode toggle with `localStorage` persistence, and sidebar with 9 curated tools in 4 categories
+
 ## [1.5.1] - 2026-04-03
 
 ### Fixed

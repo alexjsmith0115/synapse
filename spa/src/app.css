@@ -1,0 +1,113 @@
+/* === Reset === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* === CSS Custom Properties — Light Theme (default) === */
+:root,
+[data-theme="light"] {
+  --color-dominant: #F7FAF8;
+  --color-secondary: #E8F4ED;
+  --color-accent: #2D6A4F;
+  --color-accent-highlight: #74C69D;
+  --color-destructive: #C0392B;
+  --color-border: #C3DDD0;
+  --color-text-primary: #1A2E23;
+  --color-text-secondary: #4A6D5A;
+
+  /* Graph node colors */
+  --node-class: #2D6A4F;
+  --node-interface: #52A67A;
+  --node-method: #74C69D;
+  --node-field: #A8D8BE;
+  --node-package: #C3DDD0;
+  --node-file: #E8F4ED;
+  --node-external: #F0F0F0;
+  --node-external-stroke: #74C69D;
+}
+
+/* === Dark Theme === */
+[data-theme="dark"] {
+  --color-dominant: #0F1F17;
+  --color-secondary: #1A2E23;
+  --color-accent: #74C69D;
+  --color-accent-highlight: #2D6A4F;
+  --color-border: #2A4A38;
+  --color-text-primary: #F0FFF4;
+  --color-text-secondary: #8ABFA0;
+
+  /* Graph node colors — dark */
+  --node-class: #74C69D;
+  --node-interface: #52A67A;
+  --node-method: #2D6A4F;
+  --node-field: #3D8A63;
+  --node-package: #1A4D35;
+  --node-file: #142B1E;
+  --node-external: #2A2A2A;
+  --node-external-stroke: #74C69D;
+}
+
+/* === Typography === */
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text-primary);
+  background: var(--color-dominant);
+}
+
+/* === Spacing tokens (as comments — used inline in components) ===
+ * xs: 4px   — icon gaps, inline padding
+ * sm: 8px   — compact list padding, button icon gap
+ * md: 16px  — default spacing, form gaps, card padding
+ * lg: 24px  — section padding, sidebar group spacing
+ * xl: 32px  — sidebar inner padding, content top padding
+ * 2xl: 48px — major section breaks
+ * 3xl: 64px — page-level margins
+ */
+
+/* === Utility classes === */
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.heading {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.display {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+/* === Scrollbar styling === */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--color-dominant); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 4px; }
+
+/* === Unsupported viewport banner === */
+.unsupported-banner {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--color-dominant);
+  color: var(--color-text-primary);
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  padding: 32px;
+  text-align: center;
+}
+@media (max-width: 767px) {
+  .unsupported-banner { display: flex; }
+  #app { display: none; }
+}
