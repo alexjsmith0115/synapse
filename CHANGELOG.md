@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **SPA build script** — `scripts/build_spa.sh` runs `npm ci && npm run build` from the `spa/` directory for reproducible production builds
 - **Static file serving test** — `tests/unit/web/test_static.py` verifies that API routes are not shadowed by the SPA static file catch-all, and that `index.html` is served when the static directory exists
 
+### Fixed
+- **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx
+
 ### Changed
 - **Unit test cleanup** — removed ~19 redundant, tautological, and brittle tests; merged duplicate doctor pass/fix assertions; replaced fragile Cypher brace-counting parser and exact-count schema assertions; renamed 5 misleading test names
 
