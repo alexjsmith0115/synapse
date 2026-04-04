@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **FastAPI web package** — new `synapps.web` package with `create_app(service)` factory returning a FastAPI app with `/api` route prefix, disabled docs UI, and conditional SPA static file serving
 - **neo4j serialization utility** — `serialize_result()` in `synapps.web.serialization` converts neo4j `Node`/`Relationship` objects to plain dicts suitable for FastAPI JSON responses
 - **`fastapi>=0.115.0` dependency** — added to project dependencies for the web UI backend
+- **Localhost web UI — SPA scaffold** — new `spa/` directory at repo root with Svelte 5 + Vite build tooling; builds to `src/synapps/web/static/`; includes full CSS design system (green palette, light/dark themes), app shell layout (48px header, 240px sidebar, flex content area), dark mode toggle with `localStorage` persistence, and sidebar with 9 curated tools in 4 categories
 
 ### Changed
 - **Unit test cleanup** — removed ~19 redundant, tautological, and brittle tests; merged duplicate doctor pass/fix assertions; replaced fragile Cypher brace-counting parser and exact-count schema assertions; renamed 5 misleading test names

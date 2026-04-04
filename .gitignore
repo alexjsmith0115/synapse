@@ -16,6 +16,10 @@ htmlcov/
 docs/superpowers/
 docs/
 
+# SPA build output and dependencies
+spa/node_modules/
+src/synapps/web/static/
+
 # C# build artifacts in test fixtures
 tests/fixtures/**/bin/
 tests/fixtures/**/obj/
