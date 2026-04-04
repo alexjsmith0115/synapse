@@ -4,7 +4,7 @@
   import { calleesToElements, hierarchyToElements, cypherToElements, isGraphResult } from '../graph/transforms.js';
   import { apiCall } from '../api.js';
 
-  const { result = null, resultType = 'table', error = null, loading = false, onSymbolClick, activeTool = '' } = $props();
+  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '' } = $props();
 
   // Accumulated graph elements — persists across node expansions.
   // Reset when a new top-level query result arrives (via $effect on result).
@@ -18,10 +18,10 @@
     }
     let initial;
     if (activeTool === 'find_callees') {
-      const rootName = result?.root || '';
+      const rootName = result?.root || queryParams?.full_name || '';
       initial = calleesToElements(result, rootName);
     } else if (activeTool === 'get_hierarchy') {
-      initial = hierarchyToElements(result);
+      initial = hierarchyToElements({ ...result, target: result.target || queryParams?.full_name || '' });
     } else {
       initial = { nodes: [], edges: [] };
     }

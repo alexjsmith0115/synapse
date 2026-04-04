@@ -40,7 +40,7 @@
     onLoading?.(true);
     try {
       const result = await apiCall(config.endpoint, params, config.method);
-      onResult?.(result, config.resultType);
+      onResult?.(result, config.resultType, params);
     } catch (err) {
       onError?.(err.message);
     } finally {

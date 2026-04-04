@@ -3,12 +3,13 @@
   import ToolSidebar from './lib/tools/ToolSidebar.svelte';
   import ToolForm from './lib/tools/ToolForm.svelte';
   import ResultPanel from './lib/tools/ResultPanel.svelte';
-  import { initTheme } from './lib/stores/theme.js';
+  import { initTheme } from './lib/stores/theme.svelte.js';
   import { onMount } from 'svelte';
 
   let activeTool = $state('');
   let result = $state(null);
   let resultType = $state('table');
+  let queryParams = $state({});
   let error = $state(null);
   let loading = $state(false);
 
@@ -16,9 +17,10 @@
     initTheme();
   });
 
-  function handleResult(data, type) {
+  function handleResult(data, type, params = {}) {
     result = data;
     resultType = type;
+    queryParams = params;
     error = null;
   }
 
@@ -73,6 +75,7 @@
           <ResultPanel
             {result}
             {resultType}
+            {queryParams}
             {error}
             {loading}
             onSymbolClick={handleSymbolClick}

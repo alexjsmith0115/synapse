@@ -1,6 +1,6 @@
 <script>
   import { Sun, Moon } from 'lucide-svelte';
-  import { getTheme, toggleTheme } from '../stores/theme.js';
+  import { getTheme, toggleTheme } from '../stores/theme.svelte.js';
 
   const isDark = $derived(getTheme() === 'dark');
 </script>
