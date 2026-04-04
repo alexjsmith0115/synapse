@@ -505,3 +505,28 @@ def summary_list(project: Optional[str] = None) -> None:
     """List all summarized symbols."""
     for item in _get_service().list_summarized(project):
         typer.echo(item)
+
+
+@app.command(rich_help_panel="Setup & Diagnostics")
+def serve(
+    port: Annotated[int, typer.Option("--port", "-p", help="Port to listen on")] = 7433,
+    host: Annotated[str, typer.Option("--host", help="Host to bind to")] = "127.0.0.1",
+    open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open browser on start")] = True,
+) -> None:
+    """Start the Synapps web UI at localhost."""
+    import uvicorn
+    from synapps.web.app import create_app
+
+    path = str(Path.cwd())
+    conn = ConnectionManager(path).get_connection()
+    ensure_schema(conn)
+    svc = SynappsService(conn)
+    web_app = create_app(svc)
+
+    if open_browser:
+        import threading
+        import webbrowser
+        threading.Timer(1.0, lambda: webbrowser.open(f"http://{host}:{port}")).start()
+
+    typer.echo(f"Synapps UI at http://{host}:{port}")
+    uvicorn.run(web_app, host=host, port=port)

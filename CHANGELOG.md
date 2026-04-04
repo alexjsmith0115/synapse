@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **`synapps serve` CLI subcommand** — starts a local FastAPI web server at `http://127.0.0.1:7433` with configurable `--host`, `--port`, and `--open/--no-open` browser launch options
+- **FastAPI web package** — new `synapps.web` package with `create_app(service)` factory returning a FastAPI app with `/api` route prefix, disabled docs UI, and conditional SPA static file serving
+- **neo4j serialization utility** — `serialize_result()` in `synapps.web.serialization` converts neo4j `Node`/`Relationship` objects to plain dicts suitable for FastAPI JSON responses
+- **`fastapi>=0.115.0` dependency** — added to project dependencies for the web UI backend
+
 ### Changed
 - **Unit test cleanup** — removed ~19 redundant, tautological, and brittle tests; merged duplicate doctor pass/fix assertions; replaced fragile Cypher brace-counting parser and exact-count schema assertions; renamed 5 misleading test names
 
