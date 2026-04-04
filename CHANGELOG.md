@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **neo4j serialization utility** — `serialize_result()` in `synapps.web.serialization` converts neo4j `Node`/`Relationship` objects to plain dicts suitable for FastAPI JSON responses
 - **`fastapi>=0.115.0` dependency** — added to project dependencies for the web UI backend
 - **Localhost web UI — SPA scaffold** — new `spa/` directory at repo root with Svelte 5 + Vite build tooling; builds to `src/synapps/web/static/`; includes full CSS design system (green palette, light/dark themes), app shell layout (48px header, 240px sidebar, flex content area), dark mode toggle with `localStorage` persistence, and sidebar with 9 curated tools in 4 categories
+- **Localhost web UI — tool interaction layer** — API client (`api.js`) for all 9 tool endpoints; `toolConfig.js` with per-tool endpoint, method, params, and result type; `SymbolLink` component with clickable names and `vscode://file/` editor links; `DataTable` reusable table renderer; `ToolForm` dynamic parameter form per tool; `ResultPanel` adaptive renderer (table/text/mixed/graph/raw); graph data transforms (`calleesToElements`, `hierarchyToElements`, `cypherToElements`, `isGraphResult`) for Cytoscape; vitest unit tests for `toolConfig.js` and `transforms.js`
 
 ### Changed
 - **Unit test cleanup** — removed ~19 redundant, tautological, and brittle tests; merged duplicate doctor pass/fix assertions; replaced fragile Cypher brace-counting parser and exact-count schema assertions; renamed 5 misleading test names

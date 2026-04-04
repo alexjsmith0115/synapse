@@ -1,0 +1,124 @@
+/**
+ * Tool configuration: endpoint, HTTP method, parameter definitions, result type.
+ * resultType determines rendering: 'table', 'text', 'graph', 'mixed', 'raw'.
+ */
+export const tools = {
+  search_symbols: {
+    label: 'Search Symbols',
+    category: 'Search',
+    endpoint: 'search_symbols',
+    method: 'GET',
+    cta: 'Search Symbols',
+    resultType: 'table',
+    params: [
+      { name: 'query', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass, doWork' },
+      { name: 'kind', label: 'Kind', type: 'select', required: false, options: ['', 'Class', 'Interface', 'Method', 'Property', 'Field', 'Namespace', 'File'] },
+      { name: 'language', label: 'Language', type: 'select', required: false, options: ['', 'csharp', 'python', 'typescript', 'java'] },
+      { name: 'namespace', label: 'Namespace prefix', type: 'text', required: false, placeholder: 'e.g. MyApp.Services' },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
+    ],
+  },
+  find_usages: {
+    label: 'Find Usages',
+    category: 'Navigate',
+    endpoint: 'find_usages',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'text',
+    params: [
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
+      { name: 'exclude_test_callers', label: 'Exclude test callers', type: 'checkbox', required: false, default: true },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 20 },
+    ],
+  },
+  find_callees: {
+    label: 'Find Callees',
+    category: 'Navigate',
+    endpoint: 'find_callees',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'graph',
+    params: [
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
+      { name: 'include_interface_dispatch', label: 'Include interface dispatch', type: 'checkbox', required: false, default: true },
+      { name: 'depth', label: 'Depth (call tree)', type: 'number', required: false, placeholder: 'Leave empty for direct only' },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
+    ],
+  },
+  get_hierarchy: {
+    label: 'Get Hierarchy',
+    category: 'Navigate',
+    endpoint: 'get_hierarchy',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'graph',
+    params: [
+      { name: 'full_name', label: 'Class or interface name', type: 'text', required: true, placeholder: 'e.g. IMyService' },
+    ],
+  },
+  get_architecture: {
+    label: 'Architecture',
+    category: 'Analysis',
+    endpoint: 'get_architecture',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'mixed',
+    params: [
+      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
+      { name: 'limit', label: 'Hotspot limit', type: 'number', required: false, default: 10 },
+    ],
+  },
+  find_dead_code: {
+    label: 'Dead Code',
+    category: 'Analysis',
+    endpoint: 'find_dead_code',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'table',
+    params: [
+      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
+      { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
+      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },
+    ],
+  },
+  find_untested: {
+    label: 'Untested Methods',
+    category: 'Analysis',
+    endpoint: 'find_untested',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'table',
+    params: [
+      { name: 'path', label: 'Project path', type: 'text', required: true, placeholder: 'Absolute path to indexed project' },
+      { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
+      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },
+    ],
+  },
+  execute_query: {
+    label: 'Cypher Query',
+    category: 'Query',
+    endpoint: 'execute_query',
+    method: 'POST',
+    cta: 'Execute Query',
+    resultType: 'raw',
+    params: [
+      { name: 'cypher', label: 'Cypher query', type: 'textarea', required: true, placeholder: 'MATCH (n:Method) RETURN n.full_name LIMIT 10' },
+    ],
+  },
+  find_http_endpoints: {
+    label: 'HTTP Endpoints',
+    category: 'Query',
+    endpoint: 'find_http_endpoints',
+    method: 'GET',
+    cta: 'Run Query',
+    resultType: 'table',
+    params: [
+      { name: 'route', label: 'Route pattern', type: 'text', required: false, placeholder: 'e.g. /api/items' },
+      { name: 'http_method', label: 'HTTP method', type: 'select', required: false, options: ['', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+      { name: 'language', label: 'Language', type: 'select', required: false, options: ['', 'csharp', 'python', 'typescript', 'java'] },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
+    ],
+  },
+};
