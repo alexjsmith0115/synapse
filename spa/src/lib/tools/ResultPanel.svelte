@@ -2,6 +2,7 @@
   import DataTable from '../ui/DataTable.svelte';
   import CytoscapeGraph from '../graph/CytoscapeGraph.svelte';
   import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult } from '../graph/transforms.js';
+  import { untrack } from 'svelte';
   import { apiCall } from '../api.js';
 
   const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '' } = $props();
@@ -28,8 +29,10 @@
     } else {
       initial = { nodes: [], edges: [] };
     }
-    // New query: increment graphKey to signal full reset in CytoscapeGraph
-    graphKey += 1;
+    // New query: increment graphKey to signal full reset in CytoscapeGraph.
+    // Use untrack to avoid creating a reactive dependency cycle (graphKey is $state
+    // read by CytoscapeGraph; writing it inside this $effect would re-trigger it).
+    untrack(() => { graphKey += 1; });
     accumulatedGraphElements = initial;
   });
 
