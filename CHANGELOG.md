@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-04-04
+
 ### Added
 - **`synapps serve` CLI subcommand** — starts a local FastAPI web server at `http://127.0.0.1:7433` with configurable `--host`, `--port`, and `--open/--no-open` browser launch options
 - **FastAPI web package** — new `synapps.web` package with `create_app(service)` factory returning a FastAPI app with `/api` route prefix, disabled docs UI, and conditional SPA static file serving
@@ -32,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Context tool in sidebar and context menu** — `get_context_for` registered in `toolConfig.js` with `text` resultType and scope dropdown; appears as fourth item in Navigate sidebar; "Get Context" is the first item in the context menu for all symbol kinds (no kind guard)
 - **Scope dropdown `(full)` label** — `ToolForm.svelte` select option now renders `param.defaultLabel || '(any)'` so the `get_context_for` scope dropdown shows "(full)" for the empty option while all other selects continue showing "(any)"
 - **Text result styling** — `.text-result` CSS updated to `font-size: 14px`, `line-height: 1.6`, and explicit `font-family: monospace` per UI-SPEC
+- **Context menu auto-fetch** — selecting any action from the context menu (Find Usages, Find Callees, Get Hierarchy, Get Context) now prefills the symbol name and immediately fetches results; `ToolForm` accepts an `initialValues` prop that triggers auto-submit via `untrack()`; fixes the prior behavior where context menu navigated to an empty tab
 
 ### Fixed
 - **SPA static file resolution** — `create_app()` now checks package dir, explicit override, and `CWD/src/synapps/web/static/` for the built SPA, fixing 404s when running via editable install or pipx
