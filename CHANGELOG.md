@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **`_p()` crashes on neo4j Relationship objects** — `execute_query` results containing Relationship objects (e.g., `MATCH ()-[r]->() RETURN r`) previously raised `AttributeError: object has no attribute 'labels'`; `_p()` now detects Relationships via duck-typing (`hasattr type, not hasattr labels`) and serializes them as `{"_type": "REFERENCES", ...props}` instead of crashing
+
 ### Added
 - **Pagination controls for Dead Code and Untested Methods** — `find_dead_code` and `find_untested` tools now show Previous/Next pagination controls below the results table instead of raw Limit/Offset number inputs; page indicator shows current page, total pages, and total item count; filter params (subdirectory, exclude_pattern) are preserved across page changes
 
