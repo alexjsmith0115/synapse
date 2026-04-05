@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`NodeDetailPanel.svelte`** — fixed-width 300px right-side overlay panel showing all node properties (full_name, kind, file_path+line as `vscode://` link, signature, and any extra properties); X close button; action buttons (Get Context, Find Usages, Find Callees, Get Hierarchy); Get Hierarchy shown only for Class/Interface kinds; skips D3 internal properties (x, y, vx, vy, fx, fy, index); dark theme support
 - **`ResultPanel.svelte` D3 integration** — replaces CytoscapeGraph with D3Graph + NodeDetailPanel; single-click opens detail panel, double-click calls `/api/expand_node` and merges neighbors, right-click removes node with orphan cascade; `accumulatedGraphElements` uses D3-native `links` format; `onDetailAction` prop wires detail panel actions to App.svelte `handleContextAction`
 
+### Fixed
+- **`find_neighborhood` returns empty neighbors for neo4j Node objects** — `_extract()` in `lookups.py` used `isinstance(node, dict)` which fails for `neo4j.graph.Node` objects (they implement the `Mapping` protocol but are not `dict` subclasses); replaced all three checks with `isinstance(node, Mapping)` from `collections.abc`; double-click node expansion now returns actual neighbors instead of an empty list
+- **Depth-based opacity fading for expanded graph nodes** — expanded neighbor nodes now display with reduced opacity based on their distance from the original query root (depth 0 = 100%, depth 1 = 75%, depth 2 = 50%, depth 3+ = 35%); `neighborhoodToElements()` accepts an optional `depth` parameter; `ResultPanel.svelte` computes and passes `maxDepth + 1` on each expansion; `D3Graph.svelte` applies opacity in both enter and update join callbacks
+
 ### Removed
 - **Cytoscape.js dependencies** — `cytoscape`, `cytoscape-dagre`, `cytoscape-cose-bilkent` removed from `spa/package.json`; `CytoscapeGraph.svelte`, `graphDiff.js`, `layouts.js` deleted; `buildStyles` removed from `nodeStyles.js`
 
