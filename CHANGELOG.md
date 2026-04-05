@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **D3 node style helpers** — `nodeStyles.js` now exports `getNodeColor`, `getNodeTextColor`, and `appendNodeShape` for D3 SVG rendering; kind-specific shapes (ellipse for Method/Endpoint, diamond polygon for Field/Property, rounded rect for all others) with CSS-var-aware hex fallbacks; `getCSSVar` exported with SSR guard for test environments; existing `buildStyles` export preserved for backward compatibility with CytoscapeGraph
+
 ## [1.6.0] - 2026-04-04
 
 ### Added
