@@ -27,6 +27,7 @@
   let collisionRadius = $state(45);
 
   let selectedNodeId = null;
+  let selectedLinkId = null;
   // Disambiguate single-click vs double-click
   let clickTimeout;
 
@@ -34,6 +35,9 @@
     linkGroup.selectAll('line')
       .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
       .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    linkGroup.selectAll('text.edge-label')
+      .attr('x', d => (d.source.x + d.target.x) / 2)
+      .attr('y', d => (d.source.y + d.target.y) / 2);
     nodeGroup.selectAll('g.node')
       .attr('transform', d => `translate(${d.x},${d.y})`);
   }
@@ -54,16 +58,110 @@
     nodeGroup.selectAll('g.node:not(.selected)').select('circle')
       .attr('stroke-width', 2)
       .attr('stroke', d => getNodeColor(d.kind));
+
+    if (selectedNodeId) {
+      // Compute direct neighbor IDs from simulation link data
+      const currentLinks = simulation.force('link').links();
+      const neighborIds = new Set();
+      for (const l of currentLinks) {
+        const srcId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tgtId = typeof l.target === 'object' ? l.target.id : l.target;
+        if (srcId === selectedNodeId) neighborIds.add(tgtId);
+        if (tgtId === selectedNodeId) neighborIds.add(srcId);
+      }
+
+      // Dim non-neighbor, non-selected nodes
+      nodeGroup.selectAll('g.node').each(function(d) {
+        const isRelevant = d.id === selectedNodeId || neighborIds.has(d.id);
+        const baseOpacity = Math.max(0.35, 1 - (d.depth || 0) * 0.25);
+        d3.select(this).select('circle').attr('opacity', isRelevant ? baseOpacity : 0.2);
+        d3.select(this).select('text').attr('opacity', isRelevant ? baseOpacity : 0.2);
+      });
+
+      // Dim non-connected links
+      linkGroup.selectAll('line').attr('opacity', d => {
+        const srcId = typeof d.source === 'object' ? d.source.id : d.source;
+        const tgtId = typeof d.target === 'object' ? d.target.id : d.target;
+        const isConnected = srcId === selectedNodeId || tgtId === selectedNodeId;
+        if (!isConnected) return 0.1;
+        const sd = (typeof d.source === 'object' ? d.source.depth : 0) || 0;
+        const td = (typeof d.target === 'object' ? d.target.depth : 0) || 0;
+        return Math.max(0.35, 1 - Math.max(sd, td) * 0.25);
+      });
+    } else {
+      // Restore depth-based opacity for all nodes
+      nodeGroup.selectAll('g.node').each(function(d) {
+        const opacity = Math.max(0.35, 1 - (d.depth || 0) * 0.25);
+        d3.select(this).select('circle').attr('opacity', opacity);
+        d3.select(this).select('text').attr('opacity', opacity);
+      });
+      updateLinkOpacity();
+    }
   }
 
   function updateGraph(nodes, links) {
     // Links — enter/exit/update
     linkGroup.selectAll('line')
       .data(links, d => d.id)
-      .join('line')
-      .attr('stroke', getCSSVar('--color-border') || '#C3DDD0')
-      .attr('stroke-width', 2)
-      .attr('marker-end', 'url(#arrowhead)')
+      .join(
+        enter => enter.append('line')
+          .attr('stroke', getCSSVar('--color-border') || '#C3DDD0')
+          .attr('stroke-width', 2)
+          .attr('marker-end', 'url(#arrowhead)')
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => {
+            event.stopPropagation();
+            // Deselect node when clicking edge
+            selectedNodeId = null;
+            highlightSelected();
+            if (selectedLinkId === d.id) {
+              // Toggle off
+              selectedLinkId = null;
+              linkGroup.selectAll('line').attr('stroke', getCSSVar('--color-border') || '#C3DDD0').attr('stroke-width', 2);
+              linkGroup.selectAll('text.edge-label').remove();
+            } else {
+              selectedLinkId = d.id;
+              linkGroup.selectAll('line')
+                .attr('stroke', ld => ld.id === selectedLinkId
+                  ? (getCSSVar('--color-accent') || '#2D6A4F')
+                  : (getCSSVar('--color-border') || '#C3DDD0'))
+                .attr('stroke-width', ld => ld.id === selectedLinkId ? 4 : 2);
+              // Show edge label at midpoint — remove previous first
+              linkGroup.selectAll('text.edge-label').remove();
+              if (d.label && typeof d.source === 'object') {
+                linkGroup.append('text')
+                  .datum(d)
+                  .attr('class', 'edge-label')
+                  .attr('x', (d.source.x + d.target.x) / 2)
+                  .attr('y', (d.source.y + d.target.y) / 2)
+                  .attr('text-anchor', 'middle')
+                  .attr('dy', '-6')
+                  .attr('font-size', '11px')
+                  .attr('fill', getCSSVar('--color-accent') || '#2D6A4F')
+                  .style('pointer-events', 'none')
+                  .style('user-select', 'none')
+                  .text(d.label);
+              }
+            }
+          })
+          .on('mouseover', (event, d) => {
+            if (d.id !== selectedLinkId) {
+              d3.select(event.currentTarget).attr('stroke-width', 3);
+            }
+            tooltipContent = d.label || '';
+            tooltipStyle = `display: block; left: ${event.offsetX + 15}px; top: ${event.offsetY + 15}px;`;
+          })
+          .on('mouseout', (event, d) => {
+            if (d.id !== selectedLinkId) {
+              d3.select(event.currentTarget).attr('stroke-width', 2);
+            }
+            tooltipStyle = 'display: none;';
+          }),
+        update => update
+          .attr('stroke', d => d.id === selectedLinkId ? (getCSSVar('--color-accent') || '#2D6A4F') : (getCSSVar('--color-border') || '#C3DDD0'))
+          .attr('stroke-width', d => d.id === selectedLinkId ? 4 : 2),
+        exit => exit.remove()
+      )
       .attr('opacity', d => {
         // Guard: on initial render d.source/d.target are strings, not yet resolved
         if (typeof d.source !== 'object' || typeof d.target !== 'object') return 1.0;
@@ -140,6 +238,12 @@
             clearTimeout(clickTimeout);
             clickTimeout = setTimeout(() => {
               selectedNodeId = d.id;
+              // Clear edge selection when node is selected
+              selectedLinkId = null;
+              linkGroup.selectAll('line')
+                .attr('stroke', getCSSVar('--color-border') || '#C3DDD0')
+                .attr('stroke-width', 2);
+              linkGroup.selectAll('text.edge-label').remove();
               highlightSelected();
               onNodeSelect?.(d);
             }, 250);
@@ -230,8 +334,17 @@
         .on('zoom', e => zoomGroup.attr('transform', e.transform))
     );
 
-    // Click on empty canvas deselects
-    svg.on('click', () => onNodeSelect?.(null));
+    // Click on empty canvas deselects node and edge
+    svg.on('click', () => {
+      selectedNodeId = null;
+      selectedLinkId = null;
+      highlightSelected();
+      linkGroup.selectAll('line')
+        .attr('stroke', getCSSVar('--color-border') || '#C3DDD0')
+        .attr('stroke-width', 2);
+      linkGroup.selectAll('text.edge-label').remove();
+      onNodeSelect?.(null);
+    });
 
     // Initial render — run synchronously for static layout, then freeze
     const nodes = elements.nodes.map(n => ({ ...n }));
