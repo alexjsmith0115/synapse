@@ -117,6 +117,24 @@
     cachedResults = { ...cachedResults };
     handleSelectTool(toolId);
   }
+
+  async function handlePageChange({ offset }) {
+    const config = tools[activeTool];
+    if (!config) return;
+    const params = { ...queryParams, offset };
+    loading = true;
+    error = null;
+    try {
+      const data = await apiCall(config.endpoint, params, config.method);
+      result = data;
+      resultType = config.resultType;
+      queryParams = params;
+    } catch (err) {
+      error = err.message;
+    } finally {
+      loading = false;
+    }
+  }
 </script>
 
 <div class="unsupported-banner">
@@ -154,6 +172,7 @@
             {activeTool}
             {projectRoot}
             onDetailAction={handleContextAction}
+            onPageChange={handlePageChange}
           />
         </div>
       {/if}

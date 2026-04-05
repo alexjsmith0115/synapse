@@ -77,6 +77,7 @@
       <h2 class="heading">{config.label}</h2>
       <div class="form-fields">
         {#each config.params as param}
+          {#if param.hidden}<!-- skip hidden params (e.g. limit/offset on paginated tools — managed by Pagination component) -->{:else}
           <div class="field">
             <label class="label" for={param.name}>{param.label}</label>
             {#if param.type === 'textarea'}
@@ -108,6 +109,7 @@
               />
             {/if}
           </div>
+          {/if}
         {/each}
       </div>
       <button type="submit" class="submit-btn" disabled={submitting}>

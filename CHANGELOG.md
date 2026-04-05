@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **Pagination controls for Dead Code and Untested Methods** — `find_dead_code` and `find_untested` tools now show Previous/Next pagination controls below the results table instead of raw Limit/Offset number inputs; page indicator shows current page, total pages, and total item count; filter params (subdirectory, exclude_pattern) are preserved across page changes
+
 ## [1.7.2] - 2026-04-05
 
 ### Added

@@ -1,12 +1,14 @@
 <script>
   import DataTable from '../ui/DataTable.svelte';
+  import Pagination from '../ui/Pagination.svelte';
   import D3Graph from '../graph/D3Graph.svelte';
   import NodeDetailPanel from '../graph/NodeDetailPanel.svelte';
   import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, neighborhoodToElements, isGraphResult } from '../graph/transforms.js';
   import { removeNodeWithOrphans } from '../graph/graphUtils.js';
   import { apiCall } from '../api.js';
+  import { tools } from './toolConfig.js';
 
-  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '', onDetailAction } = $props();
+  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '', onDetailAction, onPageChange } = $props();
 
   // Accumulated graph elements — persists across node expansions.
   // Reset when a new top-level query result arrives (via $effect on result).
@@ -147,6 +149,20 @@
       </div>
     {/if}
     <DataTable columns={tableColumns} rows={tableRows} {onSymbolClick} {projectRoot} />
+    {#if tools[activeTool]?.pagination && result?.stats}
+      {@const pageSize = result.stats.limit || 15}
+      {@const offset = result.stats.offset || 0}
+      {@const totalItems = result.stats.dead_count ?? result.stats.untested_count ?? 0}
+      {@const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))}
+      {@const currentPage = Math.floor(offset / pageSize) + 1}
+      <Pagination
+        {currentPage}
+        {totalPages}
+        {totalItems}
+        {pageSize}
+        onPageChange={(newOffset) => onPageChange?.({ offset: newOffset })}
+      />
+    {/if}
   {:else if resultType === 'text'}
     <pre class="text-result">{typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>
   {:else if resultType === 'context'}
