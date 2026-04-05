@@ -18,6 +18,7 @@
 
   let tooltipContent = $state('');
   let tooltipStyle = $state('display: none;');
+  let physicsEnabled = $state(false);
 
   let selectedNodeId = null;
   // Disambiguate single-click vs double-click
@@ -82,18 +83,33 @@
           g.call(
             d3.drag()
               .on('start', (event, d) => {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
+                if (physicsEnabled) {
+                  if (!event.active) simulation.alphaTarget(0.3).restart();
+                }
                 d.fx = d.x;
                 d.fy = d.y;
               })
               .on('drag', (event, d) => {
                 d.fx = event.x;
                 d.fy = event.y;
+                if (!physicsEnabled) {
+                  // Manual repositioning when physics is off
+                  tick();
+                }
               })
               .on('end', (event, d) => {
-                if (!event.active) simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
+                if (physicsEnabled) {
+                  if (!event.active) simulation.alphaTarget(0);
+                  d.fx = null;
+                  d.fy = null;
+                } else {
+                  // Commit dragged position and unpin
+                  d.x = d.fx;
+                  d.y = d.fy;
+                  d.fx = null;
+                  d.fy = null;
+                  tick();
+                }
               })
           );
 
@@ -143,6 +159,15 @@
       );
   }
 
+  function togglePhysics() {
+    physicsEnabled = !physicsEnabled;
+    if (physicsEnabled) {
+      simulation.alpha(0.3).restart();
+    } else {
+      simulation.stop();
+    }
+  }
+
   onMount(() => {
     const width = svgEl.clientWidth || 800;
     const height = svgEl.clientHeight || 600;
@@ -183,13 +208,16 @@
     // Click on empty canvas deselects
     svg.on('click', () => onNodeSelect?.(null));
 
-    // Initial render
+    // Initial render — run synchronously for static layout, then freeze
     const nodes = elements.nodes.map(n => ({ ...n }));
     const links = elements.links.map(l => ({ ...l }));
     updateGraph(nodes, links);
     simulation.nodes(nodes);
     simulation.force('link').links(links);
     simulation.alpha(1.0).restart();
+    simulation.tick(300);
+    simulation.stop();
+    tick();
   });
 
   // React to elements prop changes
@@ -204,7 +232,14 @@
     updateGraph(nodes, links);
     simulation.nodes(nodes);
     simulation.force('link').links(links);
-    simulation.alpha(elements.nodes.length <= 10 ? 1.0 : 0.3).restart();
+    if (physicsEnabled) {
+      simulation.alpha(elements.nodes.length <= 10 ? 1.0 : 0.3).restart();
+    } else {
+      simulation.alpha(elements.nodes.length <= 10 ? 1.0 : 0.3);
+      simulation.tick(300);
+      simulation.stop();
+      tick();
+    }
   });
 
   // Re-apply colors when theme changes
@@ -237,6 +272,14 @@
       <div>{line}</div>
     {/each}
   </div>
+  <button
+    class="physics-toggle"
+    class:physics-on={physicsEnabled}
+    onclick={togglePhysics}
+    title={physicsEnabled ? 'Disable physics' : 'Enable physics'}
+  >
+    {physicsEnabled ? 'Physics: ON' : 'Physics: OFF'}
+  </button>
 </div>
 
 <style>
@@ -274,5 +317,26 @@
     max-width: 400px;
     white-space: nowrap;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .physics-toggle {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 5;
+    background: var(--color-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .physics-toggle:hover {
+    filter: brightness(1.1);
+  }
+  .physics-toggle.physics-on {
+    background: var(--color-accent);
+    color: #ffffff;
+    border-color: var(--color-accent);
   }
 </style>
