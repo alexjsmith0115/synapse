@@ -114,7 +114,9 @@
                 d.fx = event.x;
                 d.fy = event.y;
                 if (!physicsEnabled) {
-                  // Manual repositioning when physics is off
+                  // Sync d.x/d.y directly — simulation isn't running to do it
+                  d.x = event.x;
+                  d.y = event.y;
                   tick();
                 }
               })
@@ -124,7 +126,7 @@
                   d.fx = null;
                   d.fy = null;
                 } else {
-                  // Keep fx/fy pinned so next drag start reads correct position (no teleport)
+                  // Commit position and keep pinned to prevent re-layout drift
                   d.x = d.fx;
                   d.y = d.fy;
                   tick();
@@ -181,9 +183,13 @@
   function togglePhysics() {
     physicsEnabled = !physicsEnabled;
     if (physicsEnabled) {
+      // Unpin all nodes so simulation can move them
+      simulation.nodes().forEach(n => { n.fx = null; n.fy = null; });
       simulation.alpha(0.3).restart();
     } else {
       simulation.stop();
+      // Pin all nodes at their current positions to prevent re-layout drift
+      simulation.nodes().forEach(n => { n.fx = n.x; n.fy = n.y; });
     }
   }
 
@@ -236,6 +242,10 @@
     simulation.alpha(1.0).restart();
     simulation.tick(300);
     simulation.stop();
+    // Remove center force after initial layout — prevents drift on re-layout
+    simulation.force('center', null);
+    // Pin all nodes at their computed positions
+    nodes.forEach(n => { n.fx = n.x; n.fy = n.y; });
     tick();
     updateLinkOpacity();
   });
@@ -243,21 +253,30 @@
   // React to elements prop changes
   $effect(() => {
     if (!simulation || !elements) return;
-    // Preserve existing node positions (RESEARCH Pitfall 1 — avoid proxy mutation)
+    const oldNodes = simulation.nodes();
+    // Preserve existing node positions — reuse data objects so fx/fy survive
     const nodes = elements.nodes.map(n => {
-      const existing = simulation.nodes().find(e => e.id === n.id);
+      const existing = oldNodes.find(e => e.id === n.id);
       return existing || { ...n };
     });
     const links = elements.links.map(l => ({ ...l }));
+    const hasNewNodes = nodes.some(n => n.x == null);
     updateGraph(nodes, links);
     simulation.nodes(nodes);
     simulation.force('link').links(links);
     if (physicsEnabled) {
-      simulation.alpha(elements.nodes.length <= 10 ? 1.0 : 0.3).restart();
-    } else {
-      simulation.alpha(elements.nodes.length <= 10 ? 1.0 : 0.3);
+      simulation.alpha(hasNewNodes ? 0.5 : 0.1).restart();
+    } else if (hasNewNodes) {
+      // Only run simulation to position NEW nodes; existing stay pinned via fx/fy
+      simulation.alpha(0.5);
       simulation.tick(300);
       simulation.stop();
+      // Pin new nodes at their computed positions
+      nodes.forEach(n => { if (n.fx == null) { n.fx = n.x; n.fy = n.y; } });
+      tick();
+      updateLinkOpacity();
+    } else {
+      // No new nodes — just update DOM without re-layout
       tick();
       updateLinkOpacity();
     }
@@ -276,10 +295,12 @@
     if (physicsEnabled) {
       simulation.alpha(0.3).restart();
     } else {
-      // Recalculate static layout with updated parameters
+      // Unpin, re-layout with new params, then re-pin
+      simulation.nodes().forEach(n => { n.fx = null; n.fy = null; });
       simulation.alpha(0.3);
       simulation.tick(300);
       simulation.stop();
+      simulation.nodes().forEach(n => { n.fx = n.x; n.fy = n.y; });
       tick();
       updateLinkOpacity();
     }
