@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **Rich context tab display** — `get_context_for` and `analyze_change_impact` now support `structured=True`, returning scope-appropriate dicts instead of markdown; the web route uses this for all context scopes
+- **Impact scope as default in web UI** — the Context tab scope selector now defaults to `impact` (stats grid + DataTable sections); the empty `(full)` option is removed
+- **`context` result type in `ResultPanel`** — renders structured context data with stats cards (impact scope) and labeled DataTable sections per array field (callers, callees, members, tests, dependencies, etc.)
+
 ## [1.7.1] - 2026-04-05
 
 ### Fixed

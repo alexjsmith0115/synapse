@@ -464,9 +464,9 @@ class SynappsService:
         full_name = self._resolve(full_name)
         return self._context.get_symbol_source(full_name, include_class_signature)
 
-    def get_context_for(self, full_name: str, scope: str | None = None, max_lines: int = 200) -> str | None:
+    def get_context_for(self, full_name: str, scope: str | None = None, max_lines: int = 200, structured: bool = False) -> str | dict | None:
         full_name = self._resolve(full_name, preference="concrete")
-        return self._context.get_context_for(full_name, scope, max_lines)
+        return self._context.get_context_for(full_name, scope, max_lines, structured=structured)
 
     # --- Graph traversal & analysis ---
 
@@ -489,9 +489,24 @@ class SynappsService:
         full_name = self._resolve(full_name, preference="concrete")
         return get_call_depth(self._conn, full_name, depth)
 
-    def analyze_change_impact(self, full_name: str) -> str:
+    def analyze_change_impact(self, full_name: str, structured: bool = False) -> str | dict:
         full_name = self._resolve(full_name, preference="concrete")
         data = analyze_change_impact(self._conn, full_name)
+
+        if structured:
+            def _relativize(entries: list[dict]) -> list[dict]:
+                return [
+                    {**e, "file_path": self._rel_path(e["file_path"])}
+                    for e in entries
+                ]
+            return {
+                "target": data["target"],
+                "total_affected": data["total_affected"],
+                "direct_callers": _relativize(data["direct_callers"]),
+                "transitive_callers": _relativize(data["transitive_callers"]),
+                "test_coverage": _relativize(data["test_coverage"]),
+                "direct_callees": _relativize(data["direct_callees"]),
+            }
 
         lines = [f"## Change Impact: {full_name}"]
 

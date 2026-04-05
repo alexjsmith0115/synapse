@@ -14,7 +14,7 @@ def test_context_impact_returns_formatted_output():
     builder = ContextBuilder(conn, service=service)
     result = builder.get_context_for("Foo.Bar", scope="impact")
 
-    service.analyze_change_impact.assert_called_once_with("Foo.Bar")
+    service.analyze_change_impact.assert_called_once_with("Foo.Bar", structured=False)
     assert "Change Impact" in result
 
 

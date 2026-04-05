@@ -118,20 +118,37 @@ def test_get_hierarchy_value_error_returns_400():
 
 
 def test_get_context_for_basic():
+    """Web route calls get_context_for with structured=True for non-impact scopes."""
     client, svc = _make_client()
-    svc.get_context_for.return_value = "## Target: A.B\n..."
+    svc.get_context_for.return_value = {"source": "...", "callees": []}
     response = client.get("/api/get_context_for?full_name=A.B")
     assert response.status_code == 200
-    assert response.json() == "## Target: A.B\n..."
-    svc.get_context_for.assert_called_once_with("A.B", scope=None, max_lines=-1)
+    svc.get_context_for.assert_called_once_with("A.B", scope=None, max_lines=-1, structured=True)
 
 
 def test_get_context_for_with_scope():
+    """Web route calls get_context_for with structured=True for non-impact scope."""
     client, svc = _make_client()
-    svc.get_context_for.return_value = "scoped"
+    svc.get_context_for.return_value = {"source": "scoped", "callers": []}
     response = client.get("/api/get_context_for?full_name=A.B&scope=edit")
     assert response.status_code == 200
-    svc.get_context_for.assert_called_once_with("A.B", scope="edit", max_lines=-1)
+    svc.get_context_for.assert_called_once_with("A.B", scope="edit", max_lines=-1, structured=True)
+
+
+def test_get_context_for_impact_scope_calls_analyze_change_impact():
+    """Web route calls analyze_change_impact directly for impact scope."""
+    client, svc = _make_client()
+    svc.analyze_change_impact.return_value = {
+        "target": "A.B", "total_affected": 3,
+        "direct_callers": [], "transitive_callers": [],
+        "test_coverage": [], "direct_callees": [],
+    }
+    response = client.get("/api/get_context_for?full_name=A.B&scope=impact")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_affected"] == 3
+    svc.analyze_change_impact.assert_called_once_with("A.B", structured=True)
+    svc.get_context_for.assert_not_called()
 
 
 def test_get_context_for_value_error_returns_400():
