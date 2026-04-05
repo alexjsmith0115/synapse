@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-04-05
+
+### Fixed
+- **`_apply_limit` breaking MCP `find_usages` with `kind` param** — `limit=0` (the MCP default, meaning "no limit") was treated as "limit to zero items", causing `_apply_limit` to return a truncation dict instead of a plain list; pydantic validation then rejected the dict since the return type was `str | list[dict]`
+- **`find_usages` MCP return type** — added `dict` to the union (`str | list[dict] | dict`) so explicit non-zero limits that trigger truncation pass pydantic validation
+
 ## [1.7.0] - 2026-04-05
 
 ### Added
