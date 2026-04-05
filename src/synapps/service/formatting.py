@@ -2,10 +2,16 @@ from __future__ import annotations
 
 
 def _p(node) -> dict:
-    """Extract properties from a neo4j graph Node (including labels) or pass through a plain dict."""
+    """Extract properties from a neo4j graph Node or Relationship, or pass through a plain dict.
+
+    Relationships have .type (str) but no .labels; Nodes have .labels (frozenset) but no .type.
+    Both have .element_id — checked first to identify neo4j objects.
+    """
     if hasattr(node, "element_id"):
         result = dict(node)
-        if node.labels:
+        if hasattr(node, "type") and not hasattr(node, "labels"):
+            result["_type"] = node.type
+        elif hasattr(node, "labels") and node.labels:
             result["_labels"] = list(node.labels)
         return result
     return node
