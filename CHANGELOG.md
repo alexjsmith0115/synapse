@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 - **`_p()` crashes on neo4j Relationship objects** — `execute_query` results containing Relationship objects (e.g., `MATCH ()-[r]->() RETURN r`) previously raised `AttributeError: object has no attribute 'labels'`; `_p()` now detects Relationships via duck-typing (`hasattr type, not hasattr labels`) and serializes them as `{"_type": "REFERENCES", ...props}` instead of crashing
+- **Cypher query graph edge labels missing** — `cypherToElements` now detects relationship cells (objects with `_type` but no `full_name`) and passes `_type` as the edge label; clicking an edge in the D3 graph shows the relationship type (e.g., CALLS, REFERENCES); duplicate links are also deduplicated
 
 ### Added
 - **Pagination controls for Dead Code and Untested Methods** — `find_dead_code` and `find_untested` tools now show Previous/Next pagination controls below the results table instead of raw Limit/Offset number inputs; page indicator shows current page, total pages, and total item count; filter params (subdirectory, exclude_pattern) are preserved across page changes

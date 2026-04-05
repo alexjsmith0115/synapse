@@ -152,6 +152,51 @@ describe('cypherToElements', () => {
     expect(result.nodes).toHaveLength(0);
     expect(result.links).toHaveLength(0);
   });
+
+  it('uses _type from relationship cells as edge labels', () => {
+    const data = [
+      { row: [
+        { full_name: 'A.Foo', name: 'Foo', kind: 'Method', _labels: ['Method'] },
+        { _type: 'CALLS', kind: 'call' },
+        { full_name: 'A.Bar', name: 'Bar', kind: 'Method', _labels: ['Method'] },
+      ]},
+    ];
+    const result = cypherToElements(data);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.links).toHaveLength(1);
+    expect(result.links[0].label).toBe('CALLS');
+    expect(result.links[0].source).toBe('A.Foo');
+    expect(result.links[0].target).toBe('A.Bar');
+  });
+
+  it('deduplicates links with same source, target, and label', () => {
+    const data = [
+      { row: [
+        { full_name: 'A.Foo', name: 'Foo', kind: 'Method' },
+        { _type: 'CALLS' },
+        { full_name: 'A.Bar', name: 'Bar', kind: 'Method' },
+      ]},
+      { row: [
+        { full_name: 'A.Foo', name: 'Foo', kind: 'Method' },
+        { _type: 'CALLS' },
+        { full_name: 'A.Bar', name: 'Bar', kind: 'Method' },
+      ]},
+    ];
+    const result = cypherToElements(data);
+    expect(result.links).toHaveLength(1);
+  });
+
+  it('links consecutive nodes without label when no relationship cell between them', () => {
+    const data = [
+      { row: [
+        { full_name: 'A.Foo', name: 'Foo', kind: 'Method' },
+        { full_name: 'A.Bar', name: 'Bar', kind: 'Method' },
+      ]},
+    ];
+    const result = cypherToElements(data);
+    expect(result.links).toHaveLength(1);
+    expect(result.links[0].label).toBe('');
+  });
 });
 
 describe('isGraphResult', () => {

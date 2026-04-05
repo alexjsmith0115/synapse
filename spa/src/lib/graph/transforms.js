@@ -157,12 +157,19 @@ export function hierarchyToElements(data) {
 export function cypherToElements(data) {
   const nodes = new Map();
   const links = [];
+  const linkSet = new Set();
 
   for (const item of data || []) {
     const row = item.row || [];
     let prevNodeId = null;
+    let pendingRelLabel = null;
 
     for (const cell of row) {
+      if (cell && typeof cell === 'object' && cell._type && !cell.full_name) {
+        // Relationship cell — capture label for the next node link
+        pendingRelLabel = cell._type;
+        continue;
+      }
       if (cell && typeof cell === 'object' && cell.full_name) {
         const fn = cell.full_name;
         const shortName = (cell.name || fn.split('.').pop());
@@ -177,9 +184,15 @@ export function cypherToElements(data) {
           });
         }
         if (prevNodeId && prevNodeId !== fn) {
-          links.push({ id: `e-${prevNodeId}-${fn}`, source: prevNodeId, target: fn });
+          const label = pendingRelLabel || '';
+          const linkId = `e-${prevNodeId}-${fn}-${label}`;
+          if (!linkSet.has(linkId)) {
+            linkSet.add(linkId);
+            links.push({ id: linkId, source: prevNodeId, target: fn, label });
+          }
         }
         prevNodeId = fn;
+        pendingRelLabel = null;
       }
     }
   }
