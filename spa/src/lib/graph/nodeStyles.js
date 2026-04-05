@@ -7,52 +7,39 @@ export function getCSSVar(name) {
 /**
  * Get fill color for a node kind, reading CSS custom properties at call time.
  * Returns hex fallback if CSS var is not available (e.g. in tests).
+ * Colors chosen for maximum distinction since all nodes are now uniform circles.
  */
 export function getNodeColor(kind) {
   const map = {
-    'Class':     { cssVar: '--node-class',     fallback: '#2D6A4F' },
-    'Interface': { cssVar: '--node-interface',  fallback: '#52A67A' },
-    'Method':    { cssVar: '--node-method',     fallback: '#74C69D' },
-    'Field':     { cssVar: '--node-field',      fallback: '#A8D8BE' },
-    'Package':   { cssVar: '--node-package',    fallback: '#C3DDD0' },
-    'File':      { cssVar: '--node-file',       fallback: '#E8F4ED' },
-    'External':  { cssVar: '--node-external',   fallback: '#F0F0F0' },
-    'Property':  { cssVar: '--node-field',      fallback: '#A8D8BE' },
-    'Namespace': { cssVar: '--node-package',    fallback: '#C3DDD0' },
-    'Endpoint':  { cssVar: '--node-method',     fallback: '#74C69D' },
+    'Class':     { cssVar: '--node-class',     fallback: '#4A90D9' },
+    'Interface': { cssVar: '--node-interface',  fallback: '#9B59B6' },
+    'Method':    { cssVar: '--node-method',     fallback: '#2ECC71' },
+    'Field':     { cssVar: '--node-field',      fallback: '#E67E22' },
+    'Property':  { cssVar: '--node-field',      fallback: '#E67E22' },
+    'Package':   { cssVar: '--node-package',    fallback: '#1ABC9C' },
+    'File':      { cssVar: '--node-file',       fallback: '#95A5A6' },
+    'External':  { cssVar: '--node-external',   fallback: '#BDC3C7' },
+    'Namespace': { cssVar: '--node-package',    fallback: '#1ABC9C' },
+    'Endpoint':  { cssVar: '--node-method',     fallback: '#E74C3C' },
   };
   const entry = map[kind] || map['Method'];
   return getCSSVar(entry.cssVar) || entry.fallback;
 }
 
 /**
- * Get text color for a node kind (light text on dark backgrounds, dark on light).
+ * Get text color for a node kind.
+ * Dark backgrounds (Class, Interface, Method, Package, Namespace, Endpoint) use white text.
+ * Light backgrounds (Field, Property, File, External) use dark text.
  */
 export function getNodeTextColor(kind) {
-  const darkBg = ['Class', 'Interface'];
-  return darkBg.includes(kind) ? '#FFFFFF' : (getCSSVar('--color-text-primary') || '#1A2E23');
+  const lightBg = ['Field', 'Property', 'File', 'External'];
+  return lightBg.includes(kind) ? '#333333' : '#FFFFFF';
 }
 
 /**
- * Append the correct SVG shape for a node kind to a D3 selection.
- * Per D-03: Class=rounded-rect, Method=ellipse, Field=diamond, Interface=rounded-rect,
- * Package=rounded-rect, File=rounded-rect.
+ * Append a circle SVG shape for a node to a D3 selection.
+ * All kinds render as uniform circles — color is the primary visual differentiator.
  */
 export function appendNodeShape(selection, kind) {
-  switch (kind) {
-    case 'Method':
-    case 'Endpoint':
-      return selection.append('circle').attr('r', 20);
-    case 'Field':
-    case 'Property':
-      return selection.append('polygon')
-        .attr('points', '-20,0 0,-16 20,0 0,16');
-    default:
-      // Class, Interface, Package, File, External, Namespace — rounded rect
-      return selection.append('rect')
-        .attr('x', -32).attr('y', -18)
-        .attr('width', 64).attr('height', 36)
-        .attr('rx', 6);
-  }
+  return selection.append('circle').attr('r', 22);
 }
-

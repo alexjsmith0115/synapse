@@ -12,11 +12,11 @@ export function calleesToElements(data, rootName) {
   const nodes = new Map();
   const links = [];
 
-  // Add root node
+  // Add root node — use data.kind for depth-tree responses that include root kind
   if (rootName) {
     const shortName = rootName.split('.').pop();
     nodes.set(rootName, {
-      id: rootName, label: shortName, kind: 'Method', full_name: rootName,
+      id: rootName, label: shortName, kind: data?.kind || 'Method', full_name: rootName,
     });
   }
 
@@ -208,12 +208,13 @@ export function neighborhoodToElements(data, depth = 0) {
   const links = [];
   const center = data.full_name;
 
-  // Add center node (no depth override — it already exists in the accumulated graph)
+  // Add center node (no depth override — it already exists in the accumulated graph).
+  // Use data.kind when available so caller's actual kind is reflected (not hardcoded Method).
   if (center) {
     nodes.set(center, {
       id: center,
       label: center.split('.').pop(),
-      kind: 'Method',
+      kind: data.kind || 'Method',
       full_name: center,
     });
   }

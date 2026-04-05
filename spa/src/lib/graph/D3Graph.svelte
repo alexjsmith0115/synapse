@@ -48,10 +48,10 @@
 
   function highlightSelected() {
     nodeGroup.selectAll('g.node').classed('selected', d => d.id === selectedNodeId);
-    nodeGroup.selectAll('g.node.selected').select('rect,circle,polygon')
+    nodeGroup.selectAll('g.node.selected').select('circle')
       .attr('stroke-width', 4)
       .attr('stroke', getCSSVar('--color-accent') || '#2D6A4F');
-    nodeGroup.selectAll('g.node:not(.selected)').select('rect,circle,polygon')
+    nodeGroup.selectAll('g.node:not(.selected)').select('circle')
       .attr('stroke-width', 2)
       .attr('stroke', d => getNodeColor(d.kind));
   }
@@ -172,7 +172,7 @@
           return g;
         },
         update => {
-          update.select('rect,circle,polygon').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
+          update.select('circle').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
           update.select('text').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
           return update;
         },
@@ -311,7 +311,7 @@
     if (!svgEl) return;
     const observer = new MutationObserver(() => {
       nodeGroup.selectAll('g.node').each(function(d) {
-        d3.select(this).select('rect,circle,polygon')
+        d3.select(this).select('circle')
           .attr('fill', getNodeColor(d.kind))
           .attr('stroke', d.id === selectedNodeId
             ? (getCSSVar('--color-accent') || '#2D6A4F')

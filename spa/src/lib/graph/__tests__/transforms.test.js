@@ -170,6 +170,26 @@ describe('isGraphResult', () => {
   });
 });
 
+describe('neighborhoodToElements - center node kind', () => {
+  it('center node defaults to kind=Method when data has no kind field', () => {
+    const data = { full_name: 'A.Root', neighbors: [] };
+    const result = neighborhoodToElements(data);
+    expect(result.nodes[0].kind).toBe('Method');
+  });
+
+  it('center node uses kind from data when present', () => {
+    const data = { full_name: 'A.MyClass', kind: 'Class', neighbors: [] };
+    const result = neighborhoodToElements(data);
+    expect(result.nodes[0].kind).toBe('Class');
+  });
+
+  it('center node uses Interface kind from data', () => {
+    const data = { full_name: 'A.IRepo', kind: 'Interface', neighbors: [] };
+    const result = neighborhoodToElements(data);
+    expect(result.nodes[0].kind).toBe('Interface');
+  });
+});
+
 describe('neighborhoodToElements', () => {
   it('includes center node and neighbor nodes', () => {
     const data = {
