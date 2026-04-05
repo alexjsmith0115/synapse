@@ -32,12 +32,20 @@
       .attr('transform', d => `translate(${d.x},${d.y})`);
   }
 
+  function updateLinkOpacity() {
+    linkGroup.selectAll('line').attr('opacity', d => {
+      const sd = (typeof d.source === 'object' ? d.source.depth : 0) || 0;
+      const td = (typeof d.target === 'object' ? d.target.depth : 0) || 0;
+      return Math.max(0.35, 1 - Math.max(sd, td) * 0.25);
+    });
+  }
+
   function highlightSelected() {
     nodeGroup.selectAll('g.node').classed('selected', d => d.id === selectedNodeId);
-    nodeGroup.selectAll('g.node.selected').select('rect,ellipse,polygon')
+    nodeGroup.selectAll('g.node.selected').select('rect,circle,polygon')
       .attr('stroke-width', 4)
       .attr('stroke', getCSSVar('--color-accent') || '#2D6A4F');
-    nodeGroup.selectAll('g.node:not(.selected)').select('rect,ellipse,polygon')
+    nodeGroup.selectAll('g.node:not(.selected)').select('rect,circle,polygon')
       .attr('stroke-width', 2)
       .attr('stroke', d => getNodeColor(d.kind));
   }
@@ -49,7 +57,14 @@
       .join('line')
       .attr('stroke', getCSSVar('--color-border') || '#C3DDD0')
       .attr('stroke-width', 2)
-      .attr('marker-end', 'url(#arrowhead)');
+      .attr('marker-end', 'url(#arrowhead)')
+      .attr('opacity', d => {
+        // Guard: on initial render d.source/d.target are strings, not yet resolved
+        if (typeof d.source !== 'object' || typeof d.target !== 'object') return 1.0;
+        const sd = (d.source.depth || 0);
+        const td = (d.target.depth || 0);
+        return Math.max(0.35, 1 - Math.max(sd, td) * 0.25);
+      });
 
     // Nodes — enter/exit/update
     nodeGroup.selectAll('g.node')
@@ -151,7 +166,7 @@
           return g;
         },
         update => {
-          update.select('rect,ellipse,polygon').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
+          update.select('rect,circle,polygon').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
           update.select('text').attr('opacity', d => Math.max(0.35, 1 - (d.depth || 0) * 0.25));
           return update;
         },
@@ -218,6 +233,7 @@
     simulation.tick(300);
     simulation.stop();
     tick();
+    updateLinkOpacity();
   });
 
   // React to elements prop changes
@@ -239,6 +255,7 @@
       simulation.tick(300);
       simulation.stop();
       tick();
+      updateLinkOpacity();
     }
   });
 
@@ -247,7 +264,7 @@
     if (!svgEl) return;
     const observer = new MutationObserver(() => {
       nodeGroup.selectAll('g.node').each(function(d) {
-        d3.select(this).select('rect,ellipse,polygon')
+        d3.select(this).select('rect,circle,polygon')
           .attr('fill', getNodeColor(d.kind))
           .attr('stroke', d.id === selectedNodeId
             ? (getCSSVar('--color-accent') || '#2D6A4F')

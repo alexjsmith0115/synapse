@@ -42,7 +42,7 @@ export function appendNodeShape(selection, kind) {
   switch (kind) {
     case 'Method':
     case 'Endpoint':
-      return selection.append('ellipse').attr('rx', 24).attr('ry', 18);
+      return selection.append('circle').attr('r', 20);
     case 'Field':
     case 'Property':
       return selection.append('polygon')

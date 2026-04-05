@@ -33,7 +33,7 @@ export function calleesToElements(data, rootName) {
     if (!nodes.has(fn)) {
       nodes.set(fn, {
         id: fn,
-        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        label: shortName,
         kind,
         full_name: fn,
         file_path: item.file_path || '',
@@ -77,7 +77,7 @@ export function usagesToElements(data, queriedName) {
     if (!nodes.has(fn)) {
       nodes.set(fn, {
         id: fn,
-        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        label: shortName,
         kind: item.kind || 'Method',
         full_name: fn,
         file_path: item.file_path || '',
@@ -169,7 +169,7 @@ export function cypherToElements(data) {
         if (!nodes.has(fn)) {
           nodes.set(fn, {
             id: fn,
-            label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+            label: shortName,
             kind: cell.kind || 'Class',
             full_name: fn,
             file_path: cell.file_path || '',
@@ -225,7 +225,7 @@ export function neighborhoodToElements(data, depth = 0) {
     if (!nodes.has(fn)) {
       nodes.set(fn, {
         id: fn,
-        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        label: shortName,
         kind: neighbor.kind || 'Method',
         full_name: fn,
         file_path: neighbor.file_path || '',

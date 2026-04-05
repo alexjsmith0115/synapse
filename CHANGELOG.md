@@ -21,11 +21,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 - **D3 force simulation disabled by default** — graph nodes are statically positioned on load using a synchronous 300-tick pre-computation; a "Physics: ON/OFF" toggle button (top-right overlay) lets users enable/disable live force animation at any time; drag works in both modes (physics-off drag commits node position permanently; physics-on drag uses alphaTarget for natural settling)
+- **Method/Endpoint nodes rendered as circles** — `appendNodeShape` in `nodeStyles.js` now emits `<circle r=20>` instead of `<ellipse rx=24 ry=18>`; all CSS selectors in `D3Graph.svelte` updated from `ellipse` to `circle`
+- **Node labels show full text** — removed all 4 truncation ternaries (`shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName`) from `transforms.js` (`calleesToElements`, `usagesToElements`, `cypherToElements`, `neighborhoodToElements`); labels always show the full short name
 
 ### Fixed
 - **Node labels repositioned below node shapes** — labels in the D3 graph now render directly below each node circle/ellipse/diamond/rect instead of overlapping the shape center; text color switched from kind-specific (white on colored shapes) to `--color-text-primary` for readability against the graph background in both light and dark themes; collision radius increased from 35 to 45 to prevent label overlap between adjacent nodes
 - **`find_neighborhood` returns empty neighbors for neo4j Node objects** — `_extract()` in `lookups.py` used `isinstance(node, dict)` which fails for `neo4j.graph.Node` objects (they implement the `Mapping` protocol but are not `dict` subclasses); replaced all three checks with `isinstance(node, Mapping)` from `collections.abc`; double-click node expansion now returns actual neighbors instead of an empty list
 - **Depth-based opacity fading for expanded graph nodes** — expanded neighbor nodes now display with reduced opacity based on their distance from the original query root (depth 0 = 100%, depth 1 = 75%, depth 2 = 50%, depth 3+ = 35%); `neighborhoodToElements()` accepts an optional `depth` parameter; `ResultPanel.svelte` computes and passes `maxDepth + 1` on each expansion; `D3Graph.svelte` applies opacity in both enter and update join callbacks
+- **Edge opacity fades with node depth** — link `<line>` elements now receive depth-based opacity matching their source/target nodes; `updateLinkOpacity()` helper re-applies correct opacity after simulation ticks (static layout and physics-off branches); initial join also sets opacity from resolved node depth
 
 ### Removed
 - **Cytoscape.js dependencies** — `cytoscape`, `cytoscape-dagre`, `cytoscape-cose-bilkent` removed from `spa/package.json`; `CytoscapeGraph.svelte`, `graphDiff.js`, `layouts.js` deleted; `buildStyles` removed from `nodeStyles.js`
