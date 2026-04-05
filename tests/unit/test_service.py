@@ -4,7 +4,7 @@ import pytest
 
 from synapps.service import SynappsService
 from synapps.service.formatting import _p, _slim, _apply_limit, _short_ref
-from conftest import _MockNode
+from conftest import _MockNode, _MockRelationship
 
 
 def _node(labels: list[str], props: dict) -> _MockNode:
@@ -254,6 +254,35 @@ def test_p_extracts_properties_and_labels_from_neo4j_node():
 def test_p_passes_through_plain_dict():
     d = {"full_name": "A.B"}
     assert _p(d) is d
+
+
+def test_p_extracts_properties_and_type_from_neo4j_relationship():
+    rel = _MockRelationship("REFERENCES", {"since": "1.0"})
+    result = _p(rel)
+    assert result == {"since": "1.0", "_type": "REFERENCES"}
+
+
+def test_p_node_still_works_after_relationship_fix():
+    node = _node(["Method"], {"full_name": "A.B"})
+    result = _p(node)
+    assert result == {"full_name": "A.B", "_labels": ["Method"]}
+
+
+def test_p_plain_dict_still_works_after_relationship_fix():
+    d = {"key": "value"}
+    assert _p(d) is d
+
+
+def test_execute_query_handles_relationship_cells():
+    conn = MagicMock()
+    svc = SynappsService(conn)
+    rel = _MockRelationship("REFERENCES", {"since": "1.0"})
+    with patch("synapps.service.execute_readonly_query", return_value=[[rel]]):
+        result = svc.execute_query("MATCH ()-[r]->() RETURN r")
+    assert len(result) == 1
+    row = result[0]["row"]
+    assert len(row) == 1
+    assert row[0] == {"since": "1.0", "_type": "REFERENCES"}
 
 
 def test_find_callers_returns_plain_dicts():
