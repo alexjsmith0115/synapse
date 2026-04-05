@@ -1,21 +1,24 @@
 <script>
   import DataTable from '../ui/DataTable.svelte';
-  import CytoscapeGraph from '../graph/CytoscapeGraph.svelte';
-  import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult } from '../graph/transforms.js';
-  import { untrack } from 'svelte';
+  import D3Graph from '../graph/D3Graph.svelte';
+  import NodeDetailPanel from '../graph/NodeDetailPanel.svelte';
+  import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, neighborhoodToElements, isGraphResult } from '../graph/transforms.js';
+  import { removeNodeWithOrphans } from '../graph/graphUtils.js';
   import { apiCall } from '../api.js';
 
-  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '' } = $props();
+  const { result = null, resultType = 'table', queryParams = {}, error = null, loading = false, onSymbolClick, activeTool = '', projectRoot = '', onDetailAction } = $props();
 
   // Accumulated graph elements — persists across node expansions.
   // Reset when a new top-level query result arrives (via $effect on result).
-  let accumulatedGraphElements = $state({ nodes: [], edges: [] });
-  let graphKey = $state(0);
+  let accumulatedGraphElements = $state({ nodes: [], links: [] });
+
+  // Currently selected node — drives NodeDetailPanel visibility
+  let selectedNode = $state(null);
 
   // When a new result arrives, compute the initial graph elements and reset accumulator
   $effect(() => {
     if (!result || resultType !== 'graph') {
-      accumulatedGraphElements = { nodes: [], edges: [] };
+      accumulatedGraphElements = { nodes: [], links: [] };
       return;
     }
     let initial;
@@ -27,65 +30,58 @@
     } else if (activeTool === 'find_usages') {
       initial = usagesToElements(result, queryParams?.full_name || '');
     } else {
-      initial = { nodes: [], edges: [] };
+      initial = { nodes: [], links: [] };
     }
-    // New query: increment graphKey to signal full reset in CytoscapeGraph.
-    // Use untrack to avoid creating a reactive dependency cycle (graphKey is $state
-    // read by CytoscapeGraph; writing it inside this $effect would re-trigger it).
-    untrack(() => { graphKey += 1; });
     accumulatedGraphElements = initial;
   });
 
-  const viewType = $derived(
-    activeTool === 'find_callees' ? 'callees' :
-    activeTool === 'get_hierarchy' ? 'hierarchy' :
-    activeTool === 'find_usages' ? 'usages' :
-    'cypher'
-  );
+  // Single-click: select node and open detail panel (per D-14)
+  function handleNodeSelect(nodeData) {
+    selectedNode = nodeData;  // null when clicking empty canvas (per D-07)
+  }
 
-  // Handle node click — expand callees and MERGE new elements into accumulated state
-  async function handleNodeClick(nodeData) {
-    if (activeTool === 'find_callees' && nodeData.full_name) {
-      try {
-        const callees = await apiCall('find_callees', { full_name: nodeData.full_name, limit: 20 });
-        const newElements = calleesToElements(callees, nodeData.full_name);
+  // Double-click: expand all relationships via /api/expand_node (per D-08, D-09, D-10, D-11)
+  async function handleNodeExpand(nodeData) {
+    if (!nodeData?.full_name) return;
+    try {
+      const data = await apiCall('expand_node', { full_name: nodeData.full_name });
+      const newElements = neighborhoodToElements(data);
 
-        // Merge new nodes and edges into accumulated state (deduplicate by id)
-        const existingNodeIds = new Set(accumulatedGraphElements.nodes.map(n => n.data.id));
-        const existingEdgeIds = new Set(accumulatedGraphElements.edges.map(e => e.data.id));
+      // Merge: deduplicate by id (per D-11)
+      const existingNodeIds = new Set(accumulatedGraphElements.nodes.map(n => n.id));
+      const existingLinkIds = new Set(accumulatedGraphElements.links.map(l => l.id));
 
-        const mergedNodes = [
-          ...accumulatedGraphElements.nodes,
-          ...newElements.nodes.filter(n => !existingNodeIds.has(n.data.id)),
-        ];
-        const mergedEdges = [
-          ...accumulatedGraphElements.edges,
-          ...newElements.edges.filter(e => !existingEdgeIds.has(e.data.id)),
-        ];
+      const mergedNodes = [
+        ...accumulatedGraphElements.nodes,
+        ...newElements.nodes.filter(n => !existingNodeIds.has(n.id)),
+      ];
+      const mergedLinks = [
+        ...accumulatedGraphElements.links,
+        ...newElements.links.filter(l => !existingLinkIds.has(l.id)),
+      ];
 
-        accumulatedGraphElements = { nodes: mergedNodes, edges: mergedEdges };
-      } catch (err) {
-        console.warn('Failed to expand node:', err.message);
-      }
-    } else if (activeTool === 'find_usages' && nodeData.full_name) {
-      try {
-        const usages = await apiCall('find_usages', { full_name: nodeData.full_name, limit: 20 });
-        const newElements = usagesToElements(usages, nodeData.full_name);
-        const existingNodeIds = new Set(accumulatedGraphElements.nodes.map(n => n.data.id));
-        const existingEdgeIds = new Set(accumulatedGraphElements.edges.map(e => e.data.id));
-        const mergedNodes = [
-          ...accumulatedGraphElements.nodes,
-          ...newElements.nodes.filter(n => !existingNodeIds.has(n.data.id)),
-        ];
-        const mergedEdges = [
-          ...accumulatedGraphElements.edges,
-          ...newElements.edges.filter(e => !existingEdgeIds.has(e.data.id)),
-        ];
-        accumulatedGraphElements = { nodes: mergedNodes, edges: mergedEdges };
-      } catch (err) {
-        console.warn('Failed to expand usages node:', err.message);
-      }
+      accumulatedGraphElements = { nodes: mergedNodes, links: mergedLinks };
+    } catch (err) {
+      console.warn('Failed to expand node:', err.message);
     }
+  }
+
+  // Right-click: remove node + orphan cascade (per D-12, D-13)
+  function handleNodeRemove(nodeId) {
+    const removed = removeNodeWithOrphans(
+      nodeId,
+      accumulatedGraphElements.nodes,
+      accumulatedGraphElements.links
+    );
+    accumulatedGraphElements = removed;
+    // Close detail panel if the removed node was selected
+    if (selectedNode?.id === nodeId) selectedNode = null;
+  }
+
+  // Detail panel action: navigate to tool with symbol prefilled (per D-15)
+  function handleDetailAction(actionId, symbolData) {
+    selectedNode = null;  // close panel
+    onDetailAction?.(actionId, symbolData);
   }
 
   // Derive table columns from first row of result data
@@ -190,20 +186,39 @@
         <p class="text-secondary">Run a query to build the graph.</p>
       </div>
     {:else}
-      <CytoscapeGraph
-        elements={accumulatedGraphElements}
-        {viewType}
-        onNodeClick={handleNodeClick}
-        {graphKey}
-      />
+      <div class="graph-wrapper">
+        <D3Graph
+          elements={accumulatedGraphElements}
+          onNodeSelect={handleNodeSelect}
+          onNodeExpand={handleNodeExpand}
+          onNodeRemove={handleNodeRemove}
+        />
+        {#if selectedNode}
+          <NodeDetailPanel
+            node={selectedNode}
+            onClose={() => selectedNode = null}
+            onAction={handleDetailAction}
+          />
+        {/if}
+      </div>
     {/if}
   {:else if resultType === 'raw'}
     {#if isGraphResult(result)}
-      <CytoscapeGraph
-        elements={cypherToElements(result)}
-        viewType="cypher"
-        onNodeClick={handleNodeClick}
-      />
+      <div class="graph-wrapper">
+        <D3Graph
+          elements={cypherToElements(result)}
+          onNodeSelect={handleNodeSelect}
+          onNodeExpand={handleNodeExpand}
+          onNodeRemove={handleNodeRemove}
+        />
+        {#if selectedNode}
+          <NodeDetailPanel
+            node={selectedNode}
+            onClose={() => selectedNode = null}
+            onAction={handleDetailAction}
+          />
+        {/if}
+      </div>
       <details style="margin-top: 16px;">
         <summary class="text-secondary">Raw JSON</summary>
         <pre class="text-result">{JSON.stringify(result, null, 2)}</pre>
@@ -274,5 +289,8 @@
   }
   .stat-label {
     margin-top: 4px;
+  }
+  .graph-wrapper {
+    position: relative;
   }
 </style>

@@ -153,6 +153,7 @@
             onSymbolClick={handleSymbolClick}
             {activeTool}
             {projectRoot}
+            onDetailAction={handleContextAction}
           />
         </div>
       {/if}
