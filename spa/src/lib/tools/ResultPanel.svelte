@@ -149,6 +149,128 @@
     <DataTable columns={tableColumns} rows={tableRows} {onSymbolClick} {projectRoot} />
   {:else if resultType === 'text'}
     <pre class="text-result">{typeof result === 'string' ? result : JSON.stringify(result, null, 2)}</pre>
+  {:else if resultType === 'context'}
+    <!-- Impact scope: stats grid + DataTable sections -->
+    {#if result.total_affected != null}
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value heading">{result.total_affected}</div>
+          <div class="stat-label label text-secondary">total affected</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value heading">{(result.direct_callers || []).length}</div>
+          <div class="stat-label label text-secondary">direct callers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value heading">{(result.transitive_callers || []).length}</div>
+          <div class="stat-label label text-secondary">transitive callers</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value heading">{(result.test_coverage || []).length}</div>
+          <div class="stat-label label text-secondary">test coverage</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value heading">{(result.direct_callees || []).length}</div>
+          <div class="stat-label label text-secondary">direct callees</div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Source code -->
+    {#if result.source}
+      <pre class="text-result">{result.source}</pre>
+    {/if}
+
+    <!-- Constructor -->
+    {#if result.constructor}
+      <h3 class="heading" style="margin-top: 24px;">Constructor</h3>
+      <pre class="text-result">{result.constructor}</pre>
+    {/if}
+
+    <!-- Interface contract -->
+    {#if result.interface_contract && result.interface_contract.interface}
+      <div class="info-card" style="margin-top: 16px;">
+        <span class="text-secondary">Interface:</span> <strong>{result.interface_contract.interface}</strong>
+        &nbsp;&middot;&nbsp;
+        <span class="text-secondary">Contract method:</span> <strong>{result.interface_contract.contract_method}</strong>
+        {#if result.interface_contract.sibling_implementations && result.interface_contract.sibling_implementations.length > 0}
+          &nbsp;&middot;&nbsp;
+          <span class="text-secondary">Other implementations:</span>
+          {result.interface_contract.sibling_implementations.map(s => s.class_name || s.full_name).join(', ')}
+        {/if}
+      </div>
+    {/if}
+
+    <!-- HTTP endpoint -->
+    {#if result.endpoint}
+      <h3 class="heading" style="margin-top: 24px;">HTTP Endpoint</h3>
+      <div class="info-card">
+        <code>{result.endpoint.http_method} {result.endpoint.route}</code>
+      </div>
+      {#if result.endpoint.client_callers && result.endpoint.client_callers.length > 0}
+        <DataTable columns={deriveColumns(result.endpoint.client_callers)} rows={result.endpoint.client_callers} {onSymbolClick} {projectRoot} />
+      {/if}
+    {/if}
+
+    <!-- Containing type -->
+    {#if result.containing_type}
+      <h3 class="heading" style="margin-top: 24px;">{result.containing_type.name}</h3>
+      {#if result.containing_type.members && result.containing_type.members.length > 0}
+        <DataTable columns={deriveColumns(result.containing_type.members)} rows={result.containing_type.members} {onSymbolClick} {projectRoot} />
+      {/if}
+    {/if}
+
+    <!-- DataTable sections for each array field -->
+    {#if result.members && result.members.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Members</h3>
+      <DataTable columns={deriveColumns(result.members)} rows={result.members} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.interfaces && result.interfaces.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Interfaces</h3>
+      <DataTable columns={deriveColumns(result.interfaces)} rows={result.interfaces} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.callers && result.callers.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Direct Callers</h3>
+      <DataTable columns={deriveColumns(result.callers)} rows={result.callers} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.direct_callers && result.direct_callers.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Direct Callers</h3>
+      <DataTable columns={deriveColumns(result.direct_callers)} rows={result.direct_callers} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.transitive_callers && result.transitive_callers.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Transitive Callers</h3>
+      <DataTable columns={deriveColumns(result.transitive_callers)} rows={result.transitive_callers} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.test_coverage && result.test_coverage.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Test Coverage</h3>
+      <DataTable columns={deriveColumns(result.test_coverage)} rows={result.test_coverage} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.direct_callees && result.direct_callees.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Direct Callees</h3>
+      <DataTable columns={deriveColumns(result.direct_callees)} rows={result.direct_callees} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.callees && result.callees.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Called Methods</h3>
+      <DataTable columns={deriveColumns(result.callees)} rows={result.callees} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.dependencies && result.dependencies.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Dependencies</h3>
+      <DataTable columns={deriveColumns(result.dependencies)} rows={result.dependencies} {onSymbolClick} {projectRoot} />
+    {/if}
+    {#if result.tests && result.tests.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Test Coverage</h3>
+      <DataTable columns={deriveColumns(result.tests)} rows={result.tests} {onSymbolClick} {projectRoot} />
+    {/if}
+
+    <!-- Summaries -->
+    {#if result.summaries && result.summaries.length > 0}
+      <h3 class="heading" style="margin-top: 24px;">Summaries</h3>
+      <ul class="summaries-list">
+        {#each result.summaries as s}
+          <li><strong>{s.full_name}</strong> — {s.summary}</li>
+        {/each}
+      </ul>
+    {/if}
   {:else if resultType === 'mixed'}
     <!-- Architecture overview: stats + sections -->
     {#if result.stats}
@@ -301,5 +423,26 @@
   }
   .graph-wrapper {
     position: relative;
+  }
+  .info-card {
+    background: var(--color-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .summaries-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .summaries-list li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 14px;
+  }
+  .summaries-list li:last-child {
+    border-bottom: none;
   }
 </style>

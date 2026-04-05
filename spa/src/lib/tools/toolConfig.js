@@ -62,11 +62,11 @@ export const tools = {
     endpoint: 'get_context_for',
     method: 'GET',
     cta: 'Get Context',
-    resultType: 'text',
+    resultType: 'context',
     params: [
       { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
       { name: 'scope', label: 'Scope', type: 'select', required: false,
-        options: ['', 'structure', 'method', 'edit', 'impact'], defaultLabel: '(full)' },
+        options: ['impact', 'structure', 'method', 'edit'] },
     ],
   },
   get_architecture: {
