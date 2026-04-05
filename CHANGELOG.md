@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 - **D3 graph nodes and edges render at full opacity** — removed all depth-based opacity fading (`Math.max(0.35, 1 - depth * 0.25)` formulas) from `D3Graph.svelte`; all nodes and links always display at `opacity: 1` regardless of expansion depth; neighbor highlight dimming (0.2) and edge dim on selection still apply
-- **Root node highlighted with yellow border** — the initial/center node (depth=0 or no depth property) now renders with a light yellow `#F0E68C` stroke at width 3; all other nodes use their kind-color stroke at width 2; applied consistently in enter, update, highlightSelected, and theme observer callbacks
+- **Root node highlighted with yellow border** — the queried symbol (marked with `isRoot: true` in transform functions) renders with a light yellow `#F0E68C` stroke at width 3; all other nodes use their kind-color stroke at width 2; applied consistently in enter, update, highlightSelected, and theme observer callbacks
 - **`find_usages` returns all results by default** — changed default `limit` from 20 to 0 (unlimited) across MCP tool (`tools.py`), service layer (`service/__init__.py`), and web route (`navigate.py`); passing an explicit `limit > 0` still truncates as before; the silent 20-result cap that was truncating AI agent queries is removed
 
 ### Added

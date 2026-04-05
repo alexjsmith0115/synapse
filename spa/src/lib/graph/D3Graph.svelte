@@ -47,7 +47,7 @@
   }
 
   function getRootStroke(d) {
-    if (d.depth === undefined || d.depth === 0) return { color: '#F0E68C', width: 3 };
+    if (d.isRoot) return { color: '#F0E68C', width: 3 };
     return { color: getNodeColor(d.kind), width: 2 };
   }
 

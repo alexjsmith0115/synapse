@@ -16,7 +16,7 @@ export function calleesToElements(data, rootName, queriedKind) {
   if (rootName) {
     const shortName = rootName.split('.').pop();
     nodes.set(rootName, {
-      id: rootName, label: shortName, kind: queriedKind || data?.kind || 'Method', full_name: rootName,
+      id: rootName, label: shortName, kind: queriedKind || data?.kind || 'Method', full_name: rootName, isRoot: true,
     });
   }
 
@@ -66,7 +66,7 @@ export function usagesToElements(data, queriedName, queriedKind) {
   if (queriedName) {
     const shortName = queriedName.split('.').pop();
     nodes.set(queriedName, {
-      id: queriedName, label: shortName, kind: queriedKind || 'Method', full_name: queriedName,
+      id: queriedName, label: shortName, kind: queriedKind || 'Method', full_name: queriedName, isRoot: true,
     });
   }
 
@@ -107,7 +107,7 @@ export function hierarchyToElements(data) {
   // Target node (the queried class)
   if (target) {
     const shortName = target.split('.').pop();
-    nodes.set(target, { id: target, label: shortName, kind: 'Class', full_name: target });
+    nodes.set(target, { id: target, label: shortName, kind: 'Class', full_name: target, isRoot: true });
   }
 
   // Parents (classes/interfaces this inherits from)
