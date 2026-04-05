@@ -1,6 +1,7 @@
 /**
- * Transform API response data into Cytoscape.js elements format.
- * Cytoscape expects: { nodes: [{data: {id, label, ...}}], edges: [{data: {source, target, ...}}] }
+ * Transform API response data into D3-native graph format.
+ * D3 expects: { nodes: [{id, label, ...}], links: [{source, target, ...}] }
+ * Flat objects — no {data:{...}} wrappers.
  */
 
 /**
@@ -9,13 +10,13 @@
  */
 export function calleesToElements(data, rootName) {
   const nodes = new Map();
-  const edges = [];
+  const links = [];
 
   // Add root node
   if (rootName) {
     const shortName = rootName.split('.').pop();
     nodes.set(rootName, {
-      data: { id: rootName, label: shortName, kind: 'Method', full_name: rootName },
+      id: rootName, label: shortName, kind: 'Method', full_name: rootName,
     });
   }
 
@@ -31,45 +32,41 @@ export function calleesToElements(data, rootName) {
 
     if (!nodes.has(fn)) {
       nodes.set(fn, {
-        data: {
-          id: fn,
-          label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
-          kind,
-          full_name: fn,
-          file_path: item.file_path || '',
-          line: item.line || 0,
-        },
+        id: fn,
+        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        kind,
+        full_name: fn,
+        file_path: item.file_path || '',
+        line: item.line || 0,
       });
     }
 
-    // Edge from root (or parent at previous depth) to this callee
+    // Link from root (or parent at previous depth) to this callee
     const source = item.depth === 1 || !item.depth ? root : (item._parent || root);
-    edges.push({
-      data: {
-        id: `e-${source}-${fn}`,
-        source,
-        target: fn,
-        label: 'CALLS',
-      },
+    links.push({
+      id: `e-${source}-${fn}`,
+      source,
+      target: fn,
+      label: 'CALLS',
     });
   }
 
-  return { nodes: [...nodes.values()], edges };
+  return { nodes: [...nodes.values()], links };
 }
 
 /**
  * Transform find_usages structured response to graph elements.
- * Star layout: queried symbol at center, callers radiating outward with inward CALLS edges.
+ * Star layout: queried symbol at center, callers radiating outward with inward CALLS links.
  */
 export function usagesToElements(data, queriedName) {
   const nodes = new Map();
-  const edges = [];
+  const links = [];
 
   // Center node — the queried symbol
   if (queriedName) {
     const shortName = queriedName.split('.').pop();
     nodes.set(queriedName, {
-      data: { id: queriedName, label: shortName, kind: 'Method', full_name: queriedName },
+      id: queriedName, label: shortName, kind: 'Method', full_name: queriedName,
     });
   }
 
@@ -79,28 +76,24 @@ export function usagesToElements(data, queriedName) {
     const shortName = fn.split('.').pop();
     if (!nodes.has(fn)) {
       nodes.set(fn, {
-        data: {
-          id: fn,
-          label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
-          kind: item.kind || 'Method',
-          full_name: fn,
-          file_path: item.file_path || '',
-          line: item.line || 0,
-        },
+        id: fn,
+        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        kind: item.kind || 'Method',
+        full_name: fn,
+        file_path: item.file_path || '',
+        line: item.line || 0,
       });
     }
-    // Edge: caller -> center (inward -- callers CALL the queried symbol)
-    edges.push({
-      data: {
-        id: `e-${fn}-${queriedName}`,
-        source: fn,
-        target: queriedName,
-        label: 'CALLS',
-      },
+    // Link: caller -> center (inward — callers CALL the queried symbol)
+    links.push({
+      id: `e-${fn}-${queriedName}`,
+      source: fn,
+      target: queriedName,
+      label: 'CALLS',
     });
   }
 
-  return { nodes: [...nodes.values()], edges };
+  return { nodes: [...nodes.values()], links };
 }
 
 /**
@@ -108,15 +101,13 @@ export function usagesToElements(data, queriedName) {
  */
 export function hierarchyToElements(data) {
   const nodes = new Map();
-  const edges = [];
+  const links = [];
   const target = data.target || '';
 
   // Target node (the queried class)
   if (target) {
     const shortName = target.split('.').pop();
-    nodes.set(target, {
-      data: { id: target, label: shortName, kind: 'Class', full_name: target },
-    });
+    nodes.set(target, { id: target, label: shortName, kind: 'Class', full_name: target });
   }
 
   // Parents (classes/interfaces this inherits from)
@@ -126,17 +117,15 @@ export function hierarchyToElements(data) {
     const shortName = fn.split('.').pop();
     if (!nodes.has(fn)) {
       nodes.set(fn, {
-        data: {
-          id: fn,
-          label: shortName,
-          kind: parent.kind || 'Class',
-          full_name: fn,
-          file_path: parent.file_path || '',
-          line: parent.line || 0,
-        },
+        id: fn,
+        label: shortName,
+        kind: parent.kind || 'Class',
+        full_name: fn,
+        file_path: parent.file_path || '',
+        line: parent.line || 0,
       });
     }
-    edges.push({ data: { id: `e-${target}-${fn}`, source: target, target: fn, label: 'INHERITS' } });
+    links.push({ id: `e-${target}-${fn}`, source: target, target: fn, label: 'INHERITS' });
   }
 
   // Children (classes that extend this)
@@ -146,30 +135,28 @@ export function hierarchyToElements(data) {
     const shortName = fn.split('.').pop();
     if (!nodes.has(fn)) {
       nodes.set(fn, {
-        data: {
-          id: fn,
-          label: shortName,
-          kind: child.kind || 'Class',
-          full_name: fn,
-          file_path: child.file_path || '',
-          line: child.line || 0,
-        },
+        id: fn,
+        label: shortName,
+        kind: child.kind || 'Class',
+        full_name: fn,
+        file_path: child.file_path || '',
+        line: child.line || 0,
       });
     }
-    edges.push({ data: { id: `e-${fn}-${target}`, source: fn, target, label: 'INHERITS' } });
+    links.push({ id: `e-${fn}-${target}`, source: fn, target, label: 'INHERITS' });
   }
 
-  return { nodes: [...nodes.values()], edges };
+  return { nodes: [...nodes.values()], links };
 }
 
 /**
  * Transform execute_query (Cypher) results to graph elements.
  * Heuristic: if rows contain objects with full_name, render as nodes.
- * Edges are inferred from consecutive node pairs in each row.
+ * Links are inferred from consecutive node pairs in each row.
  */
 export function cypherToElements(data) {
   const nodes = new Map();
-  const edges = [];
+  const links = [];
 
   for (const item of data || []) {
     const row = item.row || [];
@@ -181,27 +168,23 @@ export function cypherToElements(data) {
         const shortName = (cell.name || fn.split('.').pop());
         if (!nodes.has(fn)) {
           nodes.set(fn, {
-            data: {
-              id: fn,
-              label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
-              kind: cell.kind || 'Class',
-              full_name: fn,
-              file_path: cell.file_path || '',
-              line: cell.line || 0,
-            },
+            id: fn,
+            label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+            kind: cell.kind || 'Class',
+            full_name: fn,
+            file_path: cell.file_path || '',
+            line: cell.line || 0,
           });
         }
         if (prevNodeId && prevNodeId !== fn) {
-          edges.push({
-            data: { id: `e-${prevNodeId}-${fn}`, source: prevNodeId, target: fn },
-          });
+          links.push({ id: `e-${prevNodeId}-${fn}`, source: prevNodeId, target: fn });
         }
         prevNodeId = fn;
       }
     }
   }
 
-  return { nodes: [...nodes.values()], edges };
+  return { nodes: [...nodes.values()], links };
 }
 
 /**
@@ -212,4 +195,46 @@ export function isGraphResult(data) {
   const row = data[0]?.row;
   if (!Array.isArray(row)) return false;
   return row.some(cell => cell && typeof cell === 'object' && cell.full_name);
+}
+
+/**
+ * Transform /api/expand_node response to D3 graph format.
+ * data: { full_name, neighbors: [{full_name, kind, rel_type, direction, ...}] }
+ */
+export function neighborhoodToElements(data) {
+  const nodes = new Map();
+  const links = [];
+  const center = data.full_name;
+
+  // Add center node
+  if (center) {
+    nodes.set(center, {
+      id: center,
+      label: center.split('.').pop(),
+      kind: 'Method',
+      full_name: center,
+    });
+  }
+
+  for (const neighbor of data.neighbors || []) {
+    const fn = neighbor.full_name;
+    if (!fn) continue;
+    const shortName = fn.split('.').pop();
+    if (!nodes.has(fn)) {
+      nodes.set(fn, {
+        id: fn,
+        label: shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName,
+        kind: neighbor.kind || 'Method',
+        full_name: fn,
+        file_path: neighbor.file_path || '',
+        line: neighbor.line || 0,
+        name: neighbor.name || shortName,
+        signature: neighbor.signature || '',
+      });
+    }
+    const [src, tgt] = neighbor.direction === 'out' ? [center, fn] : [fn, center];
+    links.push({ id: `e-${src}-${tgt}-${neighbor.rel_type}`, source: src, target: tgt, label: neighbor.rel_type });
+  }
+
+  return { nodes: [...nodes.values()], links };
 }
