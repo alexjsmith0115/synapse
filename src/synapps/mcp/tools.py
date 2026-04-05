@@ -343,7 +343,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         exclude_test_callers: bool = True,
         limit: int = 0,
         kind: str | None = None,
-    ) -> str | list[dict]:
+    ) -> str | list[dict] | dict:
         """Find all code that uses a symbol — returns a compact text summary.
 
         For methods/properties/fields: lists callers with file locations.

@@ -22,7 +22,7 @@ def _slim(node, *fields: str) -> dict:
 
 def _apply_limit(items: list, limit: int) -> list | dict:
     """Return items directly if within limit, or a truncated wrapper if over."""
-    if len(items) <= limit:
+    if limit <= 0 or len(items) <= limit:
         return items
     return {"results": items[:limit], "_total": len(items), "_truncated": True}
 
