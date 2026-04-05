@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`neighborhoodToElements()` transform** — new function in `transforms.js` converting `/api/expand_node` responses to D3 graph format with center node and directional links
 - **`graphUtils.js`** — new module with `removeNodeWithOrphans(nodeId, nodes, links)` pure function; handles D3 post-simulation object-form `source`/`target`; cascade-removes nodes that become disconnected after removal
 - **d3 npm dependency** — added to `spa/package.json`
+- **`NodeDetailPanel.svelte`** — fixed-width 300px right-side overlay panel showing all node properties (full_name, kind, file_path+line as `vscode://` link, signature, and any extra properties); X close button; action buttons (Get Context, Find Usages, Find Callees, Get Hierarchy); Get Hierarchy shown only for Class/Interface kinds; skips D3 internal properties (x, y, vx, vy, fx, fy, index); dark theme support
 
 ## [1.6.0] - 2026-04-04
 
