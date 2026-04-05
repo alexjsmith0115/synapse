@@ -74,11 +74,12 @@ describe('toolConfig', () => {
     expect(Object.keys(tools).sort()).toEqual(expectedIds.sort());
   });
 
-  it('get_context_for has text resultType and scope select with defaultLabel', () => {
-    expect(tools.get_context_for.resultType).toBe('text');
+  it('get_context_for has context resultType and scope select defaulting to impact', () => {
+    expect(tools.get_context_for.resultType).toBe('context');
     expect(tools.get_context_for.category).toBe('Navigate');
     const scopeParam = tools.get_context_for.params.find(p => p.name === 'scope');
     expect(scopeParam.type).toBe('select');
-    expect(scopeParam.defaultLabel).toBe('(full)');
+    expect(scopeParam.default).toBe('impact');
+    expect(scopeParam.options).not.toContain('');
   });
 });

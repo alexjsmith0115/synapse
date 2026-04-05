@@ -182,9 +182,9 @@
     {/if}
 
     <!-- Constructor -->
-    {#if result.constructor}
+    {#if result.constructor_source}
       <h3 class="heading" style="margin-top: 24px;">Constructor</h3>
-      <pre class="text-result">{result.constructor}</pre>
+      <pre class="text-result">{result.constructor_source}</pre>
     {/if}
 
     <!-- Interface contract -->

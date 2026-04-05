@@ -65,7 +65,7 @@ export const tools = {
     resultType: 'context',
     params: [
       { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork' },
-      { name: 'scope', label: 'Scope', type: 'select', required: false,
+      { name: 'scope', label: 'Scope', type: 'select', required: false, default: 'impact',
         options: ['impact', 'structure', 'method', 'edit'] },
     ],
   },

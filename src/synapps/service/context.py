@@ -555,9 +555,9 @@ class ContextBuilder:
         ctor = get_constructor(self._conn, full_name)
         if ctor is not None:
             ctor_fn = _p(ctor)["full_name"]
-            result["constructor"] = self.get_symbol_source(ctor_fn)
+            result["constructor_source"] = self.get_symbol_source(ctor_fn)
         else:
-            result["constructor"] = None
+            result["constructor_source"] = None
 
         members_raw = get_members_overview(self._conn, full_name)
         result["members"] = []
