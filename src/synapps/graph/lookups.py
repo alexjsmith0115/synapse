@@ -1,5 +1,6 @@
 import os
 import re
+from collections.abc import Mapping
 from datetime import datetime, timezone
 
 from synapps.graph.connection import GraphConnection
@@ -82,7 +83,7 @@ def find_neighborhood(conn: GraphConnection, full_name: str) -> dict:
         for row in rows:
             node = row[0]
             rel_type = row[1]
-            fn = node.get("full_name", "") if isinstance(node, dict) else ""
+            fn = node.get("full_name", "") if isinstance(node, Mapping) else ""
             if not fn:
                 continue
             key = (fn, rel_type, direction)
@@ -91,11 +92,11 @@ def find_neighborhood(conn: GraphConnection, full_name: str) -> dict:
             seen.add(key)
             neighbors.append({
                 "full_name": fn,
-                "name": node.get("name", fn.split(".")[-1]) if isinstance(node, dict) else fn.split(".")[-1],
-                "kind": node.get("kind", "") if isinstance(node, dict) else "",
-                "file_path": node.get("file_path", "") if isinstance(node, dict) else "",
-                "line": node.get("line", 0) if isinstance(node, dict) else 0,
-                "signature": node.get("signature", "") if isinstance(node, dict) else "",
+                "name": node.get("name", fn.split(".")[-1]) if isinstance(node, Mapping) else fn.split(".")[-1],
+                "kind": node.get("kind", "") if isinstance(node, Mapping) else "",
+                "file_path": node.get("file_path", "") if isinstance(node, Mapping) else "",
+                "line": node.get("line", 0) if isinstance(node, Mapping) else 0,
+                "signature": node.get("signature", "") if isinstance(node, Mapping) else "",
                 "rel_type": rel_type,
                 "direction": direction,
             })
