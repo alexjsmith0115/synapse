@@ -21,6 +21,12 @@ export function getNodeColor(kind) {
     'External':  { cssVar: '--node-external',   fallback: '#BDC3C7' },
     'Namespace': { cssVar: '--node-package',    fallback: '#1ABC9C' },
     'Endpoint':  { cssVar: '--node-method',     fallback: '#E74C3C' },
+    // Type reference kinds from find_usages (how a class/interface is referenced)
+    'parameter':   { cssVar: '--node-method',    fallback: '#2ECC71' },
+    'field':       { cssVar: '--node-field',     fallback: '#E67E22' },
+    'return_type': { cssVar: '--node-interface', fallback: '#9B59B6' },
+    'base_type':   { cssVar: '--node-class',     fallback: '#4A90D9' },
+    'local':       { cssVar: '--node-file',      fallback: '#95A5A6' },
   };
   const entry = map[kind] || map['Method'];
   return getCSSVar(entry.cssVar) || entry.fallback;

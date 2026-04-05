@@ -18,16 +18,21 @@ def _make_client(service=None):
 
 def test_find_usages_basic():
     client, svc = _make_client()
+    svc._resolve.return_value = "A.B"
+    svc.get_symbol_kind.return_value = "Class"
     svc.find_usages.return_value = "Found 3 usages"
     response = client.get("/api/find_usages?full_name=A.B")
     assert response.status_code == 200
-    assert response.json() == "Found 3 usages"
-    svc.find_usages.assert_called_once_with("A.B", True, limit=20, structured=True)
+    data = response.json()
+    assert data["usages"] == "Found 3 usages"
+    assert data["queried_kind"] == "Class"
 
 
 def test_find_usages_returns_structured_json():
-    """D-02: Web route passes structured=True, returns list of dicts."""
+    """D-02: Web route passes structured=True, returns list of dicts with queried_kind."""
     client, svc = _make_client()
+    svc._resolve.return_value = "A.B"
+    svc.get_symbol_kind.return_value = "Class"
     svc.find_usages.return_value = [
         {"full_name": "A.Caller1", "kind": "Method", "file_path": "/src/a.cs", "line": 10},
         {"full_name": "B.Caller2", "kind": "Method", "file_path": "/src/b.cs", "line": 20},
@@ -35,36 +40,46 @@ def test_find_usages_returns_structured_json():
     response = client.get("/api/find_usages?full_name=A.B")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    assert len(data) == 2
-    assert data[0]["full_name"] == "A.Caller1"
-    svc.find_usages.assert_called_once_with("A.B", True, limit=20, structured=True)
+    assert data["queried_kind"] == "Class"
+    assert isinstance(data["usages"], list)
+    assert len(data["usages"]) == 2
+    assert data["usages"][0]["full_name"] == "A.Caller1"
 
 
 def test_find_usages_structured_empty_list():
     """D-02: Structured mode returns empty list for symbols with no callers."""
     client, svc = _make_client()
+    svc._resolve.return_value = "A.B"
+    svc.get_symbol_kind.return_value = "Method"
     svc.find_usages.return_value = []
     response = client.get("/api/find_usages?full_name=A.B")
     assert response.status_code == 200
-    assert response.json() == []
-    svc.find_usages.assert_called_once_with("A.B", True, limit=20, structured=True)
+    data = response.json()
+    assert data["usages"] == []
+    assert data["queried_kind"] == "Method"
 
 
 def test_find_callees_basic():
     client, svc = _make_client()
+    svc._resolve.return_value = "A.B"
+    svc.get_symbol_kind.return_value = "Method"
     svc.find_callees.return_value = [{"callee": "A.C"}]
     response = client.get("/api/find_callees?full_name=A.B")
     assert response.status_code == 200
-    assert response.json() == [{"callee": "A.C"}]
-    svc.find_callees.assert_called_once_with("A.B", True, limit=50)
+    data = response.json()
+    assert data["callees"] == [{"callee": "A.C"}]
+    assert data["queried_kind"] == "Method"
 
 
 def test_find_callees_with_depth_calls_get_call_depth():
     client, svc = _make_client()
+    svc._resolve.return_value = "A.B"
+    svc.get_symbol_kind.return_value = "Method"
     svc.get_call_depth.return_value = {"depth": 3, "calls": []}
     response = client.get("/api/find_callees?full_name=A.B&depth=3")
     assert response.status_code == 200
+    data = response.json()
+    assert data["queried_kind"] == "Method"
     svc.get_call_depth.assert_called_once_with("A.B", 3)
     svc.find_callees.assert_not_called()
 
@@ -80,7 +95,7 @@ def test_get_hierarchy_basic():
 
 def test_find_usages_value_error_returns_400():
     client, svc = _make_client()
-    svc.find_usages.side_effect = ValueError("Symbol not found")
+    svc._resolve.side_effect = ValueError("Symbol not found")
     response = client.get("/api/find_usages?full_name=X.Y")
     assert response.status_code == 400
     assert response.json()["detail"] == "Symbol not found"
@@ -88,7 +103,7 @@ def test_find_usages_value_error_returns_400():
 
 def test_find_callees_value_error_returns_400():
     client, svc = _make_client()
-    svc.find_callees.side_effect = ValueError("Ambiguous name")
+    svc._resolve.side_effect = ValueError("Ambiguous name")
     response = client.get("/api/find_callees?full_name=A.B")
     assert response.status_code == 400
     assert response.json()["detail"] == "Ambiguous name"

@@ -13,15 +13,15 @@
   --color-text-primary: #1A2E23;
   --color-text-secondary: #4A6D5A;
 
-  /* Graph node colors */
-  --node-class: #2D6A4F;
-  --node-interface: #52A67A;
-  --node-method: #74C69D;
-  --node-field: #A8D8BE;
-  --node-package: #C3DDD0;
-  --node-file: #E8F4ED;
-  --node-external: #F0F0F0;
-  --node-external-stroke: #74C69D;
+  /* Graph node colors — distinct palette, one per kind */
+  --node-class: #4A90D9;
+  --node-interface: #9B59B6;
+  --node-method: #2ECC71;
+  --node-field: #E67E22;
+  --node-package: #1ABC9C;
+  --node-file: #95A5A6;
+  --node-external: #BDC3C7;
+  --node-external-stroke: #7F8C8D;
 }
 
 /* === Dark Theme === */
@@ -34,15 +34,15 @@
   --color-text-primary: #F0FFF4;
   --color-text-secondary: #8ABFA0;
 
-  /* Graph node colors — dark */
-  --node-class: #74C69D;
-  --node-interface: #52A67A;
-  --node-method: #2D6A4F;
-  --node-field: #3D8A63;
-  --node-package: #1A4D35;
-  --node-file: #142B1E;
-  --node-external: #2A2A2A;
-  --node-external-stroke: #74C69D;
+  /* Graph node colors — dark, distinct palette */
+  --node-class: #5BA8F5;
+  --node-interface: #C27FE8;
+  --node-method: #52D68A;
+  --node-field: #F0A05A;
+  --node-package: #48D1B8;
+  --node-file: #A0AAAD;
+  --node-external: #787878;
+  --node-external-stroke: #A0AAAD;
 }
 
 /* === Typography === */

@@ -59,6 +59,20 @@ def find_implementations(conn: GraphConnection, interface_full_name: str) -> lis
     return []
 
 
+_KIND_LABELS = ("Class", "Interface", "Method", "Property", "Field", "Package", "File", "Endpoint")
+
+
+def _extract_kind(node) -> str:
+    """Extract the kind from a neo4j Node (via labels) or a plain dict (via 'kind' property)."""
+    if hasattr(node, "labels"):
+        for label in _KIND_LABELS:
+            if label in node.labels:
+                return label
+    if isinstance(node, Mapping):
+        return node.get("kind", "")
+    return ""
+
+
 def find_neighborhood(conn: GraphConnection, full_name: str) -> dict:
     """Return all directly connected neighbors for a given symbol.
 
@@ -90,10 +104,12 @@ def find_neighborhood(conn: GraphConnection, full_name: str) -> dict:
             if key in seen:
                 continue
             seen.add(key)
+            # Kind is stored as a node label in neo4j, or as a property in plain dicts
+            kind = _extract_kind(node)
             neighbors.append({
                 "full_name": fn,
                 "name": node.get("name", fn.split(".")[-1]) if isinstance(node, Mapping) else fn.split(".")[-1],
-                "kind": node.get("kind", "") if isinstance(node, Mapping) else "",
+                "kind": kind,
                 "file_path": node.get("file_path", "") if isinstance(node, Mapping) else "",
                 "line": node.get("line", 0) if isinstance(node, Mapping) else 0,
                 "signature": node.get("signature", "") if isinstance(node, Mapping) else "",
@@ -104,7 +120,16 @@ def find_neighborhood(conn: GraphConnection, full_name: str) -> dict:
     _extract(outgoing, "out")
     _extract(incoming, "in")
 
-    return {"full_name": full_name, "neighbors": neighbors}
+    # Resolve center node's kind from its labels
+    center_kind = ""
+    center_rows = conn.query(
+        "MATCH (n {full_name: $full_name}) RETURN n",
+        {"full_name": full_name},
+    )
+    if center_rows:
+        center_kind = _extract_kind(center_rows[0][0])
+
+    return {"full_name": full_name, "kind": center_kind, "neighbors": neighbors}
 
 
 def find_callers(

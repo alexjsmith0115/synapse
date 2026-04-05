@@ -24,11 +24,15 @@
     let initial;
     if (activeTool === 'find_callees') {
       const rootName = result?.root || queryParams?.full_name || '';
-      initial = calleesToElements(result, rootName);
+      const queriedKind = result?.queried_kind;
+      const calleeData = result?.callees || result;
+      initial = calleesToElements(calleeData, rootName, queriedKind);
     } else if (activeTool === 'get_hierarchy') {
       initial = hierarchyToElements({ ...result, target: result.target || queryParams?.full_name || '' });
     } else if (activeTool === 'find_usages') {
-      initial = usagesToElements(result, queryParams?.full_name || '');
+      const queriedKind = result?.queried_kind;
+      const usageData = result?.usages || result;
+      initial = usagesToElements(usageData, queryParams?.full_name || '', queriedKind);
     } else {
       initial = { nodes: [], links: [] };
     }

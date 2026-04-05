@@ -34,16 +34,19 @@ class FakeNode(Mapping):
 class FakeConn:
     """Stub GraphConnection that returns pre-built query results."""
 
-    def __init__(self, outgoing: list, incoming: list) -> None:
+    def __init__(self, outgoing: list, incoming: list, center: list | None = None) -> None:
         self._outgoing = outgoing
         self._incoming = incoming
+        self._center = center or []
         self._call_count = 0
 
     def query(self, cypher: str, params: dict | None = None) -> list:
         self._call_count += 1
         if self._call_count == 1:
             return self._outgoing
-        return self._incoming
+        if self._call_count == 2:
+            return self._incoming
+        return self._center
 
 
 def _make_fake_row(full_name: str, name: str, kind: str = "Method") -> tuple:

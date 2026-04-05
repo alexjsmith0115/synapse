@@ -8,15 +8,15 @@
  * Transform find_callees response (flat list or depth tree) to graph elements.
  * rootName: the queried method's full_name.
  */
-export function calleesToElements(data, rootName) {
+export function calleesToElements(data, rootName, queriedKind) {
   const nodes = new Map();
   const links = [];
 
-  // Add root node — use data.kind for depth-tree responses that include root kind
+  // Add root node — queriedKind from API takes precedence, then data.kind for depth-tree responses
   if (rootName) {
     const shortName = rootName.split('.').pop();
     nodes.set(rootName, {
-      id: rootName, label: shortName, kind: data?.kind || 'Method', full_name: rootName,
+      id: rootName, label: shortName, kind: queriedKind || data?.kind || 'Method', full_name: rootName,
     });
   }
 
@@ -58,15 +58,15 @@ export function calleesToElements(data, rootName) {
  * Transform find_usages structured response to graph elements.
  * Star layout: queried symbol at center, callers radiating outward with inward CALLS links.
  */
-export function usagesToElements(data, queriedName) {
+export function usagesToElements(data, queriedName, queriedKind) {
   const nodes = new Map();
   const links = [];
 
-  // Center node — the queried symbol
+  // Center node — the queried symbol; kind comes from caller or defaults to Method
   if (queriedName) {
     const shortName = queriedName.split('.').pop();
     nodes.set(queriedName, {
-      id: queriedName, label: shortName, kind: 'Method', full_name: queriedName,
+      id: queriedName, label: shortName, kind: queriedKind || 'Method', full_name: queriedName,
     });
   }
 

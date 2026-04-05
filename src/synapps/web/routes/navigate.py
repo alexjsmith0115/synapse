@@ -16,8 +16,10 @@ def router(service: SynappsService) -> APIRouter:
         limit: int = 20,
     ) -> str | list | dict:
         try:
+            resolved = service._resolve(full_name)
+            symbol_kind = service.get_symbol_kind(resolved)
             result = service.find_usages(full_name, exclude_test_callers, limit=limit, structured=True)
-            return serialize_result(result)
+            return {"usages": serialize_result(result), "queried_kind": symbol_kind}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
@@ -29,11 +31,19 @@ def router(service: SynappsService) -> APIRouter:
         depth: int | None = None,
     ) -> list | dict:
         try:
+            resolved = service._resolve(full_name, preference="concrete")
+            symbol_kind = service.get_symbol_kind(resolved)
             if depth is not None:
                 result = service.get_call_depth(full_name, depth)
             else:
                 result = service.find_callees(full_name, include_interface_dispatch, limit=limit)
-            return serialize_result(result)
+            raw = serialize_result(result)
+            if isinstance(raw, list):
+                return {"callees": raw, "queried_kind": symbol_kind}
+            # depth tree response — already a dict, add kind
+            if isinstance(raw, dict):
+                raw["queried_kind"] = symbol_kind
+            return raw
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 

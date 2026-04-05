@@ -228,6 +228,18 @@ class SynappsService:
 
     _USAGES_SUPPORTED_LABELS = {"Method", "Property", "Field", "Class", "Interface"}
 
+    def get_symbol_kind(self, full_name: str) -> str:
+        """Return the primary label (kind) for a resolved symbol, e.g. 'Class', 'Method'."""
+        symbol = get_symbol(self._conn, full_name)
+        if symbol is None:
+            return "Method"
+        props = _p(symbol)
+        labels = set(props.get("_labels", []))
+        for kind in ("Class", "Interface", "Method", "Property", "Field", "Package", "File", "Endpoint"):
+            if kind in labels:
+                return kind
+        return "Method"
+
     def find_usages(self, full_name: str, exclude_test_callers: bool = True, limit: int = 20, structured: bool = False) -> str | list[dict]:
         full_name = self._resolve(full_name)
         symbol = get_symbol(self._conn, full_name)
