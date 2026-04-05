@@ -86,11 +86,12 @@ export const tools = {
     method: 'GET',
     cta: 'Run Query',
     resultType: 'table',
+    pagination: true,
     params: [
       { name: 'subdirectory', label: 'Subdirectory', type: 'text', required: false, placeholder: 'e.g. src/api (optional)' },
       { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
-      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
-      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15, hidden: true },
+      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0, hidden: true },
     ],
   },
   find_untested: {
@@ -100,11 +101,12 @@ export const tools = {
     method: 'GET',
     cta: 'Run Query',
     resultType: 'table',
+    pagination: true,
     params: [
       { name: 'subdirectory', label: 'Subdirectory', type: 'text', required: false, placeholder: 'e.g. src/api (optional)' },
       { name: 'exclude_pattern', label: 'Exclude pattern (regex)', type: 'text', required: false, placeholder: 'e.g. Generated\\..*' },
-      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15 },
-      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0 },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 15, hidden: true },
+      { name: 'offset', label: 'Offset', type: 'number', required: false, default: 0, hidden: true },
     ],
   },
   execute_query: {
