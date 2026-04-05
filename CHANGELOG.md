@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Impact scope as default in web UI** — the Context tab scope selector now defaults to `impact` (stats grid + DataTable sections); the empty `(full)` option is removed
 - **`context` result type in `ResultPanel`** — renders structured context data with stats cards (impact scope) and labeled DataTable sections per array field (callers, callees, members, tests, dependencies, etc.)
 
+### Fixed
+- **Context tab scope default** — scope select now initializes to `impact` (was empty string, causing backend to fall through to full scope)
+- **`constructor` field collision** — renamed structured JSON key from `constructor` to `constructor_source` to avoid JavaScript `Object.prototype.constructor` shadowing
+
 ## [1.7.1] - 2026-04-05
 
 ### Fixed
