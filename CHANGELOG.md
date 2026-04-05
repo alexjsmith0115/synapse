@@ -6,51 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
-### Changed
-- **D3 graph nodes and edges render at full opacity** — removed all depth-based opacity fading (`Math.max(0.35, 1 - depth * 0.25)` formulas) from `D3Graph.svelte`; all nodes and links always display at `opacity: 1` regardless of expansion depth; neighbor highlight dimming (0.2) and edge dim on selection still apply
-- **Root node highlighted with yellow border** — the queried symbol (marked with `isRoot: true` in transform functions) renders with a light yellow `#F0E68C` stroke at width 3; all other nodes use their kind-color stroke at width 2; applied consistently in enter, update, highlightSelected, and theme observer callbacks
-- **`find_usages` returns all results by default** — changed default `limit` from 20 to 0 (unlimited) across MCP tool (`tools.py`), service layer (`service/__init__.py`), and web route (`navigate.py`); passing an explicit `limit > 0` still truncates as before; the silent 20-result cap that was truncating AI agent queries is removed
+## [1.7.0] - 2026-04-05
 
 ### Added
-- **D3 node style helpers** — `nodeStyles.js` now exports `getNodeColor`, `getNodeTextColor`, and `appendNodeShape` for D3 SVG rendering; kind-specific shapes (ellipse for Method/Endpoint, diamond polygon for Field/Property, rounded rect for all others) with CSS-var-aware hex fallbacks; `getCSSVar` exported with SSR guard for test environments; existing `buildStyles` export preserved for backward compatibility with CytoscapeGraph
-- **D3Graph.svelte force-directed graph component** — new SVG-based graph renderer using D3 force simulation (forceLink, forceManyBody, forceCenter, forceCollide); kind-specific node shapes and colors from nodeStyles.js; draggable nodes with zoom/pan (scaleExtent 0.2–5); hover tooltip showing full_name and kind; click/dblclick disambiguation with 250ms timeout (single-click=select, double-click=expand); right-click calls onNodeRemove; MutationObserver-based theme reactivity; D3 enter/exit/update join pattern for incremental node addition; $effect reacts to elements prop changes preserving existing node positions
-- **`GET /api/expand_node` endpoint** — returns all directly connected neighbors for any symbol; uses two separate Cypher queries (outgoing/incoming) to avoid Memgraph OPTIONAL MATCH issues; each neighbor includes `full_name`, `kind`, `rel_type`, `direction`, `name`, `file_path`, `line`, `signature`
-- **`find_neighborhood()` in `lookups.py`** — graph query function backing the expand_node endpoint; deduplicates by `(full_name, rel_type, direction)` tuple
-- **`find_neighborhood()` on `SynappsService`** — service-layer wrapper resolving short names before delegating to the lookup
-- **D3-native graph transform format** — all transform functions (`calleesToElements`, `usagesToElements`, `hierarchyToElements`, `cypherToElements`) now return `{nodes: [{id,...}], links: [...]}` flat format instead of Cytoscape `{data:{id,...}}` wrappers; `edges` renamed to `links` throughout
-- **`neighborhoodToElements()` transform** — new function in `transforms.js` converting `/api/expand_node` responses to D3 graph format with center node and directional links
-- **`graphUtils.js`** — new module with `removeNodeWithOrphans(nodeId, nodes, links)` pure function; handles D3 post-simulation object-form `source`/`target`; cascade-removes nodes that become disconnected after removal
-- **d3 npm dependency** — added to `spa/package.json`
-- **`NodeDetailPanel.svelte`** — fixed-width 300px right-side overlay panel showing all node properties (full_name, kind, file_path+line as `vscode://` link, signature, and any extra properties); X close button; action buttons (Get Context, Find Usages, Find Callees, Get Hierarchy); Get Hierarchy shown only for Class/Interface kinds; skips D3 internal properties (x, y, vx, vy, fx, fy, index); dark theme support
-- **`ResultPanel.svelte` D3 integration** — replaces CytoscapeGraph with D3Graph + NodeDetailPanel; single-click opens detail panel, double-click calls `/api/expand_node` and merges neighbors, right-click removes node with orphan cascade; `accumulatedGraphElements` uses D3-native `links` format; `onDetailAction` prop wires detail panel actions to App.svelte `handleContextAction`
-
-### Added
-- **Physics parameter controls panel** — a collapsible "Settings" button in the graph toolbar expands to show three range sliders: Link Distance (30–300), Repel Force (-1000 to -50), and Collision Radius (10–100); a reactive `$effect` updates `forceLink.distance`, `forceManyBody.strength`, and `forceCollide.radius` in real time; when physics is off, changing sliders re-runs the static 300-tick layout with the new parameters
+- **D3 force-directed graph visualization** — new SVG-based graph renderer (`D3Graph.svelte`) using D3 force simulation replacing Cytoscape.js; draggable nodes with zoom/pan; hover tooltips; click/dblclick disambiguation (single-click=select, double-click=expand); right-click removes node with orphan cascade
+- **Node detail panel** — `NodeDetailPanel.svelte` right-side overlay showing full_name, kind, file location (as `vscode://` link), signature; action buttons for Get Context, Find Usages, Find Callees, Get Hierarchy
+- **`GET /api/expand_node` endpoint** — returns all directly connected neighbors for any symbol via `find_neighborhood()` graph query; deduplicates by `(full_name, rel_type, direction)` tuple
+- **Color-coded circle nodes** — uniform circle shapes with distinct color palette per kind (Class=blue, Interface=purple, Method=green, Field/Property=orange, Package=teal, File=grey); CSS custom properties for light and dark themes
+- **Edge selection with relationship label** — clicking an edge highlights it and shows a floating label at the midpoint with the relationship type (CALLS, INHERITS, etc.)
+- **Neighbor highlighting on node select** — selecting a node dims non-neighbor nodes/edges to 0.2 opacity
+- **Physics controls panel** — collapsible settings with sliders for Link Distance, Repel Force, and Collision Radius; physics disabled by default with static 300-tick pre-computation
+- **Root node yellow border** — the queried symbol renders with a `#F0E68C` yellow stroke to distinguish it from expanded neighbors
+- **`get_symbol_kind()` on `SynappsService`** — returns the primary label (Class, Method, etc.) for a resolved symbol
+- **`_extract_kind()` helper in `lookups.py`** — extracts kind from neo4j node labels with fallback to `kind` property for plain dicts
 
 ### Changed
-- **D3 force simulation disabled by default** — graph nodes are statically positioned on load using a synchronous 300-tick pre-computation; a "Physics: ON/OFF" toggle button (top-right overlay) lets users enable/disable live force animation at any time; drag works in both modes (physics-off drag commits node position permanently; physics-on drag uses alphaTarget for natural settling)
-- **Method/Endpoint nodes rendered as circles** — `appendNodeShape` in `nodeStyles.js` now emits `<circle r=20>` instead of `<ellipse rx=24 ry=18>`; all CSS selectors in `D3Graph.svelte` updated from `ellipse` to `circle`
-- **Node labels show full text** — removed all 4 truncation ternaries (`shortName.length > 16 ? shortName.slice(0, 14) + '..' : shortName`) from `transforms.js` (`calleesToElements`, `usagesToElements`, `cypherToElements`, `neighborhoodToElements`); labels always show the full short name
-
-### Added
-- **Color-coded circle nodes** — all D3 graph nodes now render as uniform circles (r=22) regardless of kind; `appendNodeShape` in `nodeStyles.js` simplified to always emit `<circle r=22>`; colors updated to maximum-distinction palette (Class=#4A90D9 blue, Interface=#9B59B6 purple, Method=#2ECC71 green, Field/Property=#E67E22 orange, Package/Namespace=#1ABC9C teal, File=#95A5A6 gray, External=#BDC3C7 light gray, Endpoint=#E74C3C red)
-- **Edge selection with relationship label** — clicking any graph edge visually highlights it (stroke-width 4, accent color) and shows a floating label at the midpoint displaying the relationship type (e.g. CALLS, INHERITS); clicking canvas deselects; edge hover shows tooltip with relationship type and `cursor: pointer` CSS
-- **Neighbor highlighting on node select** — selecting a node dims all non-neighbor nodes and edges to 0.2 opacity; direct neighbors remain at full depth-based opacity; deselecting restores all elements to their depth-based opacity
+- **`find_usages` returns all results by default** — default `limit` changed from 20 to 0 (unlimited) across MCP tool, service layer, and web route; explicit `limit > 0` still truncates
+- **`find_usages` and `find_callees` web routes return `queried_kind`** — response includes the queried symbol's kind so the frontend can color the center node correctly
+- **`find_neighborhood` returns center node kind** — response includes `kind` field for the queried symbol alongside neighbors
 
 ### Fixed
-- **Node kind extraction from neo4j labels** — `find_neighborhood` now extracts kind from neo4j node labels (Class, Method, etc.) via `_extract_kind()` helper instead of reading a non-existent `kind` property; also returns center node's kind in the response; web routes for `find_usages` and `find_callees` now include `queried_kind` so the frontend can color the center node correctly
-- **Edge arrow scaling on selection** — SVG marker now uses `markerUnits="userSpaceOnUse"` with fixed 10px dimensions so arrowheads don't scale when selected edge stroke-width increases from 2 to 4
-- **CSS node color palette** — `app.css` CSS vars (`--node-class`, `--node-interface`, etc.) updated from old green shades to distinct palette (blue, purple, green, orange, teal, grey) for both light and dark themes; type-reference kinds (`parameter`, `field`, `return_type`, `base_type`, `local`) added to `nodeStyles.js` color map
-- **Center node kind no longer hardcoded to Method** — `neighborhoodToElements` now uses `data.kind || 'Method'` instead of the hardcoded `'Method'` literal; `usagesToElements` and `calleesToElements` accept `queriedKind` parameter from API; the actual symbol kind from the API response is reflected in the graph (regression tests added)
-- **Node labels repositioned below node shapes** — labels in the D3 graph now render directly below each node circle/ellipse/diamond/rect instead of overlapping the shape center; text color switched from kind-specific (white on colored shapes) to `--color-text-primary` for readability against the graph background in both light and dark themes; collision radius increased from 35 to 45 to prevent label overlap between adjacent nodes
-- **`find_neighborhood` returns empty neighbors for neo4j Node objects** — `_extract()` in `lookups.py` used `isinstance(node, dict)` which fails for `neo4j.graph.Node` objects (they implement the `Mapping` protocol but are not `dict` subclasses); replaced all three checks with `isinstance(node, Mapping)` from `collections.abc`; double-click node expansion now returns actual neighbors instead of an empty list
-- **Depth-based opacity fading for expanded graph nodes** — expanded neighbor nodes now display with reduced opacity based on their distance from the original query root (depth 0 = 100%, depth 1 = 75%, depth 2 = 50%, depth 3+ = 35%); `neighborhoodToElements()` accepts an optional `depth` parameter; `ResultPanel.svelte` computes and passes `maxDepth + 1` on each expansion; `D3Graph.svelte` applies opacity in both enter and update join callbacks
-- **Edge opacity fades with node depth** — link `<line>` elements now receive depth-based opacity matching their source/target nodes; `updateLinkOpacity()` helper re-applies correct opacity after simulation ticks (static layout and physics-off branches); initial join also sets opacity from resolved node depth
-- **Drag teleport fix when physics is off** — drag handler now syncs `d.x`/`d.y` directly during drag (not just `d.fx`/`d.fy`) since `tick()` renders from `d.x` and the simulation isn't running to sync them; nodes stay pinned via `fx`/`fy` between drags so the next drag-start reads the correct coordinates
-- **Layout stability on graph changes** — center force removed after initial layout to prevent drift; all nodes pinned via `fx`/`fy` after positioning; elements `$effect` only re-simulates when new nodes exist (existing nodes stay in place); physics toggle pins/unpins nodes instead of re-running layout
+- **Node kind extraction from neo4j labels** — `find_neighborhood` now reads kind from node labels instead of a non-existent `kind` property
+- **Edge arrow scaling on selection** — SVG marker uses `markerUnits="userSpaceOnUse"` so arrowheads don't scale with stroke-width changes
+- **Center node kind no longer hardcoded to Method** — transforms accept `queriedKind` parameter from API; `neighborhoodToElements` uses `data.kind || 'Method'`
+- **`find_neighborhood` with neo4j Node objects** — `_extract()` uses `isinstance(node, Mapping)` instead of `isinstance(node, dict)` for neo4j compatibility
+- **Drag teleport when physics is off** — drag handler syncs `d.x`/`d.y` directly; nodes stay pinned via `fx`/`fy` between drags
+- **Layout stability on graph changes** — center force removed after initial layout; nodes pinned after positioning; `$effect` only re-simulates when new nodes exist
 
 ### Removed
-- **Cytoscape.js dependencies** — `cytoscape`, `cytoscape-dagre`, `cytoscape-cose-bilkent` removed from `spa/package.json`; `CytoscapeGraph.svelte`, `graphDiff.js`, `layouts.js` deleted; `buildStyles` removed from `nodeStyles.js`
+- **Cytoscape.js dependencies** — `cytoscape`, `cytoscape-dagre`, `cytoscape-cose-bilkent` removed; `CytoscapeGraph.svelte`, `graphDiff.js`, `layouts.js` deleted
 
 ## [1.6.0] - 2026-04-04
 
