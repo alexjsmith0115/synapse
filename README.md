@@ -161,6 +161,24 @@ C#, Python, TypeScript/JavaScript, and Java projects all use the same tools, gra
 | TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs` | typescript-language-server |
 | Java | `.java` | Eclipse JDTLS |
 
+### Webviewer
+
+Synapps includes a built-in web UI that exposes the same tools available to AI agents via MCP — so you can see exactly what your agent sees. The webviewer provides interactive access to all query tools, plus a force-directed graph visualization for exploring symbol neighborhoods.
+
+<p align="center">
+  <img src="docs/SynappsWebview.png" alt="Synapps Webviewer — Explore tab" width="800">
+</p>
+
+**Capabilities:**
+
+- **Search** — find symbols by name across your indexed projects
+- **Navigate** — trace usages, callees, hierarchy, and scoped context directly from the UI
+- **Analyze** — view architecture overviews, dead code, and untested methods
+- **Explore** — visualize symbol neighborhoods as an interactive graph with configurable depth, physics simulation, and layout controls
+- **Query** — run raw Cypher queries and browse HTTP endpoints
+
+The webviewer is useful for getting a visual overview of how code connects — particularly when onboarding to a new codebase or investigating complex call chains.
+
 ---
 
 ## CLI Reference
