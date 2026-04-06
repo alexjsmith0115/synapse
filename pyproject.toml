@@ -66,10 +66,6 @@ Changelog = "https://github.com/SynappsCodeComprehension/synapps/blob/main/CHANG
 [tool.hatch.build.targets.wheel]
 packages = ["src/synapps", "src/solidlsp"]
 
-[tool.hatch.build.targets.wheel.force-include]
-# SPA build output is gitignored but must ship in the wheel.
-# Only force-include the leaf files (not the directory already covered by `packages`)
-# to avoid duplicate ZIP entries that PyPI rejects.
-"src/synapps/web/static/index.html" = "synapps/web/static/index.html"
-"src/synapps/web/static/synapps-logo.svg" = "synapps/web/static/synapps-logo.svg"
-"src/synapps/web/static/assets" = "synapps/web/static/assets"
+[tool.hatch.build.targets.wheel.hooks.custom]
+# SPA static files are gitignored; hatch_build.py adds them to force-include
+# only when they exist on disk, so editable installs on fresh checkouts don't break.
