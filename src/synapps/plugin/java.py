@@ -26,8 +26,8 @@ class JavaPlugin:
     def create_lsp_adapter(self, root_path: str) -> JavaLSPAdapter:
         return JavaLSPAdapter.create(root_path)
 
-    def create_call_extractor(self) -> JavaCallExtractor:
-        return JavaCallExtractor()
+    def create_call_extractor(self) -> None:
+        return None
 
     def create_import_extractor(self, source_root: str = "") -> JavaImportExtractor:
         return JavaImportExtractor(source_root=source_root)
