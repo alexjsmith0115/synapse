@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "synapps-mcp"
-version = "1.8.3"
+version = "1.8.4"
 readme = "PYPI_README.md"
 description = "Code intelligence MCP server — indexes codebases into a queryable graph of symbols, call chains, and relationships"
 requires-python = ">=3.11"
@@ -66,6 +66,12 @@ Changelog = "https://github.com/SynappsCodeComprehension/synapps/blob/main/CHANG
 [tool.hatch.build.targets.wheel]
 packages = ["src/synapps", "src/solidlsp"]
 
-[tool.hatch.build.targets.wheel.hooks.custom]
-# SPA static files are gitignored; hatch_build.py adds them to force-include
-# only when they exist on disk, so editable installs on fresh checkouts don't break.
+[tool.hatch.build.targets.wheel.force-include]
+"src/synapps/web/static/index.html" = "synapps/web/static/index.html"
+"src/synapps/web/static/synapps-logo.svg" = "synapps/web/static/synapps-logo.svg"
+"src/synapps/web/static/assets" = "synapps/web/static/assets"
+
+[tool.hatch.build.targets.sdist.force-include]
+"src/synapps/web/static/index.html" = "src/synapps/web/static/index.html"
+"src/synapps/web/static/synapps-logo.svg" = "src/synapps/web/static/synapps-logo.svg"
+"src/synapps/web/static/assets" = "src/synapps/web/static/assets"
