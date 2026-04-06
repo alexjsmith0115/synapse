@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult, neighborhoodToElements } from '../transforms.js';
+import { calleesToElements, hierarchyToElements, usagesToElements, cypherToElements, isGraphResult, neighborhoodToElements, exploreToElements } from '../transforms.js';
 
 describe('calleesToElements', () => {
   it('transforms flat array to {nodes, links}', () => {
@@ -307,5 +307,77 @@ describe('neighborhoodToElements', () => {
     };
     const result = neighborhoodToElements(data);
     result.nodes.forEach(n => expect(n.data).toBeUndefined());
+  });
+});
+
+describe('exploreToElements', () => {
+  it('marks root node with isRoot=true', () => {
+    const data = {
+      root: { full_name: 'A.B.Root', name: 'Root', kind: 'Method', file_path: '/f.py', line: 5 },
+      nodes: [{ full_name: 'A.B.Foo', name: 'Foo', kind: 'Class' }],
+      links: [{ source: 'A.B.Root', target: 'A.B.Foo', type: 'CALLS' }],
+    };
+    const result = exploreToElements(data);
+    const rootNode = result.nodes.find(n => n.id === 'A.B.Root');
+    expect(rootNode.isRoot).toBe(true);
+    expect(rootNode.kind).toBe('Method');
+  });
+
+  it('includes all nodes from API response', () => {
+    const data = {
+      root: { full_name: 'Root', name: 'Root', kind: 'Method' },
+      nodes: [
+        { full_name: 'A', name: 'A', kind: 'Class' },
+        { full_name: 'B', name: 'B', kind: 'Interface' },
+      ],
+      links: [],
+    };
+    const result = exploreToElements(data);
+    expect(result.nodes).toHaveLength(3); // root + A + B
+  });
+
+  it('deduplicates links by source-target-type', () => {
+    const data = {
+      root: { full_name: 'R', name: 'R', kind: 'Method' },
+      nodes: [{ full_name: 'X', name: 'X', kind: 'Method' }],
+      links: [
+        { source: 'R', target: 'X', type: 'CALLS' },
+        { source: 'R', target: 'X', type: 'CALLS' },
+      ],
+    };
+    const result = exploreToElements(data);
+    expect(result.links).toHaveLength(1);
+  });
+
+  it('sets link.label from link.type', () => {
+    const data = {
+      root: { full_name: 'R', name: 'R', kind: 'Method' },
+      nodes: [{ full_name: 'X', name: 'X', kind: 'Class' }],
+      links: [{ source: 'R', target: 'X', type: 'INHERITS' }],
+    };
+    const result = exploreToElements(data);
+    expect(result.links[0].label).toBe('INHERITS');
+  });
+
+  it('returns root-only for empty neighbors', () => {
+    const data = {
+      root: { full_name: 'Lonely', name: 'Lonely', kind: 'Method' },
+      nodes: [],
+      links: [],
+    };
+    const result = exploreToElements(data);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0].isRoot).toBe(true);
+    expect(result.links).toHaveLength(0);
+  });
+
+  it('skips nodes without full_name', () => {
+    const data = {
+      root: { full_name: 'R', name: 'R', kind: 'Method' },
+      nodes: [{ name: 'NoFN' }, { full_name: 'Good', name: 'Good', kind: 'Class' }],
+      links: [],
+    };
+    const result = exploreToElements(data);
+    expect(result.nodes).toHaveLength(2); // root + Good, not NoFN
   });
 });

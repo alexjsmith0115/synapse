@@ -211,6 +211,61 @@ export function isGraphResult(data) {
 }
 
 /**
+ * Transform /explore API response to D3 graph format.
+ * data: { root: {...}, nodes: [...], links: [{source, target, type}] }
+ * Root node is marked isRoot=true for yellow stroke rendering.
+ */
+export function exploreToElements(data) {
+  const nodes = new Map();
+  const links = [];
+  const linkSet = new Set();
+
+  // Root node -- always present, marked isRoot for yellow stroke
+  const root = data.root;
+  if (root && root.full_name) {
+    nodes.set(root.full_name, {
+      id: root.full_name,
+      label: root.name || root.full_name.split('.').pop(),
+      kind: root.kind || 'Method',
+      full_name: root.full_name,
+      file_path: root.file_path || '',
+      line: root.line || 0,
+      isRoot: true,
+    });
+  }
+
+  for (const node of (data.nodes || [])) {
+    if (!node.full_name) continue;
+    if (!nodes.has(node.full_name)) {
+      nodes.set(node.full_name, {
+        id: node.full_name,
+        label: node.name || node.full_name.split('.').pop(),
+        kind: node.kind || 'Method',
+        full_name: node.full_name,
+        file_path: node.file_path || '',
+        line: node.line || 0,
+      });
+    }
+  }
+
+  for (const link of (data.links || [])) {
+    if (!link.source || !link.target) continue;
+    const linkId = `e-${link.source}-${link.target}-${link.type || ''}`;
+    if (!linkSet.has(linkId)) {
+      linkSet.add(linkId);
+      links.push({
+        id: linkId,
+        source: link.source,
+        target: link.target,
+        label: link.type || '',
+      });
+    }
+  }
+
+  return { nodes: [...nodes.values()], links };
+}
+
+/**
  * Transform /api/expand_node response to D3 graph format.
  * data: { full_name, neighbors: [{full_name, kind, rel_type, direction, ...}] }
  * depth: optional depth level for the neighbor nodes (default 0); used for root node highlighting.
