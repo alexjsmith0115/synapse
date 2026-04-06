@@ -342,18 +342,44 @@ def test_find_explore_high_depth_honored():
     )
 
 
-# --- Test 6: CONTAINS edges excluded ---
+# --- Test 6: CONTAINS edges included ---
 
-def test_find_explore_excludes_contains():
-    """CONTAINS is not in _EXPLORE_EDGE_FILTER so File/Directory nodes stay out of results."""
+def test_find_explore_includes_contains():
+    """CONTAINS is in _EXPLORE_EDGE_FILTER so File/Directory/Repository structural neighbors appear."""
     from synapps.graph.lookups import _EXPLORE_EDGE_FILTER
 
-    assert "CONTAINS" not in _EXPLORE_EDGE_FILTER, (
-        "_EXPLORE_EDGE_FILTER must not include CONTAINS"
+    assert "CONTAINS" in _EXPLORE_EDGE_FILTER, (
+        "_EXPLORE_EDGE_FILTER must include CONTAINS"
     )
     assert "CALLS" in _EXPLORE_EDGE_FILTER
     assert "INHERITS" in _EXPLORE_EDGE_FILTER
     assert "IMPLEMENTS" in _EXPLORE_EDGE_FILTER
+
+
+# --- Test 8: _extract_kind recognizes Directory and Repository labels ---
+
+def test_extract_kind_directory_repository():
+    """_extract_kind returns 'Directory' and 'Repository' for nodes with those labels."""
+    from synapps.graph.lookups import _extract_kind
+
+    class FakeNeo4jNode:
+        """Minimal neo4j Node-like object with a labels attribute."""
+        def __init__(self, labels: set) -> None:
+            self.labels = labels
+
+    dir_node = FakeNeo4jNode({"Directory", "Node"})
+    repo_node = FakeNeo4jNode({"Repository", "Node"})
+    class_node = FakeNeo4jNode({"Class", "Node"})
+
+    assert _extract_kind(dir_node) == "Directory", (
+        "_extract_kind must return 'Directory' for a node with the Directory label"
+    )
+    assert _extract_kind(repo_node) == "Repository", (
+        "_extract_kind must return 'Repository' for a node with the Repository label"
+    )
+    assert _extract_kind(class_node) == "Class", (
+        "_extract_kind must return 'Class' for a node with the Class label"
+    )
 
 
 # --- Test 7: empty neighbors returns root in nodes and empty links ---

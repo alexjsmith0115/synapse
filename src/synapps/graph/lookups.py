@@ -59,16 +59,16 @@ def find_implementations(conn: GraphConnection, interface_full_name: str) -> lis
     return []
 
 
-_KIND_LABELS = ("Class", "Interface", "Method", "Property", "Field", "Package", "File", "Endpoint")
+_KIND_LABELS = ("Class", "Interface", "Method", "Property", "Field", "Package", "File", "Endpoint", "Directory", "Repository")
 
 # Safety ceiling for Cypher path depth interpolation — prevents runaway queries from absurd
 # user inputs. NOT a user-facing feature cap (per D-02: no hard max depth cap). In practice,
 # meaningful paths are rarely deeper than 10-15 hops; 50 is effectively unlimited.
 _MAX_SAFE_EXPLORE_DEPTH = 50
 
-# Edge types traversed by find_explore. CONTAINS is intentionally excluded to prevent
-# File/Directory/Repository nodes from flooding results (Pitfall 5 in RESEARCH.md).
-_EXPLORE_EDGE_FILTER = "CALLS|INHERITS|IMPLEMENTS|REFERENCES|IMPORTS|DISPATCHES_TO|SERVES|HTTP_CALLS|OVERRIDES|TESTS"
+# Edge types traversed by find_explore. CONTAINS is included so that parent/child structural
+# relationships (File, Directory, Repository) appear as neighbors in explore results.
+_EXPLORE_EDGE_FILTER = "CALLS|INHERITS|IMPLEMENTS|REFERENCES|IMPORTS|DISPATCHES_TO|SERVES|HTTP_CALLS|OVERRIDES|TESTS|CONTAINS"
 
 
 def _extract_kind(node) -> str:
