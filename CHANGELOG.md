@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Indexer dispatch branch for ReferencesResolver** — `_resolve_calls_and_refs` in `indexer.py` now dispatches to `ReferencesResolver` when `call_ext is None and parsed_cache is not None`; SymbolResolver still runs first for REFERENCES (type-ref) edges
 
 ### Changed
+- **Java call indexing migrated to ReferencesResolver** -- `JavaPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `JavaCallExtractor` from the primary indexing path; Java CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references`; a dedicated Java-only post-pass preserves ExternalCallStubber and Spring Data stub CALLS edges (LANG-03)
 - **C# call indexing migrated to ReferencesResolver** -- `CSharpPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `CSharpCallExtractor` from the active indexing path; C# CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references` (LANG-04)
 
 ### Fixed

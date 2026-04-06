@@ -558,6 +558,38 @@ class Indexer:
             )
             refs_resolver.resolve()
 
+        # Java-only post-pass: restore ExternalCallStubber and Spring Data stub
+        # CALLS edges. These were previously gated on tree-sitter call_sites
+        # (via SymbolResolver._resolve_call), which are empty after migration.
+        # The post-pass re-runs JavaCallExtractor to find call sites with
+        # receiver_name, then applies ExternalCallStubber.maybe_stub() and
+        # name_to_full_names lookup independently of the SymbolResolver path.
+        if self._language == "java" and call_ext is None and parsed_cache is not None:
+            from synapps.indexer.java.java_call_extractor import JavaCallExtractor
+            _ext = JavaCallExtractor()
+            _pending: list[dict] = []
+            for file_path, pf in parsed_cache.items():
+                _sites = _ext.extract(file_path, pf.tree, symbol_map)
+                for caller_full, callee_simple, line_1, col_0, receiver_name in _sites:
+                    # Case A: external framework stub (RestTemplate, MongoTemplate, etc.)
+                    if external_call_stubber is not None and receiver_name:
+                        stub_fn = external_call_stubber.maybe_stub(
+                            caller_full, receiver_name, callee_simple
+                        )
+                        if stub_fn and stub_fn != caller_full:
+                            _pending.append({"caller": caller_full, "callee": stub_fn,
+                                             "line": line_1, "col": col_0})
+                            continue
+                    # Case B: Spring Data stub via name_to_full_names
+                    for candidate in name_to_full_names.get(callee_simple, []):
+                        if candidate != caller_full and candidate not in symbol_map.values():
+                            _pending.append({"caller": caller_full, "callee": candidate,
+                                             "line": line_1, "col": col_0})
+            if _pending:
+                from synapps.graph.edges import batch_upsert_calls
+                batch_upsert_calls(self._conn, _pending)
+                log.info("Java post-pass: wrote %d ExternalCallStubber/Spring-Data CALLS edges", len(_pending))
+
         # Per-site DEBUG logging for unresolved call sites
         if self._language in ("python", "typescript", "java") and hasattr(resolver, "_unresolved_sites"):
             for site_msg in resolver._unresolved_sites:
