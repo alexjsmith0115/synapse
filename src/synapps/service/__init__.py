@@ -13,6 +13,7 @@ from synapps.graph.lookups import (
     resolve_full_name, resolve_full_name_with_labels,
     suggest_similar_names,
     find_neighborhood as query_find_neighborhood,
+    find_explore as query_find_explore,
     find_type_references as query_find_type_references,
     find_dependencies as query_find_dependencies,
     find_field_dependencies as query_find_field_dependencies,
@@ -174,6 +175,10 @@ class SynappsService:
     def find_neighborhood(self, full_name: str) -> dict:
         full_name = self._resolve(full_name)
         return query_find_neighborhood(self._conn, full_name)
+
+    def find_explore(self, full_name: str, depth: int = 1) -> dict:
+        full_name = self._resolve(full_name)
+        return query_find_explore(self._conn, full_name, depth)
 
     def find_callees(self, full_name: str, include_interface_dispatch: bool = True, limit: int = 50) -> list[dict] | dict:
         full_name = self._resolve(full_name, preference="concrete")

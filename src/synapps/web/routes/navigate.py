@@ -79,4 +79,12 @@ def router(service: SynappsService) -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @r.get("/explore")
+    def explore(full_name: str, depth: int = 1) -> dict:
+        try:
+            result = service.find_explore(full_name, depth)
+            return serialize_result(result)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     return r
