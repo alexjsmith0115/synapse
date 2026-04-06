@@ -693,3 +693,40 @@ def test_resolve_file_open_file_exception_increments_calls_unresolved():
     resolver._resolve_file("/proj/Service.cs", "class X {}", _mock_tree(), {})
 
     assert resolver._stats.calls_unresolved == 3
+
+
+def test_resolver_none_call_extractor_skips_calls_still_runs_type_refs():
+    """Regression: call_extractor=None must NOT instantiate CSharpCallExtractor as fallback,
+    but type-ref extraction must still run normally.
+
+    This test would have caught the original bug where:
+        self._call_extractor = call_extractor or CSharpCallExtractor()
+    caused C# extraction to silently run on non-C# files when None was passed.
+    """
+    conn = MagicMock()
+    ls = _make_ls()
+
+    from synapps.indexer.type_ref import TypeRef
+    type_ref_extractor = MagicMock()
+    type_ref_extractor.extract.return_value = [
+        TypeRef(owner_full_name="Ns.C.M", type_name="SomeType", line=3, col=10, ref_kind="field_type")
+    ]
+    ls.request_defining_symbol.return_value = None
+
+    with patch("synapps.indexer.symbol_resolver.CSharpCallExtractor") as mock_csharp_cls:
+        resolver = SymbolResolver(
+            conn, ls,
+            call_extractor=None,
+            type_ref_extractor=type_ref_extractor,
+        )
+        resolver._stats = _ResolveStats()
+        resolver._resolve_file("/proj/Foo.py", "def foo(): pass", _mock_tree(), {})
+
+    # CSharpCallExtractor must NEVER be instantiated when call_extractor=None is passed
+    mock_csharp_cls.assert_not_called()
+
+    # Type-ref extraction must still run (call_extractor=None does not suppress type refs)
+    type_ref_extractor.extract.assert_called_once()
+
+    # No AttributeError raised — the guard prevents calling .extract() on None
+    # (the test reaching here proves no exception was thrown)

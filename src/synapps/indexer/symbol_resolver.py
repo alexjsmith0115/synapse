@@ -91,7 +91,7 @@ class SymbolResolver:
     ) -> None:
         self._conn = conn
         self._ls = ls
-        self._call_extractor = call_extractor or CSharpCallExtractor()
+        self._call_extractor = call_extractor
         self._type_ref_extractor = type_ref_extractor
         self._name_to_full_names = name_to_full_names or {}
         self._import_map = import_map or {}
@@ -223,7 +223,10 @@ class SymbolResolver:
         stats = getattr(self, "_stats", None)
 
         t0 = time.monotonic()
-        call_sites = self._call_extractor.extract(file_path, tree, symbol_map)
+        if self._call_extractor:
+            call_sites = self._call_extractor.extract(file_path, tree, symbol_map)
+        else:
+            call_sites = []
         t1 = time.monotonic()
         if self._type_ref_extractor:
             # Build per-file field_symbol_map slice for field-level REFERENCES ownership
