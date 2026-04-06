@@ -104,8 +104,8 @@ class CSharpLSPAdapter:
             kind = SymbolKind.CLASS
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0)
-        end_line = range_obj.get("end", {}).get("line", 0)
+        line = range_obj.get("start", {}).get("line", 0) + 1
+        end_line = range_obj.get("end", {}).get("line", 0) + 1
         detail = raw.get("detail", "") or ""
         return IndexSymbol(
             name=name,

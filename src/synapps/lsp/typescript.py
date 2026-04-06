@@ -154,8 +154,8 @@ class TypeScriptLSPAdapter:
 
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0)
-        end_line = range_obj.get("end", {}).get("line", 0)
+        line = range_obj.get("start", {}).get("line", 0) + 1
+        end_line = range_obj.get("end", {}).get("line", 0) + 1
 
         # Signature carries 'module' marker for ES module symbols (kind 2).
         signature = "module" if kind_int == 2 else ""
@@ -181,8 +181,8 @@ class TypeScriptLSPAdapter:
         """Convert a Variable/Constant symbol to METHOD for arrow functions, components, and hooks."""
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0)
-        end_line = range_obj.get("end", {}).get("line", 0)
+        line = range_obj.get("start", {}).get("line", 0) + 1
+        end_line = range_obj.get("end", {}).get("line", 0) + 1
         return IndexSymbol(
             name=name,
             full_name=_build_ts_full_name(raw, file_path, root_path),
@@ -204,8 +204,8 @@ class TypeScriptLSPAdapter:
         """Convert a Variable/Constant symbol to CLASS for object literals with methods."""
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0)
-        end_line = range_obj.get("end", {}).get("line", 0)
+        line = range_obj.get("start", {}).get("line", 0) + 1
+        end_line = range_obj.get("end", {}).get("line", 0) + 1
         return IndexSymbol(
             name=name,
             full_name=_build_ts_full_name(raw, file_path, root_path),

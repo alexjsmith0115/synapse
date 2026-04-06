@@ -290,8 +290,8 @@ class JavaLSPAdapter:
         # lookups return). The symbol_map and base_type_symbol_map are keyed by (file_path, line)
         # so both must agree.
         sel_range = raw.get("selectionRange", range_obj)
-        line = sel_range.get("start", {}).get("line", 0)
-        end_line = range_obj.get("end", {}).get("line", 0)
+        line = sel_range.get("start", {}).get("line", 0) + 1
+        end_line = range_obj.get("end", {}).get("line", 0) + 1
         detail = raw.get("detail", "") or ""
 
         return IndexSymbol(
