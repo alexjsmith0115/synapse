@@ -18,7 +18,7 @@ def _conn_with_side_effects(*query_results):
 # ---------------------------------------------------------------------------
 
 def test_returns_methods_and_stats_keys():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_dead_code(conn)
     assert set(result.keys()) == {"methods", "stats"}
     assert set(result["stats"].keys()) == {"total_methods", "dead_count", "dead_ratio", "truncated", "limit", "offset"}
@@ -29,7 +29,7 @@ def test_returns_methods_and_stats_keys():
 # ---------------------------------------------------------------------------
 
 def test_empty_graph_returns_empty_methods():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_dead_code(conn)
     assert result["methods"] == []
     assert result["stats"]["dead_count"] == 0
@@ -42,6 +42,7 @@ def test_empty_graph_returns_empty_methods():
 def test_dead_method_returned_with_correct_shape():
     conn = _conn_with_side_effects(
         [("Ns.Foo.Bar", "/src/Foo.cs", 10)],
+        [(1,)],
         [(5,)],
     )
     result = find_dead_code(conn)
@@ -61,6 +62,7 @@ def test_dead_method_returned_with_correct_shape():
 def test_inbound_call_count_always_zero():
     conn = _conn_with_side_effects(
         [("A.B", "/a.cs", 1), ("C.D", "/c.cs", 2)],
+        [(2,)],
         [(10,)],
     )
     result = find_dead_code(conn)
@@ -74,6 +76,7 @@ def test_inbound_call_count_always_zero():
 def test_stats_dead_ratio():
     conn = _conn_with_side_effects(
         [("A.B", "/a.cs", 1)],
+        [(1,)],
         [(4,)],
     )
     result = find_dead_code(conn)
@@ -87,7 +90,7 @@ def test_stats_dead_ratio():
 # ---------------------------------------------------------------------------
 
 def test_stats_dead_ratio_zero_division_guard():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_dead_code(conn)
     assert result["stats"]["dead_ratio"] == 0.0
 
@@ -97,7 +100,7 @@ def test_stats_dead_ratio_zero_division_guard():
 # ---------------------------------------------------------------------------
 
 def test_test_methods_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     params = conn.query.call_args_list[0].args[1]
@@ -110,7 +113,7 @@ def test_test_methods_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_serves_edge_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)-[:SERVES]->()" in cypher
@@ -121,7 +124,7 @@ def test_serves_edge_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_implements_target_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT ()-[:IMPLEMENTS]->(m)" in cypher
@@ -132,7 +135,7 @@ def test_implements_target_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_dispatches_to_target_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT ()-[:DISPATCHES_TO]->(m)" in cypher
@@ -143,7 +146,7 @@ def test_dispatches_to_target_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_overrides_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)-[:OVERRIDES]->()" in cypher
@@ -154,7 +157,7 @@ def test_overrides_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_constructors_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "'__init__'" in cypher
@@ -163,7 +166,7 @@ def test_constructors_excluded_via_cypher():
     assert "'Up'" in cypher
     assert "'Down'" in cypher
     assert "'BuildTargetModel'" in cypher
-    assert "parent.name = m.name" in cypher
+    assert "p.name = m.name" in cypher
 
 
 # ---------------------------------------------------------------------------
@@ -171,10 +174,10 @@ def test_constructors_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_no_callers_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
-    assert "NOT EXISTS { MATCH ()-[:CALLS]->(m) }" in cypher
+    assert "NOT ()-[:CALLS]->(m)" in cypher
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +185,7 @@ def test_no_callers_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_exclude_pattern_passed_to_query():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn, exclude_pattern=".*Generated.*")
     params = conn.query.call_args_list[0].args[1]
     cypher = conn.query.call_args_list[0].args[0]
@@ -195,7 +198,7 @@ def test_exclude_pattern_passed_to_query():
 # ---------------------------------------------------------------------------
 
 def test_empty_exclude_pattern_default():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     params = conn.query.call_args_list[0].args[1]
     cypher = conn.query.call_args_list[0].args[0]
@@ -209,14 +212,14 @@ def test_empty_exclude_pattern_default():
 # ---------------------------------------------------------------------------
 
 def test_exclude_pattern_auto_wrapped_for_substring_match():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn, exclude_pattern=r"Configuration\.Configure")
     params = conn.query.call_args_list[0].args[1]
     assert params["exclude_pattern"] == r".*Configuration\.Configure.*"
 
 
 def test_exclude_pattern_already_anchored_not_double_wrapped():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn, exclude_pattern=".*Generated.*")
     params = conn.query.call_args_list[0].args[1]
     assert params["exclude_pattern"] == ".*Generated.*"
@@ -227,7 +230,7 @@ def test_exclude_pattern_already_anchored_not_double_wrapped():
 # ---------------------------------------------------------------------------
 
 def test_decorator_entry_points_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert 'CONTAINS \'"command"\'' in cypher
@@ -240,7 +243,7 @@ def test_decorator_entry_points_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_interface_member_methods_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)<-[:CONTAINS]-(:Interface)" in cypher
@@ -251,7 +254,7 @@ def test_interface_member_methods_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_ordering_in_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "ORDER BY m.file_path, m.full_name" in cypher
@@ -262,9 +265,9 @@ def test_ordering_in_cypher():
 # ---------------------------------------------------------------------------
 
 def test_total_methods_query_has_same_exclusions():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
-    cypher = conn.query.call_args_list[1].args[0]
+    cypher = conn.query.call_args_list[2].args[0]
     assert "NOT m.file_path =~ $test_pattern" in cypher
     assert "count(m)" in cypher
 
@@ -274,7 +277,7 @@ def test_total_methods_query_has_same_exclusions():
 # ---------------------------------------------------------------------------
 
 def test_main_methods_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "'main'" in cypher
@@ -287,7 +290,7 @@ def test_main_methods_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_spring_attributes_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert '"bean"' in cypher
@@ -302,8 +305,8 @@ def test_spring_attributes_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_limit_truncates_methods_list():
-    dead_rows = [(f"Ns.Foo{i}", f"/foo{i}.cs", i) for i in range(10)]
-    conn = _conn_with_side_effects(dead_rows, [(50,)])
+    page_rows = [(f"Ns.Foo{i}", f"/foo{i}.cs", i) for i in range(3)]
+    conn = _conn_with_side_effects(page_rows, [(10,)], [(50,)])
     result = find_dead_code(conn, limit=3)
     assert len(result["methods"]) == 3
     assert result["stats"]["dead_count"] == 10
@@ -313,7 +316,7 @@ def test_limit_truncates_methods_list():
 
 def test_limit_not_truncated_when_under():
     dead_rows = [("Ns.Foo", "/foo.cs", 1)]
-    conn = _conn_with_side_effects(dead_rows, [(5,)])
+    conn = _conn_with_side_effects(dead_rows, [(1,)], [(5,)])
     result = find_dead_code(conn, limit=100)
     assert len(result["methods"]) == 1
     assert result["stats"]["truncated"] is False
@@ -374,9 +377,9 @@ def _dead_rows(count: int):
 
 
 def test_find_dead_code_offset_paginates():
-    """With 20 methods and offset=5, limit=5, should return items 5-9."""
-    rows = _dead_rows(20)
-    conn = _conn_with_side_effects(rows, [(50,)])
+    """With offset=5, limit=5, DB returns items 5-9 via SKIP/LIMIT."""
+    page_rows = [(f"Ns.Method{i}", f"/src/file{i}.cs", i) for i in range(5, 10)]
+    conn = _conn_with_side_effects(page_rows, [(20,)], [(50,)])
     result = find_dead_code(conn, offset=5, limit=5)
     returned_names = [m["full_name"] for m in result["methods"]]
     expected_names = [f"Ns.Method{i}" for i in range(5, 10)]
@@ -385,7 +388,7 @@ def test_find_dead_code_offset_paginates():
 
 def test_find_dead_code_offset_in_stats():
     """Stats dict must contain 'offset' key reflecting the requested offset."""
-    conn = _conn_with_side_effects(_dead_rows(5), [(10,)])
+    conn = _conn_with_side_effects(_dead_rows(3), [(5,)], [(10,)])
     result = find_dead_code(conn, offset=2, limit=3)
     assert "offset" in result["stats"], "Stats dict missing 'offset' key"
     assert result["stats"]["offset"] == 2
@@ -400,9 +403,9 @@ def test_find_dead_code_offset_zero_is_default():
 
 
 def test_find_untested_offset_paginates():
-    """With 20 methods and offset=5, limit=5, find_untested returns items 5-9."""
-    rows = [(f"Ns.Method{i}", f"/src/file{i}.cs", i) for i in range(20)]
-    conn = _conn_with_side_effects(rows, [(50,)])
+    """With offset=5, limit=5, DB returns items 5-9 via SKIP/LIMIT."""
+    page_rows = [(f"Ns.Method{i}", f"/src/file{i}.cs", i) for i in range(5, 10)]
+    conn = _conn_with_side_effects(page_rows, [(20,)], [(50,)])
     result = find_untested(conn, offset=5, limit=5)
     returned_names = [m["full_name"] for m in result["methods"]]
     expected_names = [f"Ns.Method{i}" for i in range(5, 10)]
@@ -411,8 +414,8 @@ def test_find_untested_offset_paginates():
 
 def test_find_untested_offset_in_stats():
     """find_untested stats dict must contain 'offset' key."""
-    rows = [(f"Ns.M{i}", f"/f{i}.cs", i) for i in range(3)]
-    conn = _conn_with_side_effects(rows, [(10,)])
+    rows = [(f"Ns.M{i}", f"/f{i}.cs", i) for i in range(2)]
+    conn = _conn_with_side_effects(rows, [(3,)], [(10,)])
     result = find_untested(conn, offset=1, limit=2)
     assert "offset" in result["stats"], "Stats dict missing 'offset' key"
     assert result["stats"]["offset"] == 1
@@ -461,21 +464,21 @@ def test_build_exclusion_where_excludes_dispose() -> None:
 # ---------------------------------------------------------------------------
 
 def test_dotnet_startup_configure_services_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "'ConfigureServices'" in cypher
 
 
 def test_dotnet_startup_class_name_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "cfg.name = 'Startup'" in cypher
 
 
 def test_dotnet_program_class_name_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_dead_code(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "cfg.name = 'Program'" in cypher

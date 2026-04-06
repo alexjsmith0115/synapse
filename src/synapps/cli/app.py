@@ -517,6 +517,8 @@ def serve(
     import uvicorn
     from synapps.web.app import create_app
 
+    logging.basicConfig(level=logging.INFO)
+
     path = str(Path.cwd())
     conn = ConnectionManager(path).get_connection()
     ensure_schema(conn)

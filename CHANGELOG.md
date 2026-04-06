@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 - **Cypher query results now render in D3Graph with expand/remove/accumulation** — `execute_query` graph results (Cypher queries returning nodes with `full_name`) now flow through the same `accumulatedGraphElements` path as Find Usages and Find Callees, so double-click expand and right-click remove work correctly; non-graph Cypher results (scalars/tabular) automatically fall back to a DataTable; the `raw` resultType rendering path has been removed
+- **Server-side pagination for find_dead_code and find_untested** — pagination now uses Cypher `SKIP`/`LIMIT` with a separate count query instead of fetching all rows and slicing in Python; `EXISTS { MATCH ... }` subqueries replaced with `size([...])` pattern for Memgraph compatibility
+- **Additional graph indexes** — added indexes on `Class.name`, `Interface.name`, `Method.name`, `Method.file_path`, and label-only indexes on `Method`, `Class`, `Interface` (Memgraph only) for faster filtered scans
 
 ### Fixed
 - **Missing INHERITS/IMPLEMENTS/CALLS edges after 1-based line fix** — commit 1010bde converted adapter line numbers to 1-based but three `symbol_map` lookups in `_index_base_types` and `_resolve_call` still used raw 0-based `def_line` from `request_definition` responses, causing silent resolution failures; `def_line + 1` conversion added to all three sites

@@ -5,8 +5,12 @@ to answer higher-level questions about change impact, interface contracts,
 and architectural patterns.
 """
 
+import logging
+
 from synapps.graph.connection import GraphConnection
 from synapps.graph.lookups import _TEST_PATH_PATTERN, find_callees
+
+log = logging.getLogger(__name__)
 
 
 def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
@@ -261,12 +265,13 @@ def _build_base_exclusion_where() -> str:
         "AND NOT (m)<-[:CONTAINS]-(:Interface) "
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT m.name STARTS WITH 'main(' "
-        "AND NOT EXISTS { MATCH (parent)-[:CONTAINS]->(m) "
-        "WHERE (parent:Class OR parent:Interface) AND parent.name = m.name } "
-        "AND NOT (m.name IN ['configure', 'Configure', 'ConfigureServices'] AND EXISTS { MATCH (cfg)-[:CONTAINS]->(m) "
+        "AND size([(m)<-[:CONTAINS]-(p) "
+        "WHERE (p:Class OR p:Interface) AND p.name = m.name | 1]) = 0 "
+        "AND NOT (m.name IN ['configure', 'Configure', 'ConfigureServices'] "
+        "AND size([(m)<-[:CONTAINS]-(cfg) "
         "WHERE cfg:Class AND (cfg.name ENDS WITH 'Configuration' "
         "OR cfg.name ENDS WITH 'Configurer' OR cfg.name ENDS WITH 'Adapter' "
-        "OR cfg.name = 'Startup' OR cfg.name = 'Program') }) "
+        "OR cfg.name = 'Startup' OR cfg.name = 'Program') | 1]) > 0) "
         f"AND NOT ({attr_checks}) "
         "AND NOT coalesce(m.stub, false) "
         "AND ($exclude_pattern = '' OR NOT m.full_name =~ $exclude_pattern) "
@@ -277,31 +282,43 @@ def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int 
     """Query for methods with zero inbound CALLS, excluding test/framework/infra methods."""
     exclude_pattern = _ensure_full_match_regex(exclude_pattern)
     base_where = _build_base_exclusion_where()
+    dead_filter = "AND NOT ()-[:CALLS]->(m) "
     params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
-
-    dead_rows = conn.query(
+    
+    q_dead = (
         "MATCH (m:Method) "
         f"WHERE {base_where}"
-        "AND NOT EXISTS { MATCH ()-[:CALLS]->(m) } "
+        f"{dead_filter}"
         "RETURN m.full_name, m.file_path, m.line "
-        "ORDER BY m.file_path, m.full_name",
-        params,
+        f"ORDER BY m.file_path, m.full_name SKIP {offset} LIMIT {limit}"
     )
-    total_rows = conn.query(
+    q_dead_count = (
         "MATCH (m:Method) "
         f"WHERE {base_where}"
-        "RETURN count(m)",
-        params,
+        f"{dead_filter}"
+        "RETURN count(m)"
     )
-    all_methods = [
+    q_total = (
+        "MATCH (m:Method) "
+        f"WHERE {base_where}"
+        "RETURN count(m)"
+    )
+    log.info("find_dead_code query:\n%s\nparams: %s", q_dead, params)
+    log.info("find_dead_code count query:\n%s\nparams: %s", q_dead_count, params)
+    log.info("find_dead_code total query:\n%s\nparams: %s", q_total, params)
+
+    dead_rows = conn.query(q_dead, params)
+    count_rows = conn.query(q_dead_count, params)
+    total_rows = conn.query(q_total, params)
+    methods = [
         {"full_name": r[0], "file_path": r[1], "line": r[2], "inbound_call_count": 0}
         for r in dead_rows
     ]
     total_methods = total_rows[0][0] if total_rows else 0
-    dead_count = len(all_methods)
+    dead_count = count_rows[0][0] if count_rows else 0
     truncated = dead_count > offset + limit
     return {
-        "methods": all_methods[offset:offset + limit],
+        "methods": methods,
         "stats": {
             "total_methods": total_methods,
             "dead_count": dead_count,
@@ -317,31 +334,43 @@ def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int =
     """Query for production methods with no inbound TESTS edges."""
     exclude_pattern = _ensure_full_match_regex(exclude_pattern)
     base_where = _build_base_exclusion_where()
+    untested_filter = "AND NOT ()-[:TESTS]->(m) "
     params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
 
-    untested_rows = conn.query(
+    q_untested = (
         "MATCH (m:Method) "
         f"WHERE {base_where}"
-        "AND NOT EXISTS { MATCH ()-[:TESTS]->(m) } "
+        f"{untested_filter}"
         "RETURN m.full_name, m.file_path, m.line "
-        "ORDER BY m.file_path, m.full_name",
-        params,
+        f"ORDER BY m.file_path, m.full_name SKIP {offset} LIMIT {limit}"
     )
-    total_rows = conn.query(
+    q_untested_count = (
         "MATCH (m:Method) "
         f"WHERE {base_where}"
-        "RETURN count(m)",
-        params,
+        f"{untested_filter}"
+        "RETURN count(m)"
     )
-    all_methods = [
+    q_total = (
+        "MATCH (m:Method) "
+        f"WHERE {base_where}"
+        "RETURN count(m)"
+    )
+    log.info("find_untested query:\n%s\nparams: %s", q_untested, params)
+    log.info("find_untested count query:\n%s\nparams: %s", q_untested_count, params)
+    log.info("find_untested total query:\n%s\nparams: %s", q_total, params)
+
+    untested_rows = conn.query(q_untested, params)
+    count_rows = conn.query(q_untested_count, params)
+    total_rows = conn.query(q_total, params)
+    methods = [
         {"full_name": r[0], "file_path": r[1], "line": r[2]}
         for r in untested_rows
     ]
     total_methods = total_rows[0][0] if total_rows else 0
-    untested_count = len(all_methods)
+    untested_count = count_rows[0][0] if count_rows else 0
     truncated = untested_count > offset + limit
     return {
-        "methods": all_methods[offset:offset + limit],
+        "methods": methods,
         "stats": {
             "total_methods": total_methods,
             "untested_count": untested_count,

@@ -18,7 +18,7 @@ def _conn_with_side_effects(*query_results):
 # ---------------------------------------------------------------------------
 
 def test_returns_methods_and_stats_keys():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_untested(conn)
     assert {"methods", "stats"} <= set(result.keys())
 
@@ -28,7 +28,7 @@ def test_returns_methods_and_stats_keys():
 # ---------------------------------------------------------------------------
 
 def test_stats_keys_are_untested_not_dead():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_untested(conn)
     assert set(result["stats"].keys()) == {"total_methods", "untested_count", "untested_ratio", "truncated", "limit", "offset"}
 
@@ -38,7 +38,7 @@ def test_stats_keys_are_untested_not_dead():
 # ---------------------------------------------------------------------------
 
 def test_empty_graph_returns_empty_methods():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_untested(conn)
     assert result["methods"] == []
     assert result["stats"]["untested_count"] == 0
@@ -51,6 +51,7 @@ def test_empty_graph_returns_empty_methods():
 def test_untested_method_returned_with_correct_shape():
     conn = _conn_with_side_effects(
         [("Ns.Foo.bar", "/src/Foo.py", 10)],
+        [(1,)],
         [(5,)],
     )
     result = find_untested(conn)
@@ -69,6 +70,7 @@ def test_untested_method_returned_with_correct_shape():
 def test_untested_ratio_computed_correctly():
     conn = _conn_with_side_effects(
         [("A.B", "/a.py", 1)],
+        [(1,)],
         [(4,)],
     )
     result = find_untested(conn)
@@ -82,7 +84,7 @@ def test_untested_ratio_computed_correctly():
 # ---------------------------------------------------------------------------
 
 def test_ratio_zero_division_guard():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     result = find_untested(conn)
     assert result["stats"]["untested_ratio"] == 0.0
 
@@ -92,7 +94,7 @@ def test_ratio_zero_division_guard():
 # ---------------------------------------------------------------------------
 
 def test_test_methods_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     params = conn.query.call_args_list[0].args[1]
@@ -105,7 +107,7 @@ def test_test_methods_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_serves_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)-[:SERVES]->()" in cypher
@@ -116,7 +118,7 @@ def test_serves_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_implements_target_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT ()-[:IMPLEMENTS]->(m)" in cypher
@@ -127,7 +129,7 @@ def test_implements_target_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_dispatches_to_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT ()-[:DISPATCHES_TO]->(m)" in cypher
@@ -138,7 +140,7 @@ def test_dispatches_to_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_overrides_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)-[:OVERRIDES]->()" in cypher
@@ -149,7 +151,7 @@ def test_overrides_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_constructors_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "'__init__'" in cypher
@@ -157,7 +159,7 @@ def test_constructors_excluded_via_cypher():
     assert "'Up'" in cypher
     assert "'Down'" in cypher
     assert "'BuildTargetModel'" in cypher
-    assert "parent.name = m.name" in cypher
+    assert "p.name = m.name" in cypher
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +167,10 @@ def test_constructors_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_no_tests_condition_in_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
-    assert "NOT EXISTS { MATCH ()-[:TESTS]->(m) }" in cypher
+    assert "NOT ()-[:TESTS]->(m)" in cypher
     assert "[:CALLS]->(m)" not in cypher
 
 
@@ -177,7 +179,7 @@ def test_no_tests_condition_in_cypher():
 # ---------------------------------------------------------------------------
 
 def test_exclude_pattern_passed_to_query():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn, exclude_pattern=".*Gen.*")
     params = conn.query.call_args_list[0].args[1]
     cypher = conn.query.call_args_list[0].args[0]
@@ -190,7 +192,7 @@ def test_exclude_pattern_passed_to_query():
 # ---------------------------------------------------------------------------
 
 def test_empty_exclude_pattern_default():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     params = conn.query.call_args_list[0].args[1]
     cypher = conn.query.call_args_list[0].args[0]
@@ -204,14 +206,14 @@ def test_empty_exclude_pattern_default():
 # ---------------------------------------------------------------------------
 
 def test_exclude_pattern_auto_wrapped_for_substring_match():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn, exclude_pattern=r"Configuration\.Configure")
     params = conn.query.call_args_list[0].args[1]
     assert params["exclude_pattern"] == r".*Configuration\.Configure.*"
 
 
 def test_exclude_pattern_already_anchored_not_double_wrapped():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn, exclude_pattern=".*Generated.*")
     params = conn.query.call_args_list[0].args[1]
     assert params["exclude_pattern"] == ".*Generated.*"
@@ -222,7 +224,7 @@ def test_exclude_pattern_already_anchored_not_double_wrapped():
 # ---------------------------------------------------------------------------
 
 def test_decorator_entry_points_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert 'CONTAINS \'"command"\'' in cypher
@@ -235,7 +237,7 @@ def test_decorator_entry_points_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_interface_member_methods_excluded_via_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "NOT (m)<-[:CONTAINS]-(:Interface)" in cypher
@@ -246,7 +248,7 @@ def test_interface_member_methods_excluded_via_cypher():
 # ---------------------------------------------------------------------------
 
 def test_ordering_in_cypher():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "ORDER BY m.file_path, m.full_name" in cypher
@@ -257,9 +259,9 @@ def test_ordering_in_cypher():
 # ---------------------------------------------------------------------------
 
 def test_total_methods_query_has_same_exclusions():
-    conn = _conn_with_side_effects([], [(0,)])
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
     find_untested(conn)
-    cypher = conn.query.call_args_list[1].args[0]
+    cypher = conn.query.call_args_list[2].args[0]
     assert "NOT m.file_path =~ $test_pattern" in cypher
     assert "count(m)" in cypher
 
@@ -269,8 +271,8 @@ def test_total_methods_query_has_same_exclusions():
 # ---------------------------------------------------------------------------
 
 def test_limit_truncates_methods_and_sets_flag():
-    rows = [(f"Ns.Foo.M{i}", f"/src/Foo.cs", i) for i in range(5)]
-    conn = _conn_with_side_effects(rows, [(10,)])
+    page_rows = [(f"Ns.Foo.M{i}", f"/src/Foo.cs", i) for i in range(3)]
+    conn = _conn_with_side_effects(page_rows, [(5,)], [(10,)])
     result = find_untested(conn, limit=3)
     assert len(result["methods"]) == 3
     assert result["stats"]["truncated"] is True
@@ -285,7 +287,7 @@ def test_limit_truncates_methods_and_sets_flag():
 
 def test_limit_not_exceeded_truncated_false():
     rows = [("Ns.Foo.M1", "/src/Foo.cs", 1)]
-    conn = _conn_with_side_effects(rows, [(5,)])
+    conn = _conn_with_side_effects(rows, [(1,)], [(5,)])
     result = find_untested(conn, limit=50)
     assert len(result["methods"]) == 1
     assert result["stats"]["truncated"] is False
