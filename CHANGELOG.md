@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-04-06
+
 ### Fixed
 - **SPA static files missing from wheel** — added `[tool.hatch.build.targets.wheel.force-include]` mapping so `src/synapps/web/static` is packaged despite being gitignored; fixes `synapps serve` returning 404 when installed via pipx
 - **CI editable install failure from force-include** — tracked `src/synapps/web/static/` directory via `.gitkeep` so the directory exists on fresh checkouts; hatch `force-include` no longer raises `FileNotFoundError` during `pip install -e`
