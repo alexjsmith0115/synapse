@@ -16,6 +16,13 @@ jobs:
         with:
           enable-cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build SPA
+        run: bash scripts/build_spa.sh
+
       - name: Build wheel and sdist
         run: uv build
 
@@ -33,6 +40,12 @@ jobs:
           print(f'synapps.__version__ = {synapps.__version__!r}')
           assert synapps.__version__ != 'dev', 'version must not be dev in wheel'
           print('All imports OK')
+
+          from pathlib import Path
+          import synapps.web.app as wa
+          spa = Path(wa.__file__).parent / 'static' / 'index.html'
+          assert spa.exists(), f'SPA index.html missing from wheel at {spa}'
+          print('SPA assets OK')
           "
           /tmp/smoke-venv/bin/synapps --help
           /tmp/smoke-venv/bin/synapps-mcp --help

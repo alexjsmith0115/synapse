@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-04-06
+
+### Fixed
+- **SPA missing from wheel on CI publish** — added Node.js setup and `build_spa.sh` step to publish workflow so SPA assets are compiled before `uv build`; added smoke test assertion that `index.html` exists in the installed package
+
 ## [1.8.2] - 2026-04-06
 
 ### Fixed
