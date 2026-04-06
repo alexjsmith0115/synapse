@@ -18,7 +18,8 @@ docs/
 
 # SPA build output and dependencies
 spa/node_modules/
-src/synapps/web/static/
+src/synapps/web/static/*
+!src/synapps/web/static/.gitkeep
 
 # C# build artifacts in test fixtures
 tests/fixtures/**/bin/
