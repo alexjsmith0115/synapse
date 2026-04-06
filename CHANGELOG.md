@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-04-06
+
+### Added
+- **Webviewer section in README** — documents the built-in web UI with an Explore tab screenshot; highlights that the webviewer exposes the same tools available to AI agents via MCP
+- **Pagination controls for Dead Code and Untested Methods** — `find_dead_code` and `find_untested` tools now show Previous/Next pagination controls below the results table instead of raw Limit/Offset number inputs; page indicator shows current page, total pages, and total item count; filter params (subdirectory, exclude_pattern) are preserved across page changes
+- **`/explore` API endpoint for graph neighborhood traversal** — `GET /explore?full_name=X&depth=N` returns all nodes and edges reachable within N hops from a symbol as `{root, nodes, links}`, powered by two variable-length Cypher path queries (outgoing + incoming) with CONTAINS exclusion, link deduplication, and a safety ceiling at depth 50 to prevent runaway queries
+- **Explore tab frontend integration** — new Explore tool in the Query sidebar category; `exploreToElements` transform converts `/explore` API response to D3 graph format with root node marked `isRoot=true` (yellow border), typed edge labels, and link deduplication; depth warning shown for depth >= 3; Explore added as first context menu item with Compass icon (depth=1 default via toolConfig)
+- **CONTAINS edges in Explore traversal** — `_EXPLORE_EDGE_FILTER` now includes `CONTAINS` so Directory and Repository structural neighbors appear in explore results; `_KIND_LABELS` extended with `Directory` and `Repository` so `_extract_kind` recognizes those node types; frontend `getNodeColor` returns teal-family colors for Directory and Repository nodes
+
 ### Changed
 - **Cypher query results now render in D3Graph with expand/remove/accumulation** — `execute_query` graph results (Cypher queries returning nodes with `full_name`) now flow through the same `accumulatedGraphElements` path as Find Usages and Find Callees, so double-click expand and right-click remove work correctly; non-graph Cypher results (scalars/tabular) automatically fall back to a DataTable; the `raw` resultType rendering path has been removed
 - **Server-side pagination for find_dead_code and find_untested** — pagination now uses Cypher `SKIP`/`LIMIT` with a separate count query instead of fetching all rows and slicing in Python; `EXISTS { MATCH ... }` subqueries replaced with `size([...])` pattern for Memgraph compatibility
@@ -17,13 +26,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Off-by-one line numbers in all LSP adapters** — `IndexSymbol.line` and `end_line` were 0-based (raw LSP protocol values) instead of 1-based (human-readable); all four adapters (Python, C#, TypeScript, Java) now add `+1` when converting from LSP coordinates, so webviewer code links and any other consumers of `IndexSymbol.line` point to the correct source line
 - **`_p()` crashes on neo4j Relationship objects** — `execute_query` results containing Relationship objects (e.g., `MATCH ()-[r]->() RETURN r`) previously raised `AttributeError: object has no attribute 'labels'`; `_p()` now detects Relationships via duck-typing (`hasattr type, not hasattr labels`) and serializes them as `{"_type": "REFERENCES", ...props}` instead of crashing
 - **Cypher query graph edge labels missing** — `cypherToElements` now detects relationship cells (objects with `_type` but no `full_name`) and passes `_type` as the edge label; clicking an edge in the D3 graph shows the relationship type (e.g., CALLS, REFERENCES); duplicate links are also deduplicated
-
-### Added
-- **Webviewer section in README** — documents the built-in web UI with an Explore tab screenshot; highlights that the webviewer exposes the same tools available to AI agents via MCP
-- **Pagination controls for Dead Code and Untested Methods** — `find_dead_code` and `find_untested` tools now show Previous/Next pagination controls below the results table instead of raw Limit/Offset number inputs; page indicator shows current page, total pages, and total item count; filter params (subdirectory, exclude_pattern) are preserved across page changes
-- **`/explore` API endpoint for graph neighborhood traversal** — `GET /explore?full_name=X&depth=N` returns all nodes and edges reachable within N hops from a symbol as `{root, nodes, links}`, powered by two variable-length Cypher path queries (outgoing + incoming) with CONTAINS exclusion, link deduplication, and a safety ceiling at depth 50 to prevent runaway queries
-- **Explore tab frontend integration** — new Explore tool in the Query sidebar category; `exploreToElements` transform converts `/explore` API response to D3 graph format with root node marked `isRoot=true` (yellow border), typed edge labels, and link deduplication; depth warning shown for depth >= 3; Explore added as first context menu item with Compass icon (depth=1 default via toolConfig)
-- **CONTAINS edges in Explore traversal** — `_EXPLORE_EDGE_FILTER` now includes `CONTAINS` so Directory and Repository structural neighbors appear in explore results; `_KIND_LABELS` extended with `Directory` and `Repository` so `_extract_kind` recognizes those node types; frontend `getNodeColor` returns teal-family colors for Directory and Repository nodes
 
 ## [1.7.2] - 2026-04-05
 
