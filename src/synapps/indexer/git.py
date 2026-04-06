@@ -51,6 +51,21 @@ def _diff_name_status(
     return entries
 
 
+def dirty_tracked_paths(root_path: str) -> set[str]:
+    """Return absolute paths of tracked files with uncommitted changes (staged + unstaged)."""
+    paths: set[str] = set()
+    for ref_spec in (None, "--cached"):
+        cmd = ["git", "diff", "--name-only"]
+        if ref_spec:
+            cmd.append(ref_spec)
+        result = subprocess.run(cmd, cwd=root_path, capture_output=True, text=True)
+        if result.returncode == 0:
+            for rel in result.stdout.strip().splitlines():
+                if rel:
+                    paths.add(os.path.join(root_path, rel))
+    return paths
+
+
 def compute_git_diff(root_path: str, stored_sha: str) -> GitDiff:
     committed = _diff_name_status(root_path, f"{stored_sha}..HEAD")
     unstaged = _diff_name_status(root_path, None)

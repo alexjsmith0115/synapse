@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-04-06
+
+### Added
+- **Auto-sync detects uncommitted working tree changes** — pre-query auto-sync now checks dirty tracked files (via `git diff --name-only`) when HEAD SHA matches the stored SHA; if any dirty file has mtime > `File.last_indexed` in the graph, `smart_index` runs to pick up the changes; subsequent queries skip re-sync because `last_indexed` advances past mtime after reindexing
+- **Watcher callback error handling** — `on_change` and `on_delete` callbacks in `watch_project` are now wrapped in `try/except` so that exceptions (LSP crash, graph disconnection) are logged and don't silently kill the timer thread
+- **`unwatch_project` updates stored commit SHA** — stopping a watch session now stores current HEAD as `last_indexed_commit` so the next auto-sync doesn't redundantly re-sync files the watcher already handled
+- **Debounce timer cleanup** — fired timers are now removed from the internal dict, preventing unbounded growth during long watch sessions
+- **Comprehensive auto-update integration tests** — 18 new integration tests covering committed changes, uncommitted changes, watcher reindex, cross-file edge consistency, staleness detection, unwatch SHA update, and smart_index strategy selection
+
 ## [1.7.3] - 2026-04-06
 
 ### Added

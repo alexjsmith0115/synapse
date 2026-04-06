@@ -95,9 +95,16 @@ class _ChangeHandler(FileSystemEventHandler):
             self._debounce(event.src_path, self._on_delete)
 
     def _debounce(self, path: str, callback: Callable[[str], None]) -> None:
+        def _fire() -> None:
+            callback(path)
+            with self._lock:
+                # Only clean up if this timer is still the active one for this path
+                if self._timers.get(path) is timer:
+                    del self._timers[path]
+
         with self._lock:
             if path in self._timers:
                 self._timers[path].cancel()
-            timer = threading.Timer(self._debounce_seconds, callback, args=[path])
+            timer = threading.Timer(self._debounce_seconds, _fire)
             self._timers[path] = timer
             timer.start()

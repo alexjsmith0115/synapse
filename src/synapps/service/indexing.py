@@ -346,19 +346,25 @@ class IndexingService:
             ext = Path(file_path).suffix.lower()
             indexer = ext_to_indexer.get(ext)
             if indexer:
-                log.info("Re-indexing changed file: %s", file_path)
-                if on_file_event:
-                    on_file_event("changed", file_path)
-                indexer.reindex_file(file_path, path)
+                try:
+                    log.info("Re-indexing changed file: %s", file_path)
+                    if on_file_event:
+                        on_file_event("changed", file_path)
+                    indexer.reindex_file(file_path, path)
+                except Exception:
+                    log.warning("Watcher: failed to re-index %s, skipping", file_path, exc_info=True)
 
         def on_delete(file_path: str) -> None:
             ext = Path(file_path).suffix.lower()
             indexer = ext_to_indexer.get(ext)
             if indexer:
-                log.info("Removing deleted file: %s", file_path)
-                if on_file_event:
-                    on_file_event("deleted", file_path)
-                indexer.delete_file(file_path)
+                try:
+                    log.info("Removing deleted file: %s", file_path)
+                    if on_file_event:
+                        on_file_event("deleted", file_path)
+                    indexer.delete_file(file_path)
+                except Exception:
+                    log.warning("Watcher: failed to delete %s, skipping", file_path, exc_info=True)
 
         watcher = FileWatcher(
             root_path=path, on_change=on_change, on_delete=on_delete,
@@ -371,3 +377,8 @@ class IndexingService:
         watcher = self._watchers.pop(path, None)
         if watcher:
             watcher.stop()
+        # Update stored SHA so auto-sync doesn't re-sync what the watcher already handled
+        if is_git_repo(path):
+            sha = rev_parse_head(path)
+            if sha:
+                set_last_indexed_commit(self._conn, path, sha)

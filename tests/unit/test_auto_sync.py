@@ -51,10 +51,31 @@ class TestCheckAutoSync:
         _check_auto_sync(git_project, mock_service)
         mock_service.smart_index.assert_not_called()
 
+    @patch("synapps.mcp.tools.dirty_tracked_paths", return_value=set())
     @patch("synapps.mcp.tools.rev_parse_head", return_value="abc123")
     @patch("synapps.mcp.tools.get_last_indexed_commit", return_value="abc123")
     @patch("synapps.mcp.tools.is_git_repo", return_value=True)
-    def test_shas_match_skips(self, mock_is_git, mock_get_commit, mock_rev, mock_service, git_project):
+    def test_shas_match_no_dirty_files_skips(self, mock_is_git, mock_get_commit, mock_rev, mock_dirty, mock_service, git_project):
+        _check_auto_sync(git_project, mock_service)
+        mock_service.smart_index.assert_not_called()
+
+    @patch("synapps.mcp.tools.check_staleness", return_value={"is_stale": True})
+    @patch("synapps.mcp.tools.dirty_tracked_paths", return_value={"/proj/a.py"})
+    @patch("synapps.mcp.tools.rev_parse_head", return_value="abc123")
+    @patch("synapps.mcp.tools.get_last_indexed_commit", return_value="abc123")
+    @patch("synapps.mcp.tools.is_git_repo", return_value=True)
+    def test_shas_match_stale_dirty_file_triggers_sync(self, mock_is_git, mock_get_commit, mock_rev, mock_dirty, mock_stale, mock_service, git_project):
+        """When SHAs match but a dirty tracked file is stale, auto-sync fires."""
+        _check_auto_sync(git_project, mock_service)
+        mock_service.smart_index.assert_called_once_with(git_project)
+
+    @patch("synapps.mcp.tools.check_staleness", return_value={"is_stale": False})
+    @patch("synapps.mcp.tools.dirty_tracked_paths", return_value={"/proj/a.py"})
+    @patch("synapps.mcp.tools.rev_parse_head", return_value="abc123")
+    @patch("synapps.mcp.tools.get_last_indexed_commit", return_value="abc123")
+    @patch("synapps.mcp.tools.is_git_repo", return_value=True)
+    def test_shas_match_fresh_dirty_file_skips(self, mock_is_git, mock_get_commit, mock_rev, mock_dirty, mock_stale, mock_service, git_project):
+        """When SHAs match and dirty files are fresh in the graph, skip sync."""
         _check_auto_sync(git_project, mock_service)
         mock_service.smart_index.assert_not_called()
 

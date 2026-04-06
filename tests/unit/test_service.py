@@ -145,10 +145,46 @@ def test_unwatch_project_stops_watcher() -> None:
     mock_watcher = MagicMock()
     svc._indexing._watchers["/proj"] = mock_watcher
 
-    svc.unwatch_project("/proj")
+    with patch("synapps.service.indexing.is_git_repo", return_value=False):
+        svc.unwatch_project("/proj")
 
     mock_watcher.stop.assert_called_once()
     assert "/proj" not in svc._indexing._watchers
+
+
+@patch("synapps.service.indexing.set_last_indexed_commit")
+@patch("synapps.service.indexing.rev_parse_head", return_value="abc123")
+@patch("synapps.service.indexing.is_git_repo", return_value=True)
+def test_unwatch_project_updates_stored_sha(mock_git, mock_rev, mock_set) -> None:
+    """unwatch_project stores current HEAD so auto-sync doesn't re-sync watched changes."""
+    svc = _service()
+    mock_watcher = MagicMock()
+    svc._indexing._watchers["/proj"] = mock_watcher
+
+    svc.unwatch_project("/proj")
+
+    mock_set.assert_called_once_with(svc._conn, "/proj", "abc123")
+
+
+def test_watch_on_change_callback_catches_exceptions() -> None:
+    """Exceptions in the on_change callback are logged, not propagated."""
+    svc = _service()
+    mock_lsp = MagicMock()
+    mock_lsp.get_workspace_files.return_value = []
+    captured_callbacks: dict = {}
+
+    def capture_watcher(**kwargs):
+        captured_callbacks["on_change"] = kwargs["on_change"]
+        return MagicMock()
+
+    with patch("synapps.service.indexing.FileWatcher", side_effect=capture_watcher), \
+         patch("synapps.service.indexing.Indexer") as mock_indexer_cls:
+        mock_indexer = mock_indexer_cls.return_value
+        mock_indexer.reindex_file.side_effect = RuntimeError("LSP crashed")
+        svc.watch_project("/proj", lsp_adapter=mock_lsp)
+
+    # Should not raise even though reindex_file throws
+    captured_callbacks["on_change"]("/proj/Foo.cs")
 
 
 def test_get_symbol_source_reads_file_and_returns_lines(tmp_path):

@@ -8,7 +8,8 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from synapps.indexer.git import is_git_repo, rev_parse_head
+from synapps.indexer.git import is_git_repo, rev_parse_head, dirty_tracked_paths
+from synapps.graph.lookups import check_staleness
 from synapps.graph.nodes import get_last_indexed_commit
 from synapps.service import SynappsService
 
@@ -128,6 +129,15 @@ def _check_auto_sync(project_path: str, service: SynappsService) -> None:
     if current_sha and current_sha != stored_sha:
         log.info("Auto-sync: graph stale (stored=%s, current=%s), syncing...", stored_sha[:8], current_sha[:8])
         service.smart_index(project_path)
+        return
+
+    # SHAs match — check for uncommitted changes stale in the graph
+    for abs_path in dirty_tracked_paths(project_path):
+        staleness = check_staleness(service._conn, abs_path)
+        if staleness and staleness["is_stale"]:
+            log.info("Auto-sync: stale uncommitted file %s, syncing...", abs_path)
+            service.smart_index(project_path)
+            return
 
 
 def register_tools(mcp: object, service: SynappsService, project_path: str = "") -> None:
