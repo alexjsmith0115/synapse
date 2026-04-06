@@ -417,7 +417,7 @@ def test_python_base_types_class_to_class_produce_inherits(mock_conn):
     mock_extractor.extract.return_value = [("Dog", "Animal", True, 0, 10)]
 
     ls = _make_mock_ls(base_abs, def_line=5)
-    symbol_map = {(base_abs, 5): "mymod.Animal", ("/proj/mymod.py", 0): "mymod.Dog"}
+    symbol_map = {(base_abs, 6): "mymod.Animal", ("/proj/mymod.py", 0): "mymod.Dog"}
 
     indexer._index_base_types("/proj/mymod.py", None, symbol_map, kind_map, ls, "/proj", name_to_full_names)
 
@@ -437,7 +437,7 @@ def test_python_base_type_abc_produces_implements(mock_conn):
     mock_extractor.extract.return_value = [("Animal", "IAnimal", True, 0, 10)]
 
     ls = _make_mock_ls(base_abs, def_line=3)
-    symbol_map = {(base_abs, 3): "mymod.IAnimal", ("/proj/mymod.py", 0): "mymod.Animal"}
+    symbol_map = {(base_abs, 4): "mymod.IAnimal", ("/proj/mymod.py", 0): "mymod.Animal"}
 
     indexer._index_base_types("/proj/mymod.py", None, symbol_map, kind_map, ls, "/proj", name_to_full_names)
 
@@ -457,7 +457,7 @@ def test_python_interface_extends_interface_produces_interface_inherits(mock_con
     mock_extractor.extract.return_value = [("ISpecial", "IAnimal", True, 0, 10)]
 
     ls = _make_mock_ls(base_abs, def_line=0)
-    symbol_map = {(base_abs, 0): "mymod.IAnimal", ("/proj/mymod.py", 0): "mymod.ISpecial"}
+    symbol_map = {(base_abs, 1): "mymod.IAnimal", ("/proj/mymod.py", 0): "mymod.ISpecial"}
 
     indexer._index_base_types("/proj/mymod.py", None, symbol_map, kind_map, ls, "/proj", name_to_full_names)
 

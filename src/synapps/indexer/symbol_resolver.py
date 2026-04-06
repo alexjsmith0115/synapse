@@ -330,7 +330,8 @@ class SymbolResolver:
                 abs_path = defn.get("absolutePath")
                 def_line = defn.get("range", {}).get("start", {}).get("line")
                 if abs_path is not None and def_line is not None:
-                    callee_full_name = symbol_map.get((abs_path, def_line))
+                    # +1: LSP returns 0-based lines, symbol_map uses 1-based
+                    callee_full_name = symbol_map.get((abs_path, def_line + 1))
                     if callee_full_name:
                         t_name = time.monotonic()
                         callee_full_name = self._resolve_callee_name(callee_full_name)
@@ -362,7 +363,8 @@ class SymbolResolver:
                                     src_abs = src_defn.get("absolutePath")
                                     src_line = src_defn.get("range", {}).get("start", {}).get("line")
                                     if src_abs is not None and src_line is not None:
-                                        resolved_name = symbol_map.get((src_abs, src_line))
+                                        # +1: LSP returns 0-based lines, symbol_map uses 1-based
+                                        resolved_name = symbol_map.get((src_abs, src_line + 1))
                                         if resolved_name:
                                             t_name = time.monotonic()
                                             resolved_name = self._resolve_callee_name(resolved_name)

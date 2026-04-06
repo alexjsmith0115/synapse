@@ -955,7 +955,8 @@ class Indexer:
                         abs_path = defn.get("absolutePath")
                         def_line = defn.get("range", {}).get("start", {}).get("line")
                         if abs_path is not None and def_line is not None:
-                            base_full = symbol_map.get((abs_path, def_line))
+                            # +1: LSP returns 0-based lines, symbol_map uses 1-based
+                            base_full = symbol_map.get((abs_path, def_line + 1))
                             if base_full is not None:
                                 log.debug("Resolved base type '%s' -> '%s'", base_simple, base_full)
                                 break
