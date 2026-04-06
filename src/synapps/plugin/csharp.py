@@ -26,8 +26,9 @@ class CSharpPlugin:
     def create_lsp_adapter(self, root_path: str) -> CSharpLSPAdapter:
         return CSharpLSPAdapter.create(root_path)
 
-    def create_call_extractor(self) -> CSharpCallExtractor:
-        return CSharpCallExtractor()
+    def create_call_extractor(self) -> None:
+        # Returning None activates ReferencesResolver dispatch in the indexer (LANG-04)
+        return None
 
     def create_import_extractor(self, source_root: str = "") -> CSharpImportExtractor:
         return CSharpImportExtractor()

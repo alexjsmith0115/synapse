@@ -35,9 +35,10 @@ def test_create_base_type_extractor_returns_csharp_type():
     assert isinstance(extractor, CSharpBaseTypeExtractor)
 
 
-def test_create_call_extractor_returns_tree_sitter_type():
+def test_create_call_extractor_returns_none():
+    """create_call_extractor() returning None is the migration gate for ReferencesResolver dispatch."""
     extractor = CSharpPlugin().create_call_extractor()
-    assert isinstance(extractor, CSharpCallExtractor)
+    assert extractor is None
 
 
 def test_create_attribute_extractor_returns_csharp_type():

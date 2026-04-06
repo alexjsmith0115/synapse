@@ -13,6 +13,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`ReferencesResolver`** — new class in `src/synapps/indexer/references_resolver.py` implementing LSP references-based CALLS edge resolution; iterates all indexed method symbols, calls `request_references` per method with a 30s per-request timeout, attributes each reference to its enclosing method via `find_enclosing_method_ast`, discards declaration-line self-references, skips module-level code (None scope), deduplicates (caller, callee) pairs, and writes CALLS edges via `batch_upsert_calls`; activated by the indexer when `create_call_extractor()` returns None
 - **Indexer dispatch branch for ReferencesResolver** — `_resolve_calls_and_refs` in `indexer.py` now dispatches to `ReferencesResolver` when `call_ext is None and parsed_cache is not None`; SymbolResolver still runs first for REFERENCES (type-ref) edges
 
+### Changed
+- **C# call indexing migrated to ReferencesResolver** -- `CSharpPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `CSharpCallExtractor` from the active indexing path; C# CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references` (LANG-04)
+
 ### Fixed
 - **SymbolResolver fallback to CSharpCallExtractor when call_extractor=None** — `SymbolResolver.__init__` no longer defaults `call_extractor=None` to `CSharpCallExtractor()`; passing `None` now correctly skips call extraction while type-ref extraction continues normally; required for languages that delegate CALLS resolution to `ReferencesResolver`
 
