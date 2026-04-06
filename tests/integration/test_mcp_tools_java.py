@@ -786,3 +786,23 @@ def test_external_framework_callees_resolved(java_service) -> None:
         "Expected CALLS edge from OrderService.getAnimalFromService to "
         "restTemplate.getForObject stub, but none found in graph"
     )
+
+
+# ---------------------------------------------------------------------------
+# Method reference CALLS edge (LANG-03)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_method_reference_produces_calls_edge(java_service) -> None:
+    """LANG-03: Java method references (IAnimal::speak) produce CALLS edges via ReferencesResolver."""
+    rows = java_service._conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(callee:Method) "
+        "WHERE caller.full_name CONTAINS 'greetAllFunctional' "
+        "AND callee.name = 'speak' "
+        "RETURN caller.full_name, callee.full_name LIMIT 1"
+    )
+    assert rows, (
+        "Expected CALLS edge from AnimalService.greetAllFunctional to IAnimal.speak "
+        "(via method reference IAnimal::speak), but none found in graph"
+    )

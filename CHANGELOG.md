@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 - **Java call indexing migrated to ReferencesResolver** -- `JavaPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `JavaCallExtractor` from the primary indexing path; Java CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references`; a dedicated Java-only post-pass preserves ExternalCallStubber and Spring Data stub CALLS edges (LANG-03)
+- **Java method reference fixture** -- `AnimalService.greetAllFunctional` added to the Java integration fixture using `IAnimal::speak` method reference syntax; exercises `ReferencesResolver`'s ability to produce CALLS edges from method references; covered by `test_method_reference_produces_calls_edge` integration test
 - **C# call indexing migrated to ReferencesResolver** -- `CSharpPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `CSharpCallExtractor` from the active indexing path; C# CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references` (LANG-04)
 
 ### Fixed

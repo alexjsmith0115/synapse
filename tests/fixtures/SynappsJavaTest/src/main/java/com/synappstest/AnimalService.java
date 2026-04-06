@@ -2,6 +2,7 @@ package com.synappstest;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import javax.inject.Inject;
 
@@ -26,6 +27,12 @@ public class AnimalService {
             greetings.add(Formatter.format(a.speak()));
         }
         return greetings;
+    }
+
+    public List<String> greetAllFunctional(List<IAnimal> animals) {
+        return animals.stream()
+            .map(IAnimal::speak)
+            .collect(Collectors.toList());
     }
 
     public Runnable createTask() {
