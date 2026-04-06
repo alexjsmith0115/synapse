@@ -4,7 +4,7 @@ requires = ["hatchling"]
 
 [project]
 name = "synapps-mcp"
-version = "1.8.1"
+version = "1.8.2"
 readme = "PYPI_README.md"
 description = "Code intelligence MCP server — indexes codebases into a queryable graph of symbols, call chains, and relationships"
 requires-python = ">=3.11"
@@ -67,4 +67,9 @@ Changelog = "https://github.com/SynappsCodeComprehension/synapps/blob/main/CHANG
 packages = ["src/synapps", "src/solidlsp"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/synapps/web/static" = "synapps/web/static"
+# SPA build output is gitignored but must ship in the wheel.
+# Only force-include the leaf files (not the directory already covered by `packages`)
+# to avoid duplicate ZIP entries that PyPI rejects.
+"src/synapps/web/static/index.html" = "synapps/web/static/index.html"
+"src/synapps/web/static/synapps-logo.svg" = "synapps/web/static/synapps-logo.svg"
+"src/synapps/web/static/assets" = "synapps/web/static/assets"

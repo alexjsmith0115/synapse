@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-04-06
+
+### Fixed
+- **PyPI publish rejected wheel with duplicate ZIP entries** — force-include now targets individual gitignored SPA files (`index.html`, `synapps-logo.svg`, `assets/`) instead of the parent directory that overlaps with the `packages` directive, eliminating duplicate filename entries in the wheel archive
+
 ## [1.8.1] - 2026-04-06
 
 ### Fixed
