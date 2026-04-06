@@ -5,6 +5,7 @@ symbol_map lookup rather than the name-heuristic approach.
 """
 from __future__ import annotations
 
+import textwrap
 from contextlib import contextmanager
 from unittest.mock import MagicMock, call
 
@@ -125,7 +126,8 @@ class TestLspHitCreatesInherits:
         tree = _parse(source)
 
         abs_path = "/proj/Animal.cs"
-        symbol_map = {(abs_path, 0): "Animals.Animal", ("/proj/Dog.cs", 0): "Animals.Dog"}
+        # symbol_map uses 1-based lines (adapter convention); _location uses 0-based (LSP protocol)
+        symbol_map = {(abs_path, 1): "Animals.Animal", ("/proj/Dog.cs", 1): "Animals.Dog"}
         kind_map = {
             "Animals.Dog": SymbolKind.CLASS,
             "Animals.Animal": SymbolKind.CLASS,
@@ -149,7 +151,7 @@ class TestLspHitCreatesImplements:
         tree = _parse(source)
 
         abs_path = "/proj/ICache.cs"
-        symbol_map = {(abs_path, 0): "Services.ICache", ("/proj/Cache.cs", 0): "Services.Cache"}
+        symbol_map = {(abs_path, 1): "Services.ICache", ("/proj/Cache.cs", 1): "Services.Cache"}
         kind_map = {
             "Services.Cache": SymbolKind.CLASS,
             "Services.ICache": SymbolKind.INTERFACE,
@@ -173,7 +175,7 @@ class TestLspHitCreatesInterfaceInherits:
         tree = _parse(source)
 
         abs_path = "/proj/IBase.cs"
-        symbol_map = {(abs_path, 0): "NS.IBase", ("/proj/IExtended.cs", 0): "NS.IExtended"}
+        symbol_map = {(abs_path, 1): "NS.IBase", ("/proj/IExtended.cs", 1): "NS.IExtended"}
         kind_map = {
             "NS.IExtended": SymbolKind.INTERFACE,
             "NS.IBase": SymbolKind.INTERFACE,
@@ -197,7 +199,7 @@ class TestLspCsharpFirstBaseDualWrite:
         tree = _parse(source)
 
         abs_path = "/proj/Animal.cs"
-        symbol_map = {(abs_path, 0): "NS.Animal", ("/proj/Dog.cs", 0): "NS.Dog"}
+        symbol_map = {(abs_path, 1): "NS.Animal", ("/proj/Dog.cs", 1): "NS.Dog"}
         kind_map = {
             "NS.Dog": SymbolKind.CLASS,
             "NS.Animal": SymbolKind.CLASS,
@@ -284,7 +286,7 @@ class TestLspOpenFileFailure:
         tree = _parse(source)
 
         ls = _mock_ls_open_fails()
-        symbol_map = {("/proj/Animal.cs", 0): "NS.Animal"}
+        symbol_map = {("/proj/Animal.cs", 1): "NS.Animal"}
         kind_map = {"NS.Dog": SymbolKind.CLASS, "NS.Animal": SymbolKind.CLASS}
         name_to_full_names = {"Dog": ["NS.Dog"]}
 
@@ -320,11 +322,12 @@ class TestMultipleBaseTypes:
         ifoo_abs = "/proj/IFoo.py"
         ibar_abs = "/proj/IBar.py"
 
+        # symbol_map uses 1-based lines; _location uses 0-based
         symbol_map = {
             (base_abs, 5): "mymod.Base",
             (ifoo_abs, 3): "mymod.IFoo",
             (ibar_abs, 7): "mymod.IBar",
-            ("/proj/MyClass.py", 0): "mymod.MyClass",
+            ("/proj/MyClass.py", 1): "mymod.MyClass",
         }
         kind_map = {
             "mymod.MyClass": SymbolKind.CLASS,
@@ -341,11 +344,11 @@ class TestMultipleBaseTypes:
             call_count = _request_def.count
             _request_def.count += 1
             if call_count == 0:
-                return [_location(base_abs, 5)]
+                return [_location(base_abs, 4)]   # 0-based → 1-based 5
             elif call_count == 1:
-                return [_location(ifoo_abs, 3)]
+                return [_location(ifoo_abs, 2)]   # 0-based → 1-based 3
             else:
-                return [_location(ibar_abs, 7)]
+                return [_location(ibar_abs, 6)]   # 0-based → 1-based 7
         _request_def.count = 0
 
         ls = MagicMock()
@@ -377,9 +380,10 @@ class TestDeclaringTypeResolvedViaFileScope:
 
         abs_path = "/proj/Animal.cs"
         # Both Dog types are in the same file — both should get edges
+        # symbol_map uses 1-based lines; _location uses 0-based
         symbol_map = {
-            (abs_path, 0): "NS.Animal",
-            ("/proj/Dog.cs", 0): "NS.Dog",
+            (abs_path, 1): "NS.Animal",
+            ("/proj/Dog.cs", 1): "NS.Dog",
             ("/proj/Dog.cs", 10): "NS2.Dog",
         }
         kind_map = {
@@ -406,9 +410,9 @@ class TestDeclaringTypeResolvedViaFileScope:
         abs_path = "/proj/Animal.cs"
         # NS.Dog is in Dog.cs, NS2.Dog is in a DIFFERENT file
         symbol_map = {
-            (abs_path, 0): "NS.Animal",
-            ("/proj/Dog.cs", 0): "NS.Dog",
-            ("/proj/other/Dog.cs", 0): "NS2.Dog",
+            (abs_path, 1): "NS.Animal",
+            ("/proj/Dog.cs", 1): "NS.Dog",
+            ("/proj/other/Dog.cs", 1): "NS2.Dog",
         }
         kind_map = {
             "NS.Dog": SymbolKind.CLASS,
@@ -424,3 +428,81 @@ class TestDeclaringTypeResolvedViaFileScope:
         assert ("NS.Dog", "NS.Animal") in edges["INHERITS"]
         # NS2.Dog is in a different file — must NOT get an edge
         assert ("NS2.Dog", "NS.Animal") not in edges["INHERITS"]
+
+
+class TestLspLineNumberConversion:
+    """symbol_map uses 1-based lines (from adapter), LSP returns 0-based.
+
+    Regression: commit 1010bde converted adapter line numbers to 1-based,
+    but _index_base_types used raw 0-based def_line from request_definition
+    to look up in the now-1-based symbol_map, causing resolution to silently
+    fail for any symbol not on line 0 of its file.
+    """
+
+    def test_1based_symbol_map_with_0based_lsp_response(self):
+        """Base type on a non-zero line must resolve when symbol_map is 1-based."""
+        indexer, mock_conn = _make_indexer()
+
+        source = textwrap.dedent("""\
+            using System;
+
+            namespace NS;
+
+            public class Dog : Animal {}
+        """)
+        tree = _parse(source)
+
+        animal_abs = "/proj/Animal.cs"
+        # symbol_map uses 1-based lines (as the adapter produces after 1010bde)
+        symbol_map = {
+            (animal_abs, 3): "NS.Animal",     # 1-based line 3
+            ("/proj/Dog.cs", 5): "NS.Dog",    # 1-based line 5
+        }
+        kind_map = {
+            "NS.Dog": SymbolKind.CLASS,
+            "NS.Animal": SymbolKind.CLASS,
+        }
+        name_to_full_names = {"Dog": ["NS.Dog"]}
+        # LSP returns 0-based line 2 (== 1-based line 3)
+        ls = _mock_ls(definitions=[_location(animal_abs, 2)])
+
+        indexer._index_base_types(
+            "/proj/Dog.cs", tree, symbol_map, kind_map, ls, "/proj", name_to_full_names,
+        )
+
+        edges = _collect_edges(mock_conn)
+        assert ("NS.Dog", "NS.Animal") in edges["INHERITS"]
+
+    def test_interface_implementation_resolves_with_1based_map(self):
+        """Class implementing an interface must create IMPLEMENTS edge."""
+        indexer, mock_conn = _make_indexer()
+
+        source = textwrap.dedent("""\
+            using System;
+
+            namespace NS;
+
+            public class MyService : IMyService {}
+        """)
+        tree = _parse(source)
+
+        iface_abs = "/proj/IMyService.cs"
+        symbol_map = {
+            (iface_abs, 11): "NS.IMyService",        # 1-based line 11
+            ("/proj/MyService.cs", 5): "NS.MyService",
+        }
+        kind_map = {
+            "NS.MyService": SymbolKind.CLASS,
+            "NS.IMyService": SymbolKind.INTERFACE,
+        }
+        name_to_full_names = {"MyService": ["NS.MyService"]}
+        # LSP returns 0-based line 10 (== 1-based line 11)
+        ls = _mock_ls(definitions=[_location(iface_abs, 10)])
+
+        indexer._index_base_types(
+            "/proj/MyService.cs", tree, symbol_map, kind_map, ls, "/proj", name_to_full_names,
+        )
+
+        edges = _collect_edges(mock_conn)
+        # C# first base: dual write — IMPLEMENTS should match via Interface label
+        assert ("NS.MyService", "NS.IMyService") in edges["IMPLEMENTS"]

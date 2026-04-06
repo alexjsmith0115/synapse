@@ -60,7 +60,7 @@ def test_resolver_writes_calls_edge():
     ls = _make_ls()
 
     ls.request_definition.return_value = [
-        {"absolutePath": "/proj/MyClass.cs", "range": {"start": {"line": 3, "character": 4}}}
+        {"absolutePath": "/proj/MyClass.cs", "range": {"start": {"line": 2, "character": 4}}}
     ]
 
     call_extractor = MagicMock()
@@ -218,8 +218,8 @@ def test_resolve_call_passes_line_col_to_upsert_calls(tmp_path):
         "range": {"start": {"line": 0, "character": 30}},
     }]
 
-    # symbol_map keyed by (file_path, line_0) → full_name
-    symbol_map = {(str(cs_file), 0): "X.A.B"}
+    # symbol_map keyed by (file_path, line_1) → full_name
+    symbol_map = {(str(cs_file), 1): "X.A.B"}
 
     # call_extractor returns (caller, callee_simple, line_1, col_0)
     extractor = MagicMock()
@@ -248,7 +248,7 @@ def test_resolve_call_resolves_overloaded_callee_name() -> None:
     ls = MagicMock()
     ls.repository_root_path = "/repo"
     ls.request_definition.return_value = [
-        {"absolutePath": "/repo/C.cs", "range": {"start": {"line": 7, "character": 4}}}
+        {"absolutePath": "/repo/C.cs", "range": {"start": {"line": 6, "character": 4}}}
     ]
 
     # Symbol map stores the plain name; _resolve_callee_name upgrades it to the overloaded variant
@@ -301,7 +301,7 @@ def test_resolver_uses_upsert_module_calls_for_module_callers(tmp_path) -> None:
         {"absolutePath": str(py_file), "range": {"start": {"line": 0, "character": 0}}}
     ]
 
-    symbol_map = {(str(py_file), 0): "myproject.config.helper"}
+    symbol_map = {(str(py_file), 1): "myproject.config.helper"}
     call_extractor = MagicMock()
     call_extractor.extract.return_value = [("myproject.config", "helper", 1, 0)]
     type_ref_extractor = MagicMock()
@@ -363,8 +363,8 @@ def test_resolve_call_fallback_via_assignment_map():
     ls.request_definition.side_effect = [
         # First call: resolves to the field assignment position
         [{"absolutePath": "/proj/handler.py", "range": {"start": {"line": 10, "character": 0}}}],
-        # Second call (assignment fallback): resolves to the actual callee
-        [{"absolutePath": "/proj/factory.py", "range": {"start": {"line": 5, "character": 0}}}],
+        # Second call (assignment fallback): resolves to the actual callee (0-based; +1 → symbol_map key 5)
+        [{"absolutePath": "/proj/factory.py", "range": {"start": {"line": 4, "character": 0}}}],
     ]
 
     call_extractor = MagicMock()
@@ -497,7 +497,7 @@ def test_resolve_call_direct_hit_skips_assignment_fallback():
     ls = _make_ls()
 
     ls.request_definition.return_value = [
-        {"absolutePath": "/proj/MyClass.py", "range": {"start": {"line": 3, "character": 4}}}
+        {"absolutePath": "/proj/MyClass.py", "range": {"start": {"line": 2, "character": 4}}}
     ]
 
     call_extractor = MagicMock()
@@ -505,12 +505,12 @@ def test_resolve_call_direct_hit_skips_assignment_fallback():
     type_ref_extractor = MagicMock()
     type_ref_extractor.extract.return_value = []
 
-    # Direct hit: definition at line 3 IS in symbol_map
+    # Direct hit: definition at line 2 (0-based LSP) → +1 = 3 IS in symbol_map
     symbol_map = {("/proj/MyClass.py", 3): "Mod.MyClass.helper"}
 
-    # Assignment map also has an entry (should NOT be consulted)
+    # Assignment map uses 0-based def_line directly
     ref = AssignmentRef("Mod.Caller", "_svc", "/proj/other.py", 1, 0)
-    assignment_position_map = {("/proj/MyClass.py", 3): ref}
+    assignment_position_map = {("/proj/MyClass.py", 2): ref}
 
     resolver = SymbolResolver(
         conn, ls,

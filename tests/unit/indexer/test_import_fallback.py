@@ -111,7 +111,7 @@ def test_fallback_not_used_when_lsp_succeeds() -> None:
         {
             "absolutePath": "/project/src/components/Nav.tsx",
             "relativePath": "src/components/Nav.tsx",
-            "range": {"start": {"line": 2, "character": 0}, "end": {"line": 2, "character": 10}},
+            "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 10}},
         }
     ]
 
