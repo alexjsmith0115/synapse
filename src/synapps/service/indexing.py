@@ -38,6 +38,8 @@ class IndexingService:
         on_progress: Callable[[str], None] | None = None,
         plugin_files: list[tuple[LanguagePlugin, list[str]]] | None = None,
     ) -> None:
+        from solidlsp.ls import _resolve_true_case
+        path = _resolve_true_case(path)
         if plugin_files is None:
             plugin_files = self._registry.detect_with_files(path)
         if not plugin_files:
@@ -73,6 +75,8 @@ class IndexingService:
 
     def index_calls(self, path: str) -> None:
         """Run the relationship resolution pass on an already-structurally-indexed project."""
+        from solidlsp.ls import _resolve_true_case
+        path = _resolve_true_case(path)
         plugins = self._registry.detect(path)
         if not plugins:
             raise ValueError(f"No language plugin found for project at {path!r}")
@@ -143,6 +147,8 @@ class IndexingService:
         Detects stale, new, and deleted files and re-indexes only what changed.
         Requires the project to have been fully indexed at least once.
         """
+        from solidlsp.ls import _resolve_true_case
+        path = _resolve_true_case(path)
         if plugin_files is None:
             plugin_files = self._registry.detect_with_files(path)
         if not plugin_files:
@@ -195,7 +201,8 @@ class IndexingService:
         2. Git project -> git-based sync
         3. No git -> mtime-based sync
         """
-        path = path.rstrip("/")
+        from solidlsp.ls import _resolve_true_case
+        path = _resolve_true_case(path.rstrip("/"))
 
         plugin_files = self._registry.detect_with_files(path)
         if allowed_languages is not None:

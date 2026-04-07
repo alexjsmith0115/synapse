@@ -5,12 +5,8 @@ to answer higher-level questions about change impact, interface contracts,
 and architectural patterns.
 """
 
-import logging
-
 from synapps.graph.connection import GraphConnection
 from synapps.graph.lookups import _TEST_PATH_PATTERN, find_callees
-
-log = logging.getLogger(__name__)
 
 
 def analyze_change_impact(conn: GraphConnection, method: str) -> dict:
@@ -303,10 +299,6 @@ def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int 
         f"WHERE {base_where}"
         "RETURN count(m)"
     )
-    log.info("find_dead_code query:\n%s\nparams: %s", q_dead, params)
-    log.info("find_dead_code count query:\n%s\nparams: %s", q_dead_count, params)
-    log.info("find_dead_code total query:\n%s\nparams: %s", q_total, params)
-
     dead_rows = conn.query(q_dead, params)
     count_rows = conn.query(q_dead_count, params)
     total_rows = conn.query(q_total, params)
@@ -355,10 +347,6 @@ def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int =
         f"WHERE {base_where}"
         "RETURN count(m)"
     )
-    log.info("find_untested query:\n%s\nparams: %s", q_untested, params)
-    log.info("find_untested count query:\n%s\nparams: %s", q_untested_count, params)
-    log.info("find_untested total query:\n%s\nparams: %s", q_total, params)
-
     untested_rows = conn.query(q_untested, params)
     count_rows = conn.query(q_untested_count, params)
     total_rows = conn.query(q_total, params)

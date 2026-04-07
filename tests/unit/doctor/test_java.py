@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import subprocess
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -14,45 +13,48 @@ from synapps.doctor.checks.jdtls import JdtlsCheck
 # ---------------------------------------------------------------------------
 
 
-def test_java_pass_when_version_exits_zero() -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.java.subprocess") as mock_sub:
-        mock_shutil.which.return_value = "/usr/bin/java"
-        mock_sub.run.return_value = MagicMock(returncode=0, stdout=b"", stderr=b"")
-        mock_sub.TimeoutExpired = subprocess.TimeoutExpired
+def test_java_pass_when_version_sufficient() -> None:
+    with patch("synapps.doctor.checks.java.check_java_version") as mock_check:
+        mock_check.return_value = (True, 21, "Java 21 detected (meets JDK 17+ requirement)")
         result = JavaCheck().run()
     assert result.status == "pass"
     assert result.fix is None
-    assert "/usr/bin/java" in result.detail
+    assert "21" in result.detail
 
 
 def test_java_fail_when_not_on_path() -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil:
-        mock_shutil.which.return_value = None
+    with patch("synapps.doctor.checks.java.check_java_version") as mock_check:
+        mock_check.return_value = (
+            False, None,
+            "Java is not installed or is not on PATH.\nPlease install JDK 17+",
+        )
         result = JavaCheck().run()
     assert result.status == "fail"
     assert result.fix is not None
-    assert "adoptium.net" in result.fix
+    assert "not installed" in result.detail.lower() or "not on PATH" in result.detail
 
 
-def test_java_fail_when_version_exits_nonzero() -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.java.subprocess") as mock_sub:
-        mock_shutil.which.return_value = "/usr/bin/java"
-        mock_sub.run.return_value = MagicMock(returncode=1, stdout=b"", stderr=b"")
-        mock_sub.TimeoutExpired = subprocess.TimeoutExpired
+def test_java_fail_when_version_too_old() -> None:
+    with patch("synapps.doctor.checks.java.check_java_version") as mock_check:
+        mock_check.return_value = (
+            False, 8,
+            "Java 8 was detected but JDK 17+ is required.\nPlease install JDK 17+",
+        )
         result = JavaCheck().run()
     assert result.status == "fail"
+    assert result.fix is not None
+    assert "8" in result.detail
 
 
-def test_java_fail_when_timeout() -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.java.subprocess") as mock_sub:
-        mock_shutil.which.return_value = "/usr/bin/java"
-        mock_sub.run.side_effect = subprocess.TimeoutExpired(cmd="java", timeout=10)
-        mock_sub.TimeoutExpired = subprocess.TimeoutExpired
+def test_java_fail_when_version_unknown() -> None:
+    with patch("synapps.doctor.checks.java.check_java_version") as mock_check:
+        mock_check.return_value = (
+            False, None,
+            "Could not determine the installed Java version.\nPlease install JDK 17+",
+        )
         result = JavaCheck().run()
     assert result.status == "fail"
+    assert result.fix is not None
 
 
 def test_java_group_is_java() -> None:
@@ -98,5 +100,3 @@ def test_jdtls_warn_when_java_absent() -> None:
 
 def test_jdtls_group_is_java() -> None:
     assert JdtlsCheck().group == "java"
-
-

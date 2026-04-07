@@ -53,6 +53,45 @@ log = logging.getLogger(__name__)
 _debug_enabled = log.isEnabledFor(logging.DEBUG)
 """Serves as a flag that triggers additional computation when debug logging is enabled."""
 
+import platform as _platform
+
+def _resolve_true_case(path: str) -> str:
+    """Resolve a path to its true on-disk casing.
+
+    On macOS (case-insensitive APFS/HFS+), ``os.path.realpath`` preserves
+    whatever casing the caller provides, but language servers like JDT LS
+    return paths with canonical on-disk casing.  This function walks each
+    component using ``os.listdir`` to discover the actual casing so that
+    ``Path.is_relative_to`` comparisons succeed.
+
+    On Linux (case-sensitive) this is a no-op — the path is returned unchanged.
+    """
+    if _platform.system() != "Darwin":
+        return os.path.realpath(path)
+
+    path = os.path.realpath(path)
+    parts = Path(path).parts
+    if not parts:
+        return path
+
+    resolved = parts[0]  # root '/'
+    for component in parts[1:]:
+        try:
+            entries = os.listdir(resolved)
+        except OSError:
+            resolved = os.path.join(resolved, component)
+            continue
+        component_lower = component.lower()
+        matched = False
+        for entry in entries:
+            if entry.lower() == component_lower:
+                resolved = os.path.join(resolved, entry)
+                matched = True
+                break
+        if not matched:
+            resolved = os.path.join(resolved, component)
+    return resolved
+
 
 @dataclasses.dataclass(kw_only=True)
 class ReferenceInSymbol:
@@ -424,7 +463,6 @@ class SolidLanguageServer(ABC):
         if solidlsp_settings is None:
             solidlsp_settings = SolidLSPSettings()
 
-        # Ensure repository_root_path is absolute to avoid issues with file URIs
         repository_root_path = os.path.abspath(repository_root_path)
 
         ls_class = config.code_language.get_ls_class()
@@ -466,7 +504,7 @@ class SolidLanguageServer(ABC):
         self._ls_resources_dir = self.ls_resources_dir(solidlsp_settings)
         log.debug(f"Custom config (LS-specific settings) for {lang}: {self._custom_settings}")
         self._encoding = config.encoding
-        self.repository_root_path: str = repository_root_path
+        self.repository_root_path: str = _resolve_true_case(repository_root_path)
 
         log.debug(
             f"Creating language server instance for {repository_root_path=} with {language_id=} and process launch info: {process_launch_info}"
@@ -979,7 +1017,7 @@ class SolidLanguageServer(ABC):
             assert LSPConstants.URI in item
             assert LSPConstants.RANGE in item
 
-            abs_path = PathUtils.uri_to_path(item[LSPConstants.URI])  # type: ignore
+            abs_path = os.path.realpath(PathUtils.uri_to_path(item[LSPConstants.URI]))  # type: ignore
             if not Path(abs_path).is_relative_to(self.repository_root_path):
                 log.warning(
                     "Found a reference in a path outside the repository, probably the LS is parsing things in installed packages or in the standardlib! "

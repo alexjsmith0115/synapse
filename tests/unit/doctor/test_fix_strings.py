@@ -134,11 +134,11 @@ def test_python_fix_platform_aware(system: str, expected_substr: str) -> None:
 
 @pytest.mark.parametrize("system,expected_substr", [
     ("Darwin", "brew install --cask temurin"),
-    ("Linux", "sudo apt-get install default-jdk"),
+    ("Linux", "sudo apt-get install openjdk-17-jdk"),
 ])
 def test_java_fix_platform_aware(system: str, expected_substr: str) -> None:
-    with patch("synapps.doctor.checks.java.shutil") as mock_shutil, \
-         patch("synapps.doctor.checks.java.platform") as mock_plat:
+    with patch("synapps.util.java.shutil") as mock_shutil, \
+         patch("synapps.util.java.platform") as mock_plat:
         mock_shutil.which.return_value = None
         mock_plat.system.return_value = system
         result = JavaCheck().run()

@@ -1,17 +1,33 @@
 from __future__ import annotations
 
 import pytest
+import tree_sitter_c_sharp as tscsharp
+import tree_sitter_java as tsjava
 import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 
 from synapps.indexer.tree_sitter_util import ParsedFile, find_enclosing_method_ast
 
 _PY_LANGUAGE = Language(tspython.language())
+_JAVA_LANGUAGE = Language(tsjava.language())
+_CS_LANGUAGE = Language(tscsharp.language())
 _parser = Parser(_PY_LANGUAGE)
+_java_parser = Parser(_JAVA_LANGUAGE)
+_cs_parser = Parser(_CS_LANGUAGE)
 
 
 def _make_parsed_file(source: str, file_path: str = "/test/file.py") -> ParsedFile:
     tree = _parser.parse(bytes(source, "utf-8"))
+    return ParsedFile(file_path=file_path, source=source, tree=tree)
+
+
+def _make_java_parsed_file(source: str, file_path: str = "/test/Foo.java") -> ParsedFile:
+    tree = _java_parser.parse(bytes(source, "utf-8"))
+    return ParsedFile(file_path=file_path, source=source, tree=tree)
+
+
+def _make_cs_parsed_file(source: str, file_path: str = "/test/Foo.cs") -> ParsedFile:
+    tree = _cs_parser.parse(bytes(source, "utf-8"))
     return ParsedFile(file_path=file_path, source=source, tree=tree)
 
 
@@ -119,3 +135,76 @@ class MyClass:
     # line 2 (0-based), col 8 — inside method body
     result = find_enclosing_method_ast("/test/file.py", 2, 8, {"/test/file.py": pf}, symbol_map)
     assert result == "mypackage.MyClass.my_method"
+
+
+# ---------------------------------------------------------------------------
+# Java: annotated method — symbol_map keyed by name line, not annotation line
+# ---------------------------------------------------------------------------
+
+
+def test_java_annotated_method_matches_name_line():
+    """Regression: tree-sitter method_declaration includes annotations, so
+    start_point is on the annotation line. symbol_map is keyed by
+    selectionRange (name line) from JDT LS. The lookup must use the name
+    node's line, not the declaration node's start line."""
+    source = """\
+class RabbitSend {
+    @Override
+    public void send(String msg) {
+        channel.basicPublish(msg);
+    }
+}
+"""
+    fp = "/test/Foo.java"
+    pf = _make_java_parsed_file(source, file_path=fp)
+    # symbol_map keyed by name line (line 3, 1-based) — matches JDT LS selectionRange
+    symbol_map = {(fp, 3): "foodsearch.mq.RabbitSend.send"}
+    # Reference at line 3 (0-based), col 8 — inside send() body
+    result = find_enclosing_method_ast(fp, 3, 8, {fp: pf}, symbol_map)
+    assert result == "foodsearch.mq.RabbitSend.send"
+
+
+def test_java_multi_annotation_method():
+    """Method with multiple annotations — larger gap between declaration start
+    and name line."""
+    source = """\
+class Controller {
+    @CrossOrigin
+    @GetMapping("/contacts")
+    public List<Contact> getAllContacts() {
+        return repo.findAll();
+    }
+}
+"""
+    fp = "/test/Controller.java"
+    pf = _make_java_parsed_file(source, file_path=fp)
+    # Name line is 4 (1-based), annotations start at line 2
+    symbol_map = {(fp, 4): "com.example.Controller.getAllContacts"}
+    # Reference at line 4 (0-based), col 8 — inside method body
+    result = find_enclosing_method_ast(fp, 4, 8, {fp: pf}, symbol_map)
+    assert result == "com.example.Controller.getAllContacts"
+
+
+# ---------------------------------------------------------------------------
+# C#: attributed method — same issue as Java annotations
+# ---------------------------------------------------------------------------
+
+
+def test_csharp_attributed_method_matches_name_line():
+    """Regression: C# method_declaration includes attribute lists, so
+    start_point is on the [HttpGet] line, not the method name line."""
+    source = """\
+class Controller {
+    [HttpGet]
+    public void GetItems() {
+        return items;
+    }
+}
+"""
+    fp = "/test/Foo.cs"
+    pf = _make_cs_parsed_file(source, file_path=fp)
+    # symbol_map keyed by name line (line 3, 1-based)
+    symbol_map = {(fp, 3): "MyApp.Controller.GetItems"}
+    # Reference at line 3 (0-based), col 8 — inside method body
+    result = find_enclosing_method_ast(fp, 3, 8, {fp: pf}, symbol_map)
+    assert result == "MyApp.Controller.GetItems"

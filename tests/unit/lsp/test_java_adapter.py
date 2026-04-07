@@ -613,6 +613,34 @@ class TestConvertSelectionRange:
         assert sym.line == 6
         assert sym.end_line == 16
 
+    def test_col_uses_selection_range_character(self) -> None:
+        """Regression: IndexSymbol.col must use selectionRange.start.character so
+        ReferencesResolver passes the correct cursor column to request_references.
+        JDT LS cannot resolve references when the cursor is on whitespace (col=0)."""
+        ns = {"name": "com.test", "kind": 3}
+        parent = {"name": "RabbitSend", "kind": 5, "parent": ns}
+        raw = {
+            "name": "send(String)",
+            "kind": 6,
+            "detail": "public void",
+            "parent": parent,
+            "location": {
+                "uri": "file:///proj/src/main/java/com/test/RabbitSend.java",
+                "range": {
+                    "start": {"line": 15, "character": 0},
+                    "end": {"line": 20, "character": 5},
+                },
+            },
+            "selectionRange": {
+                "start": {"line": 17, "character": 16},
+                "end": {"line": 17, "character": 20},
+            },
+        }
+        adapter = _make_adapter(root_path="/proj", source_root="/proj/src/main/java")
+        sym = adapter._convert(raw, "/proj/src/main/java/com/test/RabbitSend.java", parent_full_name=None)
+
+        assert sym.col == 16, f"col must use selectionRange.start.character, got {sym.col}"
+
     def test_end_line_not_taken_from_selection_range(self) -> None:
         """selectionRange covers only the declaration name; end_line must use location.range.end."""
         raw = {

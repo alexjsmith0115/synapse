@@ -212,6 +212,61 @@ def test_line_numbers_are_1_based() -> None:
     assert sym.end_line == 26, f"Expected 1-based end_line=26, got {sym.end_line}"
 
 
+def test_convert_reads_selection_range_column() -> None:
+    """BUG-col-01: IndexSymbol.col must be set from selectionRange.start.character.
+
+    Roslyn requires request_references to be called with the cursor on the
+    symbol name (not on leading whitespace). selectionRange.start.character
+    gives the exact column where the name starts.
+
+    Example: `    private void UpdateTimestamps()` — name starts at column 17.
+    """
+    from synapps.lsp.csharp import CSharpLSPAdapter
+
+    adapter = CSharpLSPAdapter(MagicMock())
+    raw = {
+        "name": "UpdateTimestamps",
+        "kind": 6,  # Method
+        "detail": "() : void",
+        "location": {
+            "range": {
+                "start": {"line": 76, "character": 4},
+                "end": {"line": 94, "character": 5},
+            }
+        },
+        "selectionRange": {
+            "start": {"line": 76, "character": 17},
+            "end": {"line": 76, "character": 33},
+        },
+    }
+    sym = adapter._convert(raw, "/proj/ApplicationDbContext.cs", parent_full_name="ApplicationDbContext")
+    assert sym.col == 17, (
+        f"Expected col=17 (selectionRange.start.character), got {sym.col}. "
+        "Roslyn needs the cursor on the symbol name to return references."
+    )
+
+
+def test_convert_col_defaults_to_zero_when_no_selection_range() -> None:
+    """BUG-col-01: When selectionRange is absent, col defaults to 0 (backward compatible)."""
+    from synapps.lsp.csharp import CSharpLSPAdapter
+
+    adapter = CSharpLSPAdapter(MagicMock())
+    raw = {
+        "name": "MyMethod",
+        "kind": 6,
+        "detail": "void MyMethod()",
+        "location": {
+            "range": {
+                "start": {"line": 10, "character": 4},
+                "end": {"line": 20, "character": 5},
+            }
+        },
+        # No selectionRange
+    }
+    sym = adapter._convert(raw, "/proj/Foo.cs", parent_full_name="MyNs.MyClass")
+    assert sym.col == 0
+
+
 def test_create_uses_csharp_language_enum() -> None:
     import sys
     from unittest.mock import patch, MagicMock

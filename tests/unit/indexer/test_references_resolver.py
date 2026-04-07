@@ -3,6 +3,8 @@
 All LSP calls are mocked; only the resolver's logic is under test.
 Patches: find_enclosing_method_ast, batch_upsert_calls.
 """
+# BUG-col-01: ReferencesResolver must use per-method column from symbol_col_map,
+# not hardcode column=0. Roslyn (C#) requires the cursor to be on the symbol name.
 from __future__ import annotations
 
 import threading
@@ -53,6 +55,7 @@ def _make_resolver(
     parsed_cache: dict | None = None,
     symbol_map: dict | None = None,
     per_request_timeout: float = 30.0,
+    symbol_col_map: dict | None = None,
 ) -> tuple[ReferencesResolver, MagicMock]:
     """Build a ReferencesResolver with a mocked GraphConnection."""
     conn = MagicMock()
@@ -68,6 +71,7 @@ def _make_resolver(
         parsed_cache=parsed_cache,
         symbol_map=symbol_map,
         per_request_timeout=per_request_timeout,
+        symbol_col_map=symbol_col_map,
     )
     return resolver, conn
 
@@ -322,3 +326,80 @@ class TestDeduplication:
         unique_pairs = {(r["caller"], r["callee"]) for r in all_rows}
         assert unique_pairs == {("pkg.B.consumer", "pkg.A.helper")}
         assert len(unique_pairs) == 1
+
+
+class TestSymbolColMap:
+    """BUG-col-01: ReferencesResolver must pass per-method column from symbol_col_map to
+    request_references so strict language servers (e.g. Roslyn/C#) can resolve the symbol
+    from its name position rather than from leading whitespace at column 0.
+    """
+
+    def test_uses_column_from_symbol_col_map(self):
+        """request_references must be called with the column stored in symbol_col_map, not 0."""
+        ls = _make_ls(root="/proj")
+        # Method at line 77 (1-based); name starts at column 17 (e.g. `    private void UpdateTimestamps()`)
+        symbol_map = {("/proj/Ctx.cs", 77): "Ns.Ctx.UpdateTimestamps"}
+        parsed_cache = {"/proj/Ctx.cs": _make_parsed_file("/proj/Ctx.cs")}
+        symbol_col_map = {("/proj/Ctx.cs", 77): 17}
+
+        ls.request_references.return_value = []
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache,
+            symbol_map=symbol_map, symbol_col_map=symbol_col_map,
+        )
+
+        with patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        assert ls.request_references.call_count == 1
+        args = ls.request_references.call_args
+        # args: (rel_path, line_0, col)
+        _rel, line_0, col = args[0]
+        assert line_0 == 76, f"Expected 0-based line 76, got {line_0}"
+        assert col == 17, (
+            f"Expected col=17 from symbol_col_map, got col={col}. "
+            "Roslyn/C# requires the cursor on the symbol name to return references."
+        )
+
+    def test_defaults_to_column_zero_when_no_col_map_entry(self):
+        """When no symbol_col_map entry exists for a method, column defaults to 0."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/a.cs", 10): "Ns.A.method"}
+        parsed_cache = {"/proj/a.cs": _make_parsed_file("/proj/a.cs")}
+        # Empty col map — no entry for this method
+        symbol_col_map: dict = {}
+
+        ls.request_references.return_value = []
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache,
+            symbol_map=symbol_map, symbol_col_map=symbol_col_map,
+        )
+
+        with patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        assert ls.request_references.call_count == 1
+        _rel, _line, col = ls.request_references.call_args[0]
+        assert col == 0
+
+    def test_omitting_col_map_defaults_to_column_zero(self):
+        """When symbol_col_map is None (not provided), column falls back to 0."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/a.cs", 5): "Ns.A.run"}
+        parsed_cache = {"/proj/a.cs": _make_parsed_file("/proj/a.cs")}
+
+        ls.request_references.return_value = []
+
+        # No symbol_col_map passed at all
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+        )
+
+        with patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        assert ls.request_references.call_count == 1
+        _rel, _line, col = ls.request_references.call_args[0]
+        assert col == 0

@@ -308,6 +308,8 @@ class Indexer:
             self._lsp.shutdown()
 
     def reindex_file(self, file_path: str, root_path: str) -> None:
+        from solidlsp.ls import _resolve_true_case
+        root_path = _resolve_true_case(root_path)
         self._root_path = root_path
 
         # Read file once and build ParsedFile for reuse across all phases
@@ -550,11 +552,20 @@ class Indexer:
         # (type-ref) edges per D-09.
         if call_ext is None and parsed_cache is not None:
             from synapps.indexer.references_resolver import ReferencesResolver
+            # Build column map so ReferencesResolver can pass the correct cursor
+            # position (symbol name start) to request_references. Strict servers
+            # like Roslyn require the cursor to be on the name, not on whitespace.
+            symbol_col_map: dict[tuple[str, int], int] = {
+                (sym.file_path, sym.line): sym.col
+                for sym in all_symbols
+                if sym.kind == SymbolKind.METHOD
+            }
             refs_resolver = ReferencesResolver(
                 conn=self._conn,
                 ls=self._lsp.language_server,
                 parsed_cache=parsed_cache,
                 symbol_map=symbol_map,
+                symbol_col_map=symbol_col_map,
             )
             refs_resolver.resolve()
 

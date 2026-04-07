@@ -70,12 +70,17 @@ class ReferencesResolver:
         parsed_cache: dict[str, ParsedFile],
         symbol_map: dict[tuple[str, int], str],
         per_request_timeout: float = _DEFAULT_TIMEOUT,
+        symbol_col_map: dict[tuple[str, int], int] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
         self._parsed_cache = parsed_cache
         self._symbol_map = symbol_map
         self._timeout = per_request_timeout
+        # Maps (file_path, line_1) -> 0-based column of the symbol name start.
+        # Used to pass the correct character position to request_references so
+        # strict language servers (e.g. Roslyn/C#) resolve the symbol correctly.
+        self._symbol_col_map: dict[tuple[str, int], int] = symbol_col_map or {}
         self._pending_calls: list[dict] = []
         self._stats = _RefStats()
 
@@ -136,8 +141,10 @@ class ReferencesResolver:
         root = self._ls.repository_root_path
         rel_path = os.path.relpath(file_path, root)
 
-        # LSP uses 0-based line numbers
-        refs = self._request_references_with_timeout(rel_path, line_1 - 1, callee_full_name)
+        # LSP uses 0-based line numbers; column comes from selectionRange so strict
+        # language servers (e.g. Roslyn/C#) resolve the symbol name, not whitespace.
+        col = self._symbol_col_map.get((file_path, line_1), 0)
+        refs = self._request_references_with_timeout(rel_path, line_1 - 1, col, callee_full_name)
         if refs is None:
             return
 
@@ -151,18 +158,21 @@ class ReferencesResolver:
         self,
         rel_path: str,
         line_0: int,
+        col: int,
         callee_name: str,
     ) -> list[dict] | None:
         """Call request_references with a per-request timeout.
 
-        Column is always 0: LSP resolves from the declaration line regardless of
-        where on the line the symbol name starts.
+        col should be the 0-based character position of the symbol name on the
+        declaration line (from selectionRange.start.character). Strict language
+        servers such as Roslyn require the cursor to be on the name, not on
+        leading whitespace.
 
         Returns None on timeout or exception (method is skipped).
         """
         t0 = time.monotonic()
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            fut = executor.submit(self._ls.request_references, rel_path, line_0, 0)
+            fut = executor.submit(self._ls.request_references, rel_path, line_0, col)
             try:
                 return fut.result(timeout=self._timeout)
             except concurrent.futures.TimeoutError:

@@ -95,7 +95,12 @@ def find_enclosing_method_ast(
     current = node
     while current is not None:
         if current.type in _METHOD_NODE_TYPES:
-            full_name = symbol_map.get((file_path, current.start_point[0] + 1))
+            # Prefer the name node's line for the lookup: tree-sitter includes
+            # annotations/attributes in the declaration node, but symbol_map is
+            # keyed by selectionRange (name line) from the language server.
+            name_node = current.child_by_field_name("name")
+            lookup_line = (name_node.start_point[0] if name_node is not None else current.start_point[0]) + 1
+            full_name = symbol_map.get((file_path, lookup_line))
             if full_name is not None:
                 return full_name
         current = current.parent

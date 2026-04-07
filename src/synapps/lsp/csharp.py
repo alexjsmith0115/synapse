@@ -106,6 +106,10 @@ class CSharpLSPAdapter:
         range_obj = raw.get("location", {}).get("range", {})
         line = range_obj.get("start", {}).get("line", 0) + 1
         end_line = range_obj.get("end", {}).get("line", 0) + 1
+        # selectionRange.start.character is the column where the symbol name starts.
+        # Roslyn requires the cursor to be on the name (not leading whitespace) to resolve references.
+        sel_range = raw.get("selectionRange", {})
+        col = sel_range.get("start", {}).get("character", 0)
         detail = raw.get("detail", "") or ""
         return IndexSymbol(
             name=name,
@@ -114,6 +118,7 @@ class CSharpLSPAdapter:
             file_path=file_path,
             line=line,
             end_line=end_line,
+            col=col,
             signature=detail,
             is_abstract="abstract" in detail.lower(),
             is_static="static" in detail.lower(),

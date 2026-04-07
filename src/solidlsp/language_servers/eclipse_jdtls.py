@@ -85,11 +85,11 @@ class EclipseJDTLS(SolidLanguageServer):
             Ensure Java is available, download Eclipse JDT LS if needed,
             and return the path to the equinox launcher jar.
             """
-            is_java_installed = shutil.which("java") is not None
-            assert is_java_installed, (
-                "java is not installed or isn't in PATH. "
-                "Please install JDK 17+ and try again."
-            )
+            from synapps.util.java import check_java_version
+
+            ok, version, message = check_java_version(minimum=17)
+            if not ok:
+                raise RuntimeError(message)
 
             language_specific_config = self._custom_settings
             jdtls_version = language_specific_config.get("jdtls_version", _DEFAULT_JDTLS_VERSION)

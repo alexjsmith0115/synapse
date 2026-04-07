@@ -39,6 +39,17 @@ def _verbose_callback(verbose: bool) -> None:
         logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
+def _resolve_path(path: str) -> str:
+    """Resolve a user-provided path to its absolute, true-cased form.
+
+    On macOS (case-insensitive APFS), Path.resolve() preserves whatever casing
+    the user typed. Language servers canonicalize to on-disk casing, causing
+    is_relative_to comparisons to fail. This resolves to the true casing.
+    """
+    from solidlsp.ls import _resolve_true_case
+    return _resolve_true_case(str(Path(path).resolve()))
+
+
 app = typer.Typer(name="synapps", help="LSP-powered codebase graph tool")
 
 
@@ -158,14 +169,14 @@ def init(
     """Walk me through setting up Synapps for this project."""
     from synapps.onboarding.init_wizard import run_init
     print_banner()
-    abs_path = str(Path(path).resolve())
+    abs_path = _resolve_path(path)
     run_init(abs_path, verbose=verbose)
 
 
 @app.command(rich_help_panel="Indexing")
 def index(path: str, language: str = "csharp") -> None:
     """Index a project. Smart: full index if new, git sync if git project, mtime sync otherwise."""
-    abs_path = str(Path(path).resolve())
+    abs_path = _resolve_path(path)
     svc = _get_service(abs_path)
     try:
         result = svc.smart_index(abs_path, language, on_progress=typer.echo)
@@ -183,7 +194,7 @@ def index(path: str, language: str = "csharp") -> None:
 @app.command(rich_help_panel="Indexing")
 def watch(path: str) -> None:
     """Watch a project for changes and keep the graph updated."""
-    abs_path = str(Path(path).resolve())
+    abs_path = _resolve_path(path)
 
     def _log_file_event(event: str, file_path: str) -> None:
         typer.echo(f"  [{event}] {file_path}")
@@ -201,7 +212,7 @@ def watch(path: str) -> None:
 @app.command(rich_help_panel="Indexing")
 def sync(path: str) -> None:
     """Sync the graph with the current filesystem — re-indexes only changed files."""
-    abs_path = str(Path(path).resolve())
+    abs_path = _resolve_path(path)
     try:
         result = _get_service(abs_path).sync_project(abs_path)
     except ModuleNotFoundError as e:
@@ -229,7 +240,7 @@ def sync(path: str) -> None:
 @app.command(rich_help_panel="Indexing")
 def delete(path: str) -> None:
     """Remove a project from the graph."""
-    abs_path = str(Path(path).resolve())
+    abs_path = _resolve_path(path)
     _get_service(abs_path).delete_project(abs_path)
     typer.echo(f"Deleted {abs_path}")
 
@@ -239,9 +250,9 @@ def status(path: Optional[str] = None) -> None:
     """Show index status for a project or all projects."""
     from synapps import __version__
     typer.echo(f"synapps-cli v{__version__}")
-    svc = _get_service(str(Path(path).resolve()) if path else None)
+    svc = _get_service(_resolve_path(path) if path else None)
     if path:
-        result = svc.get_index_status(str(Path(path).resolve()))
+        result = svc.get_index_status(_resolve_path(path))
         typer.echo(result or "Not indexed")
     else:
         for proj in svc.list_projects():

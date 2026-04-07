@@ -26,6 +26,8 @@ class IndexSymbol:
     file_path: str
     line: int
     end_line: int = 0
+    col: int = 0
+    """0-based column where the symbol name starts (from LSP selectionRange.start.character)."""
     signature: str = ""
     is_abstract: bool = False
     is_static: bool = False

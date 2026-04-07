@@ -291,6 +291,7 @@ class JavaLSPAdapter:
         # so both must agree.
         sel_range = raw.get("selectionRange", range_obj)
         line = sel_range.get("start", {}).get("line", 0) + 1
+        col = sel_range.get("start", {}).get("character", 0)
         end_line = range_obj.get("end", {}).get("line", 0) + 1
         detail = raw.get("detail", "") or ""
 
@@ -301,6 +302,7 @@ class JavaLSPAdapter:
             file_path=file_path,
             line=line,
             end_line=end_line,
+            col=col,
             signature=detail,
             is_abstract="abstract" in detail.lower(),
             is_static="static" in detail.lower(),
