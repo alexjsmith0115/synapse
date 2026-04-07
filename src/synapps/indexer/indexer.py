@@ -360,9 +360,30 @@ class Indexer:
 
         _TYPE_KINDS = {SymbolKind.CLASS, SymbolKind.INTERFACE, SymbolKind.ABSTRACT_CLASS, SymbolKind.ENUM, SymbolKind.RECORD}
 
+        # When using ReferencesResolver (call_ext is None), single-file reindex
+        # cannot reliably reproduce cross-file CALLS edges because it lacks the
+        # full project parse context.  Save existing CALLS edges before deletion
+        # and restore them after so they survive until the next full project index.
+        call_ext_factory = self._call_extractor_factory
+        _uses_refs_resolver = call_ext_factory is None or call_ext_factory() is None
+        saved_calls: list[dict] | None = None
+        if _uses_refs_resolver:
+            rows = self._conn.query(
+                "MATCH (f:File {path: $path})-[:CONTAINS*]->(src:Method)-[r:CALLS]->(dst:Method) "
+                "RETURN src.full_name AS caller, dst.full_name AS callee",
+                {"path": file_path},
+            )
+            if rows:
+                saved_calls = [{"caller": r["caller"], "callee": r["callee"], "line": 0, "col": 0} for r in rows]
+
         # Delete outgoing resolution edges BEFORE re-resolving so that
         # newly created IMPLEMENTS/INHERITS edges aren't immediately removed.
         delete_outgoing_edges_for_file(self._conn, file_path)
+
+        # Restore saved CALLS edges for ReferencesResolver-based languages
+        if saved_calls:
+            from synapps.graph.edges import batch_upsert_calls
+            batch_upsert_calls(self._conn, saved_calls)
 
         # Build cross-file symbol maps from the graph so that LSP-resolved
         # definitions in OTHER files can be matched.  Overlay the current

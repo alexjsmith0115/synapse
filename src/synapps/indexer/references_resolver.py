@@ -184,7 +184,7 @@ class ReferencesResolver:
                 self._stats.methods_timed_out += 1
                 return None
             except Exception:
-                log.debug(
+                log.warning(
                     "ReferencesResolver: request_references raised for %s",
                     callee_name, exc_info=True,
                 )

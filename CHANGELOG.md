@@ -4,6 +4,13 @@ All notable changes to Synapps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.7] - 2026-04-07
+
+### Fixed
+- **C# CALLS edges missing due to attribute line mismatch** — the C# LSP adapter used `range.start.line` for symbol line numbers, which includes attributes (`[HttpPost]`, etc.) and mismatched the tree-sitter name node line used by `find_enclosing_method_ast`; now uses `selectionRange.start.line` (same fix Java adapter already had)
+- **Single-file reindex losing CALLS edges** — `reindex_file` deleted all outgoing edges then failed to re-create cross-file CALLS edges via `ReferencesResolver` (insufficient parse context); now saves and restores CALLS edges for ReferencesResolver-based languages during single-file reindex
+- **ReferencesResolver silent exception swallowing** — upgraded exception logging from DEBUG to WARNING so failures are visible in CI and production logs
+
 ## [1.8.6] - 2026-04-07
 
 ### Fixed

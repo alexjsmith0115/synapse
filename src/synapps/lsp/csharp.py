@@ -104,11 +104,13 @@ class CSharpLSPAdapter:
             kind = SymbolKind.CLASS
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0) + 1
         end_line = range_obj.get("end", {}).get("line", 0) + 1
-        # selectionRange.start.character is the column where the symbol name starts.
-        # Roslyn requires the cursor to be on the name (not leading whitespace) to resolve references.
-        sel_range = raw.get("selectionRange", {})
+        # Use selectionRange.start.line when available — Roslyn sets range to include
+        # attributes ([HttpPost] etc.), but selectionRange points to the method name.
+        # The symbol_map is keyed by (file_path, line) and find_enclosing_method_ast
+        # looks up by tree-sitter name node line, so both must agree.
+        sel_range = raw.get("selectionRange", range_obj)
+        line = sel_range.get("start", {}).get("line", 0) + 1
         col = sel_range.get("start", {}).get("character", 0)
         detail = raw.get("detail", "") or ""
         return IndexSymbol(

@@ -246,8 +246,8 @@ def test_convert_reads_selection_range_column() -> None:
     )
 
 
-def test_convert_col_defaults_to_zero_when_no_selection_range() -> None:
-    """BUG-col-01: When selectionRange is absent, col defaults to 0 (backward compatible)."""
+def test_convert_col_defaults_to_range_start_when_no_selection_range() -> None:
+    """When selectionRange is absent, col and line fall back to range.start."""
     from synapps.lsp.csharp import CSharpLSPAdapter
 
     adapter = CSharpLSPAdapter(MagicMock())
@@ -261,10 +261,11 @@ def test_convert_col_defaults_to_zero_when_no_selection_range() -> None:
                 "end": {"line": 20, "character": 5},
             }
         },
-        # No selectionRange
+        # No selectionRange — fall back to location.range.start
     }
     sym = adapter._convert(raw, "/proj/Foo.cs", parent_full_name="MyNs.MyClass")
-    assert sym.col == 0
+    assert sym.line == 11  # 0-based line 10 + 1
+    assert sym.col == 4
 
 
 def test_create_uses_csharp_language_enum() -> None:
