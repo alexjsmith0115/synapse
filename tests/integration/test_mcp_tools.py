@@ -719,3 +719,24 @@ def test_attributes_populated_on_csharp_nodes(mcp_server: FastMCP) -> None:
         f"Expected 'ApiController' in TaskController.attributes, got: {attributes_value}"
     )
 
+
+# ---------------------------------------------------------------------------
+# VALID-02: delegate argument (method group) produces CALLS edge
+# ---------------------------------------------------------------------------
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_delegate_argument_produces_calls_edge(service: SynappsService) -> None:
+    """VALID-02: C# method group passed as delegate argument must produce CALLS edge via ReferencesResolver."""
+    rows = service._conn.query(
+        "MATCH (caller:Method)-[:CALLS]->(callee:Method) "
+        "WHERE caller.full_name CONTAINS 'CallWithMethodGroup' "
+        "AND callee.name = 'GetTaskAsync' "
+        "RETURN caller.full_name, callee.full_name LIMIT 1"
+    )
+    assert rows, (
+        "Expected CALLS edge from DelegateHost.CallWithMethodGroup to ITaskService.GetTaskAsync "
+        "(via method group _service.GetTaskAsync passed as Func<> delegate argument), "
+        "but none found in graph. ReferencesResolver must index method group references."
+    )
+

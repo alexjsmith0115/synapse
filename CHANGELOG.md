@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 - **SymbolResolver fallback to CSharpCallExtractor when call_extractor=None** — `SymbolResolver.__init__` no longer defaults `call_extractor=None` to `CSharpCallExtractor()`; passing `None` now correctly skips call extraction while type-ref extraction continues normally; required for languages that delegate CALLS resolution to `ReferencesResolver`
+- **VALID-02 validation fixture** — added `DelegateHost.cs` C# fixture with `CallWithMethodGroup` method that passes `_service.GetTaskAsync` as a method group delegate argument; integration test `test_delegate_argument_produces_calls_edge` asserts a CALLS edge is produced via `ReferencesResolver`
 
 ## [1.8.4] - 2026-04-06
 
