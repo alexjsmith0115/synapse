@@ -4,6 +4,11 @@ All notable changes to Synapps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.6] - 2026-04-07
+
+### Fixed
+- **CI workflow broken by missing SPA assets** — added `scripts/build_spa.sh` step to both `test` and `integration` jobs; the editable install was failing because `pyproject.toml` force-includes Vite build output (`src/synapps/web/static/assets`) which is gitignored
+
 ## [1.8.5] - 2026-04-07
 
 
