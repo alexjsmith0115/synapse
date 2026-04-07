@@ -4,7 +4,9 @@ All notable changes to Synapps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.8.5] - 2026-04-07
+
+
 
 ### Added
 - **LSPResolverBackend protocol** — extended with `request_references` and `set_request_timeout` method stubs, matching the concrete implementations in solidlsp; required by the v2.1 ReferencesResolver
