@@ -35,8 +35,8 @@ class TypeScriptPlugin:
     def create_lsp_adapter(self, root_path: str) -> TypeScriptLSPAdapter:
         return TypeScriptLSPAdapter.create(root_path)
 
-    def create_call_extractor(self) -> TypeScriptCallExtractor:
-        return TypeScriptCallExtractor()
+    def create_call_extractor(self) -> None:
+        return None
 
     def create_import_extractor(self, source_root: str = "") -> TypeScriptImportExtractor:
         return TypeScriptImportExtractor(source_root=source_root)

@@ -35,11 +35,10 @@ def test_create_lsp_adapter_delegates_to_typescript_adapter(tmp_path) -> None:
         assert result is mock_adapter
 
 
-def test_create_call_extractor_returns_typescript_call_extractor() -> None:
+def test_create_call_extractor_returns_none() -> None:
     from synapps.plugin.typescript import TypeScriptPlugin
-    from synapps.indexer.typescript.typescript_call_extractor import TypeScriptCallExtractor
     result = TypeScriptPlugin().create_call_extractor()
-    assert isinstance(result, TypeScriptCallExtractor)
+    assert result is None
 
 
 def test_create_import_extractor_returns_typescript_import_extractor() -> None:
