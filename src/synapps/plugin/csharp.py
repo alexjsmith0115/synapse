@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from synapps.indexer.csharp.csharp_attribute_extractor import CSharpAttributeExtractor
 from synapps.indexer.csharp.csharp_base_type_extractor import CSharpBaseTypeExtractor
-from synapps.indexer.csharp.csharp_call_extractor import CSharpCallExtractor
 from synapps.indexer.csharp.csharp_import_extractor import CSharpImportExtractor
 from synapps.indexer.csharp.csharp_type_ref_extractor import CSharpTypeRefExtractor
 from synapps.lsp.csharp import CSharpLSPAdapter

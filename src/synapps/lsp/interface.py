@@ -66,7 +66,7 @@ class LSPAdapter(Protocol):
 
 
 class LSPResolverBackend(Protocol):
-    """Raw LSP server interface used by SymbolResolver and CallIndexer for Phase 2 resolution."""
+    """Raw LSP server interface used by SymbolResolver for call and reference resolution."""
 
     repository_root_path: str
 

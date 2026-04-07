@@ -16,7 +16,6 @@ from synapps.graph.edges import (
     upsert_references,
 )
 from synapps.indexer.assignment_ref import AssignmentRef
-from synapps.indexer.csharp.csharp_call_extractor import CSharpCallExtractor
 from synapps.indexer.csharp.csharp_type_ref_extractor import CSharpTypeRefExtractor
 from synapps.indexer.type_ref import TypeRef
 from synapps.lsp.interface import LSPResolverBackend
@@ -77,7 +76,7 @@ class SymbolResolver:
         self,
         conn: GraphConnection,
         ls: LSPResolverBackend,
-        call_extractor: CSharpCallExtractor | None = None,
+        call_extractor: object | None = None,
         type_ref_extractor: CSharpTypeRefExtractor | None = None,
         name_to_full_names: dict[str, list[str]] | None = None,
         file_extensions: frozenset[str] | None = None,

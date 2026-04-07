@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Removed
 - **Dead tree-sitter CallExtractor files deleted** — `CSharpCallExtractor`, `PythonCallExtractor`, and `TypeScriptCallExtractor` source files and their unit tests removed; all three were retired in favour of `ReferencesResolver` during the v2.1 migration; `JavaCallExtractor` preserved for the Java post-pass in `indexer.py`
 - **`CallIndexer` deleted** — dead class (imported `CSharpCallExtractor`, only referenced by its own test) removed along with `tests/unit/indexer/test_call_indexer.py`
+- **Dead `CallExtractor` imports removed from plugin files** — `CSharpPlugin`, `PythonPlugin`, `TypeScriptPlugin`, and `JavaPlugin` no longer import their respective (now-deleted) tree-sitter call extractor classes; `SymbolResolver` no longer imports `CSharpCallExtractor`; type hint on `call_extractor` parameter changed to `object | None`
 
 ### Changed
 - **Java call indexing migrated to ReferencesResolver** -- `JavaPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `JavaCallExtractor` from the primary indexing path; Java CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references`; a dedicated Java-only post-pass preserves ExternalCallStubber and Spring Data stub CALLS edges (LANG-03)

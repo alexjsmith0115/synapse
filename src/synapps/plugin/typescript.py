@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from synapps.indexer.typescript.typescript_attribute_extractor import TypeScriptAttributeExtractor
 from synapps.indexer.typescript.typescript_base_type_extractor import TypeScriptBaseTypeExtractor
-from synapps.indexer.typescript.typescript_call_extractor import TypeScriptCallExtractor
 from synapps.indexer.typescript.typescript_import_extractor import TypeScriptImportExtractor
 from synapps.indexer.typescript.typescript_type_ref_extractor import TypeScriptTypeRefExtractor
 from synapps.lsp.typescript import TypeScriptLSPAdapter

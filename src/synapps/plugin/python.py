@@ -3,7 +3,6 @@ from __future__ import annotations
 from synapps.indexer.python.python_assignment_extractor import PythonAssignmentExtractor
 from synapps.indexer.python.python_attribute_extractor import PythonAttributeExtractor
 from synapps.indexer.python.python_base_type_extractor import PythonBaseTypeExtractor
-from synapps.indexer.python.python_call_extractor import PythonCallExtractor
 from synapps.indexer.python.python_import_extractor import PythonImportExtractor
 from synapps.indexer.python.python_type_ref_extractor import PythonTypeRefExtractor
 from synapps.lsp.python import PythonLSPAdapter

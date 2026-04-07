@@ -250,7 +250,7 @@ def test_directory_chain_creates_dir_contains_file() -> None:
 
 
 def test_index_project_uses_symbol_resolver(mock_conn):
-    """Verify that index_project delegates to SymbolResolver instead of CallIndexer."""
+    """Verify that index_project delegates to SymbolResolver for call resolution."""
     lsp = MagicMock()
     lsp.get_workspace_files.return_value = []
 

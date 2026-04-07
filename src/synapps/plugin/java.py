@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from synapps.indexer.java.java_attribute_extractor import JavaAttributeExtractor
 from synapps.indexer.java.java_base_type_extractor import JavaBaseTypeExtractor
-from synapps.indexer.java.java_call_extractor import JavaCallExtractor
 from synapps.indexer.java.java_import_extractor import JavaImportExtractor
 from synapps.indexer.java.java_type_ref_extractor import JavaTypeRefExtractor
 from synapps.lsp.java import JavaLSPAdapter
