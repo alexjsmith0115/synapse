@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`ReferencesResolver`** — new class in `src/synapps/indexer/references_resolver.py` implementing LSP references-based CALLS edge resolution; iterates all indexed method symbols, calls `request_references` per method with a 30s per-request timeout, attributes each reference to its enclosing method via `find_enclosing_method_ast`, discards declaration-line self-references, skips module-level code (None scope), deduplicates (caller, callee) pairs, and writes CALLS edges via `batch_upsert_calls`; activated by the indexer when `create_call_extractor()` returns None
 - **Indexer dispatch branch for ReferencesResolver** — `_resolve_calls_and_refs` in `indexer.py` now dispatches to `ReferencesResolver` when `call_ext is None and parsed_cache is not None`; SymbolResolver still runs first for REFERENCES (type-ref) edges
 
+### Removed
+- **Dead tree-sitter CallExtractor files deleted** — `CSharpCallExtractor`, `PythonCallExtractor`, and `TypeScriptCallExtractor` source files and their unit tests removed; all three were retired in favour of `ReferencesResolver` during the v2.1 migration; `JavaCallExtractor` preserved for the Java post-pass in `indexer.py`
+- **`CallIndexer` deleted** — dead class (imported `CSharpCallExtractor`, only referenced by its own test) removed along with `tests/unit/indexer/test_call_indexer.py`
+
 ### Changed
 - **Java call indexing migrated to ReferencesResolver** -- `JavaPlugin.create_call_extractor()` now returns `None`, retiring the tree-sitter `JavaCallExtractor` from the primary indexing path; Java CALLS edges are now produced by `ReferencesResolver` using LSP `textDocument/references`; a dedicated Java-only post-pass preserves ExternalCallStubber and Spring Data stub CALLS edges (LANG-03)
 - **Java method reference fixture** -- `AnimalService.greetAllFunctional` added to the Java integration fixture using `IAnimal::speak` method reference syntax; exercises `ReferencesResolver`'s ability to produce CALLS edges from method references; covered by `test_method_reference_produces_calls_edge` integration test
