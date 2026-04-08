@@ -1020,6 +1020,9 @@ class Indexer:
                         definitions = ls.request_definition(rel_path, line, col)
                     except Exception:
                         log.debug("LSP request_definition failed for %s:%d:%d", rel_path, line, col)
+                        # Treat as external — if we can't resolve, the base is likely external
+                        for type_full in file_type_names.get(type_simple, []):
+                            external_bases_by_type.setdefault(type_full, []).append(base_simple)
                         continue
                     log.debug(
                         "request_definition for '%s' at %s:%d:%d returned %d definitions",
@@ -1075,7 +1078,7 @@ class Indexer:
                 set_external_bases(self._conn, type_full, bases)
                 log.debug("Set external_bases for %s: %s", type_full, bases)
         except Exception:
-            log.warning("LSP open_file failed for %s, skipping base type resolution", rel_path)
+            log.warning("LSP open_file failed for %s, skipping base type resolution", rel_path, exc_info=True)
 
 
 _INTERFACE_MARKERS: frozenset[str] = frozenset({"ABC", "Protocol"})

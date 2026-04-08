@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Dead code query crashes with `bool + string` type error** — Memgraph evaluates `STARTS WITH` with higher precedence than `+`, so `m.name STARTS WITH p.name + '('` was parsed as `(m.name STARTS WITH p.name) + '('`; parenthesized the concatenation
 - **C# generic class constructors flagged as dead code** — generic classes like `Repository<T>` have constructors named `Repository` which don't match `p.name = m.name` or `STARTS WITH (p.name + '(')`; added `p.name STARTS WITH (m.name + '<')` check
 - **ASP.NET `IConfigureOptions<T>` Configure methods flagged as dead code** — added `'Options'` suffix to the configure-method class exclusion list
+- **Failed LSP definition requests silently skip external base collection** — when `request_definition` throws for a base type (e.g. decompiled NuGet metadata), the exception handler now collects the base as external instead of skipping it
 
 ### Fixed
 - **Subdirectory filter not working in dead code and untested methods tabs** — the `subdirectory` parameter was accepted by web routes but silently ignored; now threaded through web route → service → graph analysis layer, adding a `file_path CONTAINS` filter to Cypher queries when non-empty
