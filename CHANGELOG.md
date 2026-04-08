@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 - **External base type tracking** — added `set_external_bases` graph function for storing unresolved base type names on Class nodes; MATCH/MERGE invariant tested
+- **Indexer wires external base collection** — `_index_base_types` now collects unresolved (external library) base type names per class and writes them to the graph via `set_external_bases` at the end of each file's LSP resolution pass
 
 ### Fixed
 - **Subdirectory filter not working in dead code and untested methods tabs** — the `subdirectory` parameter was accepted by web routes but silently ignored; now threaded through web route → service → graph analysis layer, adding a `file_path CONTAINS` filter to Cypher queries when non-empty

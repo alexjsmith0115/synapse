@@ -19,7 +19,7 @@ from synapps.graph.nodes import (
     upsert_repository, delete_file_nodes,
     collect_summaries, restore_summaries,
     get_file_symbol_names, delete_orphaned_symbols,
-    set_attributes, set_metadata_flags,
+    set_attributes, set_metadata_flags, set_external_bases,
 )
 from synapps.indexer.csharp.csharp_base_type_extractor import CSharpBaseTypeExtractor
 from synapps.indexer.method_implements_indexer import MethodImplementsIndexer
@@ -1013,6 +1013,7 @@ class Indexer:
 
         rel_path = os.path.relpath(file_path, root_path)
         try:
+            external_bases_by_type: dict[str, list[str]] = {}
             with ls.open_file(rel_path):
                 for type_simple, base_simple, is_first, line, col in triples:
                     try:
@@ -1039,6 +1040,8 @@ class Indexer:
                                 break
                     if base_full is None:
                         log.debug("Definition for '%s' not in symbol_map (external type)", base_simple)
+                        for type_full in file_type_names.get(type_simple, []):
+                            external_bases_by_type.setdefault(type_full, []).append(base_simple)
                         continue
                     for type_full in file_type_names.get(type_simple, []):
                         log.debug(
@@ -1064,6 +1067,10 @@ class Indexer:
                             upsert_implements(self._conn, type_full, base_full)
                         else:
                             upsert_implements(self._conn, type_full, base_full)
+            # Write external base type names for types that had unresolved bases
+            for type_full, bases in external_bases_by_type.items():
+                set_external_bases(self._conn, type_full, bases)
+                log.debug("Set external_bases for %s: %s", type_full, bases)
         except Exception:
             log.warning("LSP open_file failed for %s, skipping base type resolution", rel_path)
 
