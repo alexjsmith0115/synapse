@@ -740,3 +740,62 @@ def test_delegate_argument_produces_calls_edge(service: SynappsService) -> None:
         "but none found in graph. ReferencesResolver must index method group references."
     )
 
+
+# ---------------------------------------------------------------------------
+# Static method call CALLS edge verification (Phase 15 investigation)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_static_method_is_indexed(service: SynappsService) -> None:
+    """Baseline: static methods from StaticMethodExamples.cs must be indexed with is_static=true."""
+    rows = service._conn.query(
+        "MATCH (m:Method) WHERE m.full_name CONTAINS 'MathHelper.Add' "
+        "RETURN m.full_name, m.is_static"
+    )
+    assert rows, (
+        "MathHelper.Add not found in graph — "
+        "StaticMethodExamples.cs fixture was not indexed correctly."
+    )
+    full_name, is_static = rows[0][0], rows[0][1]
+    assert is_static is True, (
+        f"Expected MathHelper.Add to have is_static=true, got is_static={is_static} "
+        f"(full_name={full_name})"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_static_method_call_creates_calls_edge(service: SynappsService) -> None:
+    """Phase 15 investigation: CALLS edge from StaticMethodCaller.UseAdd to MathHelper.Add must exist."""
+    rows = service._conn.query(
+        "MATCH (src:Method {full_name: $caller})-[r:CALLS]->(dst:Method) "
+        "WHERE dst.full_name CONTAINS 'Add' "
+        "RETURN dst.full_name",
+        {"caller": "SynappsTest.Services.StaticMethodCaller.UseAdd"},
+    )
+    assert rows, (
+        "Expected CALLS edge from StaticMethodCaller.UseAdd to MathHelper.Add "
+        "(static call MathHelper.Add(1, 2)), but none found. "
+        "This confirms the static method CALLS edge gap (STAT-01)."
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_static_method_not_reported_dead(mcp_server: FastMCP) -> None:
+    """Phase 15 investigation: find_dead_code must not report MathHelper.Add or StringHelper.FormatName."""
+    result = run(mcp_server.call_tool("find_dead_code", {"path": FIXTURE_PATH}))
+    dead = result_json(result)
+    dead_methods = dead if isinstance(dead, list) else (dead or {}).get("methods", [])
+    dead_names = [m.get("full_name", "") if isinstance(m, dict) else str(m) for m in dead_methods]
+    assert not any("MathHelper.Add" in n for n in dead_names), (
+        f"MathHelper.Add reported as dead code but it is called by StaticMethodCaller.UseAdd. "
+        f"Dead methods found: {dead_names}"
+    )
+    assert not any("StringHelper.FormatName" in n for n in dead_names), (
+        f"StringHelper.FormatName reported as dead code but it is called by StaticMethodCaller.UseFormat. "
+        f"Dead methods found: {dead_names}"
+    )
+

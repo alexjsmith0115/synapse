@@ -4,6 +4,12 @@ All notable changes to Synapps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Phase 15 investigation fixture** — added `tests/fixtures/SynappsTest/Services/StaticMethodExamples.cs` with `MathHelper.Add` and `StringHelper.FormatName` static methods plus a `StaticMethodCaller` instance class to reproduce the static method CALLS edge gap
+- **Static method CALLS edge integration tests** — three new tests in `test_mcp_tools.py` verifying that static method nodes are indexed with `is_static=true`, that CALLS edges exist for static method invocations, and that `find_dead_code` does not report called static methods as dead
+
 ## [1.8.7] - 2026-04-07
 
 ### Fixed
