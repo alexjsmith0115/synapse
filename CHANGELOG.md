@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- **Static method CALLS edge investigation** — Phase 15 plan: C# test fixture for static method calls, root cause diagnosis (LSP-level vs attribution-level), conditional fix or deferral to v2.3
 - **Module-level CALLS edges for Python** — `ReferencesResolver` now attributes references at module scope (e.g. `app = create_app()`) to the enclosing module node via `batch_upsert_module_calls`, eliminating false positives in `find_dead_code` for functions only called at module level
 - **`_is_in_type_checking_block`** — new helper in `tree_sitter_util` using AST parent-chain traversal to detect whether a position is inside `if TYPE_CHECKING:` or `if typing.TYPE_CHECKING:` blocks; references inside these blocks are excluded from module-level call attribution
 - **`refs_attributed_as_module_calls` stat counter** — `ReferencesResolver` now tracks how many module-level references were successfully attributed, separate from the existing `refs_skipped_none_scope` counter
