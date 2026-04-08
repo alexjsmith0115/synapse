@@ -15,6 +15,7 @@ from synapps.graph.analysis import (
     _FRAMEWORK_ATTRIBUTES,
     _FRAMEWORK_CLASS_ATTRIBUTES,
     _build_base_exclusion_where,
+    _ENTITY_DTO_ANNOTATIONS,
 )
 
 
@@ -369,3 +370,64 @@ class TestFrameworkClassAttributes:
 
     def test_contains_singleton(self) -> None:
         assert "singleton" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+
+class TestEntityDtoAnnotations:
+    """_ENTITY_DTO_ANNOTATIONS constant: Java entity/DTO framework-managed getter/setter classes."""
+
+    def test_contains_entity(self) -> None:
+        assert "entity" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_contains_data(self) -> None:
+        assert "data" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_contains_embeddable(self) -> None:
+        assert "embeddable" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_contains_mappedsuperclass(self) -> None:
+        assert "mappedsuperclass" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_contains_getter(self) -> None:
+        assert "getter" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_contains_setter(self) -> None:
+        assert "setter" in _ENTITY_DTO_ANNOTATIONS
+
+    def test_all_lowercase(self) -> None:
+        # JavaAttributeExtractor stores all annotations via .lower(),
+        # so every entry must already be lowercase for CONTAINS checks to match.
+        assert all(a == a.lower() for a in _ENTITY_DTO_ANNOTATIONS)
+
+
+class TestBuildExclusionWhereEntityDto:
+    """Additional WHERE clause tests for vendor-path and entity/DTO getter/setter exclusions."""
+
+    def setup_method(self) -> None:
+        self.clause = _build_base_exclusion_where()
+
+    def test_clause_has_vendor_pattern_exclusion(self) -> None:
+        assert "NOT m.file_path =~ $vendor_pattern" in self.clause
+
+    def test_clause_excludes_entity_dto_getters_via_class_annotation(self) -> None:
+        # The clause must check c.attributes CONTAINS '"entity"' to detect @Entity classes.
+        assert 'CONTAINS \'"entity"\'' in self.clause
+
+    def test_clause_entity_dto_has_name_guard(self) -> None:
+        # The name guard restricts exclusion to getter/setter methods only,
+        # not all methods on annotated classes.
+        assert "m.name STARTS WITH 'get'" in self.clause
+        assert "m.name STARTS WITH 'set'" in self.clause
+        assert "m.name STARTS WITH 'is'" in self.clause
+
+    def test_entity_dto_name_guard_inside_list_comprehension(self) -> None:
+        # The name guard must appear AFTER the second occurrence of "(m)<-[:CONTAINS]-(c:Class)"
+        # confirming it is inside the entity/DTO list comprehension WHERE clause, not global.
+        # If placed globally, ALL get*/set*/is* methods would be suppressed (D-06 violation).
+        class_traversal = "(m)<-[:CONTAINS]-(c:Class)"
+        first_idx = self.clause.index(class_traversal)
+        second_idx = self.clause.index(class_traversal, first_idx + 1)
+        name_guard_idx = self.clause.index("STARTS WITH 'get'")
+        assert name_guard_idx > second_idx, (
+            "Name guard 'STARTS WITH get' must be inside the entity/DTO list comprehension, "
+            "not outside it. Found it before the second class traversal pattern."
+        )

@@ -302,6 +302,18 @@ _FRAMEWORK_CLASS_ATTRIBUTES = [
 ]
 
 
+# Java entity/DTO annotations whose getter/setter methods are framework-generated.
+# Lowercase: JavaAttributeExtractor stores all annotations via .lower().
+_ENTITY_DTO_ANNOTATIONS = [
+    "entity",
+    "data",
+    "embeddable",
+    "mappedsuperclass",
+    "getter",
+    "setter",
+]
+
+
 def _build_base_exclusion_where() -> str:
     """Build the shared WHERE clause fragment for dead code / untested queries."""
     name_list = ", ".join(f"'{n}'" for n in _EXCLUDED_METHOD_NAMES)
@@ -312,6 +324,10 @@ def _build_base_exclusion_where() -> str:
     class_attr_checks = " OR ".join(
         f"coalesce(c.attributes, '[]') CONTAINS '\"{ a}\"'"
         for a in _FRAMEWORK_CLASS_ATTRIBUTES
+    )
+    entity_dto_attr_checks = " OR ".join(
+        f"coalesce(c.attributes, '[]') CONTAINS '\"{ a}\"'"
+        for a in _ENTITY_DTO_ANNOTATIONS
     )
     return (
         "NOT m.file_path =~ $test_pattern "
@@ -344,6 +360,14 @@ def _build_base_exclusion_where() -> str:
         # Heuristic 4: Methods on classes with framework class-level attributes
         f"AND NOT size([(m)<-[:CONTAINS]-(c:Class) "
         f"WHERE ({class_attr_checks}) | 1]) > 0 "
+        # Vendored/third-party JS paths (node_modules, vendor, bower_components, CDN files, etc.)
+        "AND NOT m.file_path =~ $vendor_pattern "
+        # Java entity/DTO getter-setter exclusion: name guard is inside the list comprehension
+        # to avoid suppressing business methods on the same annotated classes (D-05/D-06).
+        f"AND NOT size([(m)<-[:CONTAINS]-(c:Class) "
+        f"WHERE ({entity_dto_attr_checks}) "
+        f"AND (m.name STARTS WITH 'get' OR m.name STARTS WITH 'set' OR m.name STARTS WITH 'is') "
+        f"| 1]) > 0 "
     )
 
 
@@ -353,7 +377,7 @@ def find_dead_code(conn: GraphConnection, exclude_pattern: str = "", limit: int 
     base_where = _build_base_exclusion_where()
     dead_filter = "AND NOT ()-[:CALLS]->(m) "
     subdir_filter = "AND m.file_path CONTAINS $subdirectory " if subdirectory else ""
-    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
+    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern, "vendor_pattern": _VENDORED_PATH_PATTERN}
     if subdirectory:
         params["subdirectory"] = subdirectory
 
@@ -407,7 +431,7 @@ def find_untested(conn: GraphConnection, exclude_pattern: str = "", limit: int =
     base_where = _build_base_exclusion_where()
     untested_filter = "AND NOT ()-[:TESTS]->(m) "
     subdir_filter = "AND m.file_path CONTAINS $subdirectory " if subdirectory else ""
-    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern}
+    params = {"test_pattern": _TEST_PATH_PATTERN, "exclude_pattern": exclude_pattern, "vendor_pattern": _VENDORED_PATH_PATTERN}
     if subdirectory:
         params["subdirectory"] = subdirectory
 
@@ -461,6 +485,7 @@ _VENDORED_PATH_PATTERN = (
     r"|.*[/\\]vendor[/\\].*"
     r"|.*[/\\]third_party[/\\].*"
     r"|.*[/\\]\.gradle[/\\].*"
+    r"|.*[/\\]bower_components[/\\].*"
     r"|.*[/\\]static[/\\](?:js|lib|libs)[/\\].*"
     r"|.*\.min\.[jt]sx?$"
     r"|.*\.bundle\.[jt]sx?$"

@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- **Vendored JS file exclusion from dead code** — `_build_base_exclusion_where` now excludes methods in `node_modules`, `vendor`, `bower_components`, `third_party`, `.gradle`, `static/js|lib|libs`, and minified/bundled/CDN files via `NOT m.file_path =~ $vendor_pattern`; `find_dead_code` and `find_untested` pass `vendor_pattern` in params; `_VENDORED_PATH_PATTERN` extended with `bower_components` alternative
+- **Java entity/DTO getter-setter exclusion from dead code** — new `_ENTITY_DTO_ANNOTATIONS` constant (`entity`, `data`, `embeddable`, `mappedsuperclass`, `getter`, `setter`) drives a list-comprehension WHERE clause that suppresses `get*`/`set*`/`is*` methods on annotated Java classes only; business methods on the same classes are unaffected
 - **External base type tracking** — added `set_external_bases` graph function for storing unresolved base type names on Class nodes; MATCH/MERGE invariant tested
 - **Indexer wires external base collection** — `_index_base_types` now collects unresolved (external library) base type names per class and writes them to the graph via `set_external_bases`; graph writes flushed after LSP context closes; empty LSP definitions now also treated as external (catches NuGet/Maven interfaces that LSP can't resolve)
 - **Expanded dead code deny-lists** — added C#/Java framework method names, annotations, and class-level framework attributes for dead code false positive reduction

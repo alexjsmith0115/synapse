@@ -234,6 +234,14 @@ def test_vendored_pattern_matches_cdn_libraries():
     assert not re.match(_VENDORED_PATH_PATTERN, "/app/src/main/java/com/example/MyClass.java")
 
 
+def test_vendored_pattern_matches_bower_components():
+    """_VENDORED_PATH_PATTERN must match paths under bower_components directories."""
+    assert re.match(_VENDORED_PATH_PATTERN, "/project/bower_components/jquery/dist/jquery.js")
+    assert re.match(_VENDORED_PATH_PATTERN, "/app/bower_components/angular/angular.min.js")
+    # Partial name must NOT match a non-bower path
+    assert not re.match(_VENDORED_PATH_PATTERN, "/src/components/bower.ts")
+
+
 # ---------------------------------------------------------------------------
 # Regression: packages list must use full_name, not simple name
 # ---------------------------------------------------------------------------

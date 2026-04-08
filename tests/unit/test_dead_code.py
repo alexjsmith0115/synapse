@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from synapps.graph.analysis import find_dead_code, find_untested, _build_base_exclusion_where, _EXCLUDED_METHOD_NAMES
+from synapps.graph.analysis import find_dead_code, find_untested, _build_base_exclusion_where, _EXCLUDED_METHOD_NAMES, _VENDORED_PATH_PATTERN
 from synapps.graph.lookups import _TEST_PATH_PATTERN
 
 
@@ -541,3 +541,26 @@ def test_find_untested_no_subdirectory_no_contains():
     find_untested(conn)
     cypher = conn.query.call_args_list[0].args[0]
     assert "CONTAINS $subdirectory" not in cypher
+
+
+# --- VEND-01/02: Vendored path exclusion in dead code and untested queries ---
+
+def test_find_dead_code_passes_vendor_pattern_in_params():
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
+    find_dead_code(conn)
+    params = conn.query.call_args_list[0].args[1]
+    assert "vendor_pattern" in params
+    assert params["vendor_pattern"] == _VENDORED_PATH_PATTERN
+
+
+def test_find_untested_passes_vendor_pattern_in_params():
+    conn = _conn_with_side_effects([], [(0,)], [(0,)])
+    find_untested(conn)
+    params = conn.query.call_args_list[0].args[1]
+    assert "vendor_pattern" in params
+    assert params["vendor_pattern"] == _VENDORED_PATH_PATTERN
+
+
+def test_vendor_pattern_exclusion_in_where_clause():
+    clause = _build_base_exclusion_where()
+    assert "NOT m.file_path =~ $vendor_pattern" in clause
