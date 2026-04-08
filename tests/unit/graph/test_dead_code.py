@@ -167,6 +167,13 @@ class TestBuildExclusionWhere:
     def test_clause_excludes_overrides_edge(self) -> None:
         assert "(m)-[:OVERRIDES]->()" in self.clause
 
+    # --- Constructor name matching (parameterized) ---
+
+    def test_constructor_excluded_by_starts_with_classname(self) -> None:
+        # JDT LS stores Java constructors as "ClassName()" or "ClassName(Type, Type)"
+        # Must match via STARTS WITH p.name + '(' not just exact p.name = m.name
+        assert "m.name STARTS WITH p.name + '('" in self.clause
+
     # --- .NET Startup/Program convention exclusions ---
 
     def test_configure_services_in_name_check(self) -> None:

@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Dead code structural heuristics** — `_build_base_exclusion_where` now excludes methods on classes with external bases, virtual methods, abstract methods, and methods on framework-managed classes; class-level attribute OR chain parenthesized for Memgraph parser safety
 
 ### Fixed
+- **Empty LSP definitions not treated as external** — when LSP returns no definitions for a base type (e.g. NuGet/Maven interfaces), treat it as external rather than silently skipping
+- **Java parameterized constructors not excluded from dead code** — JDT LS stores constructor names as `ClassName(Type, Type)` which didn't match the exact `p.name = m.name` check; now uses `STARTS WITH p.name + '('` fallback
+
+### Fixed
 - **Subdirectory filter not working in dead code and untested methods tabs** — the `subdirectory` parameter was accepted by web routes but silently ignored; now threaded through web route → service → graph analysis layer, adding a `file_path CONTAINS` filter to Cypher queries when non-empty
 - **Python CALLS edges missing due to selectionRange line mismatch** — `PythonLSPAdapter._convert()` read `line` from `location.range.start.line` (includes decorators) instead of `selectionRange.start.line`, and never set `col`; this caused `find_enclosing_method_ast` to miss symbol_map lookups for decorated methods, producing zero CALLS edges and flagging all Python code as dead
 - **TypeScript noise symbols indexed** — tsserver-synthesized symbols (`.map() callback`, `<unknown>`, array literals) were indexed as real symbols, polluting the graph; now filtered out in `_traverse`

@@ -323,7 +323,7 @@ def _build_base_exclusion_where() -> str:
         f"AND NOT m.name IN [{name_list}] "
         "AND NOT m.name STARTS WITH 'main(' "
         "AND size([(m)<-[:CONTAINS]-(p) "
-        "WHERE (p:Class OR p:Interface) AND p.name = m.name | 1]) = 0 "
+        "WHERE (p:Class OR p:Interface) AND (p.name = m.name OR m.name STARTS WITH p.name + '(') | 1]) = 0 "
         "AND NOT (m.name IN ['configure', 'Configure', 'ConfigureServices'] "
         "AND size([(m)<-[:CONTAINS]-(cfg) "
         "WHERE cfg:Class AND (cfg.name ENDS WITH 'Configuration' "
