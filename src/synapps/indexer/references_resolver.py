@@ -18,7 +18,11 @@ import time
 from typing import TYPE_CHECKING, Callable
 
 from synapps.graph.edges import batch_upsert_calls, batch_upsert_module_calls
-from synapps.indexer.tree_sitter_util import _is_in_type_checking_block, find_enclosing_method_ast
+from synapps.indexer.tree_sitter_util import (
+    _is_in_type_checking_block,
+    find_enclosing_method_ast,
+    find_jsx_usages_in_methods,
+)
 
 if TYPE_CHECKING:
     from synapps.graph.connection import GraphConnection
@@ -220,9 +224,25 @@ class ReferencesResolver:
             abs_path, ref_line_0, ref_col_0, self._parsed_cache, self._symbol_map,
         )
         if caller_full_name is None:
-            if not self._try_attribute_as_module_call(abs_path, ref_line_0, ref_col_0, callee_full_name):
-                # Reference is in import zone or module-level code — no enclosing method
-                self._stats.refs_skipped_none_scope += 1
+            # JSX follow-up: TypeScript language servers return import-binding
+            # references for cross-file symbols but not local usages of the
+            # import (e.g. <Greeting />).  Scan the file's AST for JSX elements
+            # that match the callee name and attribute them to their enclosing methods.
+            callee_simple = callee_full_name.rsplit(".", 1)[-1]
+            jsx_hits = find_jsx_usages_in_methods(
+                abs_path, callee_simple, self._parsed_cache, self._symbol_map,
+            )
+            for jsx_caller, jsx_line_1, jsx_col_0 in jsx_hits:
+                self._pending_calls.append({
+                    "caller": jsx_caller,
+                    "callee": callee_full_name,
+                    "line": jsx_line_1,
+                    "col": jsx_col_0,
+                })
+                self._stats.refs_attributed += 1
+            if not jsx_hits:
+                if not self._try_attribute_as_module_call(abs_path, ref_line_0, ref_col_0, callee_full_name):
+                    self._stats.refs_skipped_none_scope += 1
             return
 
         self._pending_calls.append({

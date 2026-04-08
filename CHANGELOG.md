@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-04-08
+
+### Fixed
+- **JSX CALLS edges missing for path-alias imports** — TypeScript language servers return only import-binding references for cross-file symbols, missing local JSX usages like `<Greeting />`; added tree-sitter-based JSX follow-up scan in `ReferencesResolver` to create CALLS edges from the enclosing method to the component
+
 ## [1.9.0] - 2026-04-08
 
 ### Added

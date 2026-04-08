@@ -107,6 +107,50 @@ def _is_in_type_checking_block(
     return False
 
 
+_JSX_TAG_TYPES: frozenset[str] = frozenset({
+    "jsx_self_closing_element",
+    "jsx_opening_element",
+})
+
+
+def find_jsx_usages_in_methods(
+    file_path: str,
+    name: str,
+    parsed_cache: dict[str, ParsedFile],
+    symbol_map: dict[tuple[str, int], str],
+) -> list[tuple[str, int, int]]:
+    """Find JSX element usages of ``name`` that are inside method scopes.
+
+    Scans the tree-sitter AST for ``<Name .../>`` or ``<Name>`` elements and
+    returns the enclosing method's full_name plus the position for each hit.
+
+    Returns:
+        List of ``(caller_full_name, line_1, col_0)`` tuples.
+    """
+    pf = parsed_cache.get(file_path)
+    if pf is None:
+        return []
+
+    results: list[tuple[str, int, int]] = []
+
+    def _walk(node) -> None:
+        if node.type in _JSX_TAG_TYPES:
+            # The tag name is the first named child (identifier or member_expression)
+            for child in node.children:
+                if child.type == "identifier" and node_text(child) == name:
+                    line_0 = child.start_point[0]
+                    col_0 = child.start_point[1]
+                    caller = find_enclosing_method_ast(file_path, line_0, col_0, parsed_cache, symbol_map)
+                    if caller is not None:
+                        results.append((caller, line_0 + 1, col_0))
+                    break
+        for child in node.children:
+            _walk(child)
+
+    _walk(pf.tree.root_node)
+    return results
+
+
 def find_enclosing_method_ast(
     file_path: str,
     line_0: int,

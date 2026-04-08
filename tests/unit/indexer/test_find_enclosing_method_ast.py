@@ -6,7 +6,7 @@ import tree_sitter_java as tsjava
 import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 
-from synapps.indexer.tree_sitter_util import ParsedFile, find_enclosing_method_ast
+from synapps.indexer.tree_sitter_util import ParsedFile, find_enclosing_method_ast, find_jsx_usages_in_methods
 
 _PY_LANGUAGE = Language(tspython.language())
 _JAVA_LANGUAGE = Language(tsjava.language())
@@ -216,6 +216,84 @@ class Controller {
 
 
 from synapps.indexer.tree_sitter_util import _is_in_type_checking_block
+
+# ---------------------------------------------------------------------------
+# find_jsx_usages_in_methods tests
+# ---------------------------------------------------------------------------
+
+import tree_sitter_typescript as tstypescript
+
+_TSX_LANGUAGE = Language(tstypescript.language_tsx())
+_tsx_parser = Parser(_TSX_LANGUAGE)
+
+
+def _make_tsx_parsed_file(source: str, file_path: str = "/test/app.tsx") -> ParsedFile:
+    tree = _tsx_parser.parse(bytes(source, "utf-8"))
+    return ParsedFile(file_path=file_path, source=source, tree=tree)
+
+
+class TestFindJsxUsagesInMethods:
+    def test_self_closing_jsx_inside_function(self):
+        """<Greeting /> inside a function should be found."""
+        source = """\
+import { Greeting } from './Greeting';
+
+export function App() {
+  return <Greeting name="World" />;
+}
+"""
+        fp = "/test/app.tsx"
+        pf = _make_tsx_parsed_file(source, file_path=fp)
+        symbol_map = {(fp, 3): "src/app.App"}
+        results = find_jsx_usages_in_methods(fp, "Greeting", {fp: pf}, symbol_map)
+        assert len(results) == 1
+        caller, line_1, col_0 = results[0]
+        assert caller == "src/app.App"
+
+    def test_opening_jsx_inside_function(self):
+        """<Greeting>...</Greeting> opening tag should be found."""
+        source = """\
+import { Greeting } from './Greeting';
+
+export function App() {
+  return <Greeting>Hello</Greeting>;
+}
+"""
+        fp = "/test/app.tsx"
+        pf = _make_tsx_parsed_file(source, file_path=fp)
+        symbol_map = {(fp, 3): "src/app.App"}
+        results = find_jsx_usages_in_methods(fp, "Greeting", {fp: pf}, symbol_map)
+        assert len(results) == 1
+        assert results[0][0] == "src/app.App"
+
+    def test_no_match_for_different_name(self):
+        """JSX for a different component should not match."""
+        source = """\
+export function App() {
+  return <OtherComponent />;
+}
+"""
+        fp = "/test/app.tsx"
+        pf = _make_tsx_parsed_file(source, file_path=fp)
+        symbol_map = {(fp, 1): "src/app.App"}
+        results = find_jsx_usages_in_methods(fp, "Greeting", {fp: pf}, symbol_map)
+        assert results == []
+
+    def test_jsx_at_module_level_not_returned(self):
+        """JSX outside any function should not be returned."""
+        source = """\
+const el = <Greeting />;
+"""
+        fp = "/test/app.tsx"
+        pf = _make_tsx_parsed_file(source, file_path=fp)
+        symbol_map: dict[tuple[str, int], str] = {}
+        results = find_jsx_usages_in_methods(fp, "Greeting", {fp: pf}, symbol_map)
+        assert results == []
+
+    def test_file_not_in_cache(self):
+        """Missing file in parsed_cache returns empty list."""
+        results = find_jsx_usages_in_methods("/nonexistent.tsx", "Greeting", {}, {})
+        assert results == []
 
 
 class TestIsInTypeCheckingBlock:
