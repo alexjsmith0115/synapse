@@ -342,7 +342,7 @@ def _build_base_exclusion_where() -> str:
         "AND NOT coalesce(m.is_abstract, false) "
         # Heuristic 4: Methods on classes with framework class-level attributes
         f"AND NOT size([(m)<-[:CONTAINS]-(c:Class) "
-        f"WHERE {class_attr_checks} | 1]) > 0 "
+        f"WHERE ({class_attr_checks}) | 1]) > 0 "
     )
 
 
