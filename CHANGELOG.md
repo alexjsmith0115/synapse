@@ -6,9 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-04-08
+
 ### Added
-- **Phase 15 investigation fixture** — added `tests/fixtures/SynappsTest/Services/StaticMethodExamples.cs` with `MathHelper.Add` and `StringHelper.FormatName` static methods plus a `StaticMethodCaller` instance class to reproduce the static method CALLS edge gap
-- **Static method CALLS edge integration tests** — three new tests in `test_mcp_tools.py` verifying that static method nodes are indexed with `is_static=true`, that CALLS edges exist for static method invocations, and that `find_dead_code` does not report called static methods as dead
+- **`exclude_file_pattern` parameter** — new regex parameter on `find_dead_code` and `find_untested` to exclude results by file path (e.g., `.*test_helpers.*`), propagated through all 4 layers (graph, service, MCP, web)
+- **Vendored JS exclusion** — `find_dead_code` and `find_untested` automatically exclude methods from node_modules, vendor, bower_components, third_party, .min.js, and other vendored paths
+- **Java entity/DTO getter-setter exclusion** — getter/setter methods (get*, set*, is*) on classes annotated with @Entity, @Data, @Embeddable, @MappedSuperclass, @Getter, or @Setter are excluded from dead code results
+- **Python module-level call attribution** — functions called at module scope (e.g., `app = create_app()`) now produce CALLS edges, eliminating false positives for functions only called at module level
+- **TYPE_CHECKING block exclusion** — references inside `if TYPE_CHECKING:` blocks are excluded from CALLS edge generation (compile-time-only imports)
+- **Static method CALLS edge integration tests** — C# fixture and three integration tests confirming static method call resolution works correctly
+
+### Fixed
+- **Subdirectory partial path segment matching** — `find_dead_code(subdirectory="api")` no longer matches methods in `graphapi/` or `restapi/` directories; uses path-segment-bounded regex instead of CONTAINS
 
 ## [1.8.7] - 2026-04-07
 
