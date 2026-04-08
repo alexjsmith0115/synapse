@@ -4,6 +4,13 @@ All notable changes to Synapps will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Module-level CALLS edges for Python** — `ReferencesResolver` now attributes references at module scope (e.g. `app = create_app()`) to the enclosing module node via `batch_upsert_module_calls`, eliminating false positives in `find_dead_code` for functions only called at module level
+- **`_is_in_type_checking_block`** — new helper in `tree_sitter_util` using AST parent-chain traversal to detect whether a position is inside `if TYPE_CHECKING:` or `if typing.TYPE_CHECKING:` blocks; references inside these blocks are excluded from module-level call attribution
+- **`refs_attributed_as_module_calls` stat counter** — `ReferencesResolver` now tracks how many module-level references were successfully attributed, separate from the existing `refs_skipped_none_scope` counter
+
 ## [1.8.7] - 2026-04-07
 
 ### Fixed

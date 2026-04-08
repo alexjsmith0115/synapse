@@ -208,3 +208,72 @@ class Controller {
     # Reference at line 3 (0-based), col 8 — inside method body
     result = find_enclosing_method_ast(fp, 3, 8, {fp: pf}, symbol_map)
     assert result == "MyApp.Controller.GetItems"
+
+
+# ---------------------------------------------------------------------------
+# _is_in_type_checking_block tests
+# ---------------------------------------------------------------------------
+
+
+from synapps.indexer.tree_sitter_util import _is_in_type_checking_block
+
+
+class TestIsInTypeCheckingBlock:
+    def test_position_inside_bare_type_checking_block_returns_true(self):
+        """A position inside `if TYPE_CHECKING:` block returns True."""
+        source = """\
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    some_call()
+"""
+        pf = _make_parsed_file(source)
+        parsed_cache = {"/test/file.py": pf}
+        # line 2 (0-based) is `    some_call()` — inside the TYPE_CHECKING block
+        result = _is_in_type_checking_block("/test/file.py", 2, 4, parsed_cache)
+        assert result is True
+
+    def test_position_inside_qualified_type_checking_block_returns_true(self):
+        """A position inside `if typing.TYPE_CHECKING:` (qualified) block returns True."""
+        source = """\
+import typing
+if typing.TYPE_CHECKING:
+    some_call()
+"""
+        pf = _make_parsed_file(source)
+        parsed_cache = {"/test/file.py": pf}
+        # line 2 (0-based) is `    some_call()` — inside the typing.TYPE_CHECKING block
+        result = _is_in_type_checking_block("/test/file.py", 2, 4, parsed_cache)
+        assert result is True
+
+    def test_position_outside_any_type_checking_block_returns_false(self):
+        """A position at module level outside any if block returns False."""
+        source = """\
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    some_import = True
+
+x = 42
+"""
+        pf = _make_parsed_file(source)
+        parsed_cache = {"/test/file.py": pf}
+        # line 4 (0-based) is `x = 42` — outside any block
+        result = _is_in_type_checking_block("/test/file.py", 4, 0, parsed_cache)
+        assert result is False
+
+    def test_position_inside_regular_if_block_returns_false(self):
+        """A position inside a regular `if` block (not TYPE_CHECKING) returns False."""
+        source = """\
+some_condition = True
+if some_condition:
+    code()
+"""
+        pf = _make_parsed_file(source)
+        parsed_cache = {"/test/file.py": pf}
+        # line 2 (0-based) is `    code()` — inside a regular if block
+        result = _is_in_type_checking_block("/test/file.py", 2, 4, parsed_cache)
+        assert result is False
+
+    def test_file_not_in_parsed_cache_returns_false(self):
+        """When the file is not in parsed_cache, returns False (safe default)."""
+        result = _is_in_type_checking_block("/nonexistent/file.py", 0, 0, {})
+        assert result is False

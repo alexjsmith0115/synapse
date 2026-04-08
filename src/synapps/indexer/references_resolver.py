@@ -15,10 +15,10 @@ import concurrent.futures
 import logging
 import os
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
-from synapps.graph.edges import batch_upsert_calls
-from synapps.indexer.tree_sitter_util import find_enclosing_method_ast
+from synapps.graph.edges import batch_upsert_calls, batch_upsert_module_calls
+from synapps.indexer.tree_sitter_util import _is_in_type_checking_block, find_enclosing_method_ast
 
 if TYPE_CHECKING:
     from synapps.graph.connection import GraphConnection
@@ -38,6 +38,7 @@ class _RefStats:
         "methods_timed_out",
         "refs_seen",
         "refs_attributed",
+        "refs_attributed_as_module_calls",
         "refs_skipped_none_scope",
         "refs_skipped_self",
         "edges_written",
@@ -48,6 +49,7 @@ class _RefStats:
         self.methods_timed_out: int = 0
         self.refs_seen: int = 0
         self.refs_attributed: int = 0
+        self.refs_attributed_as_module_calls: int = 0
         self.refs_skipped_none_scope: int = 0
         self.refs_skipped_self: int = 0
         self.edges_written: int = 0
@@ -71,6 +73,7 @@ class ReferencesResolver:
         symbol_map: dict[tuple[str, int], str],
         per_request_timeout: float = _DEFAULT_TIMEOUT,
         symbol_col_map: dict[tuple[str, int], int] | None = None,
+        module_name_resolver: Callable[[str], str | None] | None = None,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -81,7 +84,9 @@ class ReferencesResolver:
         # Used to pass the correct character position to request_references so
         # strict language servers (e.g. Roslyn/C#) resolve the symbol correctly.
         self._symbol_col_map: dict[tuple[str, int], int] = symbol_col_map or {}
+        self._module_name_resolver = module_name_resolver
         self._pending_calls: list[dict] = []
+        self._pending_module_calls: list[dict] = []
         self._stats = _RefStats()
 
     def resolve(self) -> None:
@@ -102,19 +107,19 @@ class ReferencesResolver:
         for file_path, line_1, full_name in methods:
             self._process_method(file_path, line_1, full_name)
 
-        # Flush any remaining pending calls
-        if self._pending_calls:
+        # Flush any remaining pending calls (method-level and module-level)
+        if self._pending_calls or self._pending_module_calls:
             self._flush()
 
         elapsed = time.monotonic() - start
         s = self._stats
         log.info(
             "ReferencesResolver complete in %.1fs — %d methods processed, %d timed out, "
-            "%d refs seen, %d attributed, %d skipped (no scope), %d skipped (self-ref), "
-            "%d edges written",
+            "%d refs seen, %d attributed, %d module-level attributed, "
+            "%d skipped (no scope), %d skipped (self-ref), %d edges written",
             elapsed,
             s.methods_processed, s.methods_timed_out,
-            s.refs_seen, s.refs_attributed,
+            s.refs_seen, s.refs_attributed, s.refs_attributed_as_module_calls,
             s.refs_skipped_none_scope, s.refs_skipped_self,
             s.edges_written,
         )
@@ -215,8 +220,9 @@ class ReferencesResolver:
             abs_path, ref_line_0, ref_col_0, self._parsed_cache, self._symbol_map,
         )
         if caller_full_name is None:
-            # Reference is in import zone or module-level code — no enclosing method
-            self._stats.refs_skipped_none_scope += 1
+            if not self._try_attribute_as_module_call(abs_path, ref_line_0, ref_col_0, callee_full_name):
+                # Reference is in import zone or module-level code — no enclosing method
+                self._stats.refs_skipped_none_scope += 1
             return
 
         self._pending_calls.append({
@@ -230,22 +236,61 @@ class ReferencesResolver:
         if len(self._pending_calls) >= _FLUSH_BATCH_SIZE:
             self._flush()
 
+    def _try_attribute_as_module_call(
+        self,
+        abs_path: str,
+        ref_line_0: int,
+        ref_col_0: int,
+        callee_full_name: str,
+    ) -> bool:
+        """Attempt to attribute a module-level reference to a module CALLS edge.
+
+        Returns True if the reference was attributed (caller queued), False otherwise.
+        References inside TYPE_CHECKING blocks are excluded — they are compile-time only.
+        """
+        if self._module_name_resolver is None:
+            return False
+        if _is_in_type_checking_block(abs_path, ref_line_0, ref_col_0, self._parsed_cache):
+            return False
+        module_full_name = self._module_name_resolver(abs_path)
+        if module_full_name is None:
+            return False
+        self._pending_module_calls.append({
+            "caller": module_full_name,
+            "callee": callee_full_name,
+            "line": ref_line_0 + 1,
+            "col": ref_col_0,
+        })
+        self._stats.refs_attributed_as_module_calls += 1
+        return True
+
     def _flush(self) -> None:
         """Deduplicate pending calls by (caller, callee) pair and write to graph."""
-        if not self._pending_calls:
-            return
+        if self._pending_calls:
+            # Keep first occurrence of each (caller, callee) pair — duplicates arise
+            # when the same method is called multiple times in the same caller or when
+            # the same reference location is returned more than once by the language server.
+            seen: set[tuple[str, str]] = set()
+            deduplicated: list[dict] = []
+            for row in self._pending_calls:
+                key = (row["caller"], row["callee"])
+                if key not in seen:
+                    seen.add(key)
+                    deduplicated.append(row)
 
-        # Keep first occurrence of each (caller, callee) pair — duplicates arise
-        # when the same method is called multiple times in the same caller or when
-        # the same reference location is returned more than once by the language server.
-        seen: set[tuple[str, str]] = set()
-        deduplicated: list[dict] = []
-        for row in self._pending_calls:
-            key = (row["caller"], row["callee"])
-            if key not in seen:
-                seen.add(key)
-                deduplicated.append(row)
+            batch_upsert_calls(self._conn, deduplicated)
+            self._stats.edges_written += len(deduplicated)
+            self._pending_calls = []
 
-        batch_upsert_calls(self._conn, deduplicated)
-        self._stats.edges_written += len(deduplicated)
-        self._pending_calls = []
+        if self._pending_module_calls:
+            seen_module: set[tuple[str, str]] = set()
+            deduplicated_module: list[dict] = []
+            for row in self._pending_module_calls:
+                key = (row["caller"], row["callee"])
+                if key not in seen_module:
+                    seen_module.add(key)
+                    deduplicated_module.append(row)
+
+            batch_upsert_module_calls(self._conn, deduplicated_module)
+            self._stats.edges_written += len(deduplicated_module)
+            self._pending_module_calls = []

@@ -13,9 +13,20 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+import tree_sitter_python as tspython
+from tree_sitter import Language, Parser
 
 from synapps.indexer.references_resolver import ReferencesResolver
 from synapps.indexer.tree_sitter_util import ParsedFile
+
+_PY_LANGUAGE = Language(tspython.language())
+_py_parser = Parser(_PY_LANGUAGE)
+
+
+def _make_real_parsed_file(source: str, file_path: str = "/test/file.py") -> ParsedFile:
+    """Create a real ParsedFile with a parsed tree-sitter tree."""
+    tree = _py_parser.parse(bytes(source, "utf-8"))
+    return ParsedFile(file_path=file_path, source=source, tree=tree)
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +67,7 @@ def _make_resolver(
     symbol_map: dict | None = None,
     per_request_timeout: float = 30.0,
     symbol_col_map: dict | None = None,
+    module_name_resolver=None,
 ) -> tuple[ReferencesResolver, MagicMock]:
     """Build a ReferencesResolver with a mocked GraphConnection."""
     conn = MagicMock()
@@ -72,6 +84,7 @@ def _make_resolver(
         symbol_map=symbol_map,
         per_request_timeout=per_request_timeout,
         symbol_col_map=symbol_col_map,
+        module_name_resolver=module_name_resolver,
     )
     return resolver, conn
 
@@ -403,3 +416,209 @@ class TestSymbolColMap:
         assert ls.request_references.call_count == 1
         _rel, _line, col = ls.request_references.call_args[0]
         assert col == 0
+
+
+class TestModuleLevelCalls:
+    """Module-level call attribution tests.
+
+    When find_enclosing_method_ast returns None and module_name_resolver is available,
+    the reference should produce a CALLS edge via batch_upsert_module_calls.
+    """
+
+    def test_module_level_ref_produces_module_calls_edge(self):
+        """Reference at module scope with module_name_resolver returns a module name produces a CALLS edge."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app_module.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+        callee = "pkg.app_module.create_app"
+        module_name_resolver = lambda fp: "pkg.app_module" if fp == "/proj/caller.py" else None
+
+        # Reference at module scope in caller.py (line 3, col 6)
+        ls.request_references.return_value = [_make_ref("/proj/caller.py", 3, 6)]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        mock_module_calls.assert_called()
+        all_rows = [row for c in mock_module_calls.call_args_list for row in c.args[1]]
+        assert len(all_rows) == 1
+        row = all_rows[0]
+        assert row["caller"] == "pkg.app_module"
+        assert row["callee"] == callee
+        assert row["line"] == 4   # 0-based ref_line + 1
+        assert row["col"] == 6
+
+    def test_module_call_increments_refs_attributed_as_module_calls_not_skipped(self):
+        """refs_attributed_as_module_calls increments (not refs_skipped_none_scope) when module call attributed."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+        module_name_resolver = lambda fp: "pkg.main_module"
+
+        ls.request_references.return_value = [_make_ref("/proj/main.py", 5, 0)]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls"), \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        assert resolver._stats.refs_attributed_as_module_calls == 1
+        assert resolver._stats.refs_skipped_none_scope == 0
+
+    def test_no_module_name_resolver_falls_back_to_skip(self):
+        """No module_name_resolver (default None): refs_skipped_none_scope increments, no module calls emitted."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+
+        ls.request_references.return_value = [_make_ref("/proj/main.py", 5, 0)]
+
+        # No module_name_resolver
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        mock_module_calls.assert_not_called()
+        assert resolver._stats.refs_skipped_none_scope == 1
+
+    def test_module_name_resolver_returns_none_falls_back_to_skip(self):
+        """module_name_resolver returns None for unknown file: refs_skipped_none_scope increments."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+        # Always returns None (unknown file)
+        module_name_resolver = lambda fp: None
+
+        ls.request_references.return_value = [_make_ref("/proj/main.py", 5, 0)]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        mock_module_calls.assert_not_called()
+        assert resolver._stats.refs_skipped_none_scope == 1
+
+    def test_module_calls_deduplicated_by_caller_callee(self):
+        """Multiple module-level refs to same callee from same module — deduplicated to 1 edge."""
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+        module_name_resolver = lambda fp: "pkg.main_module"
+
+        # Two refs to the same callee from the same module
+        ls.request_references.return_value = [
+            _make_ref("/proj/main.py", 5, 0),
+            _make_ref("/proj/main.py", 8, 0),
+        ]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        all_rows = [row for c in mock_module_calls.call_args_list for row in c.args[1]]
+        unique_pairs = {(r["caller"], r["callee"]) for r in all_rows}
+        assert len(unique_pairs) == 1
+        assert ("pkg.main_module", "pkg.app.create_app") in unique_pairs
+
+    def test_final_flush_emits_module_calls(self):
+        """Pending module calls below _FLUSH_BATCH_SIZE are flushed at end of resolve()."""
+        ls = _make_ls(root="/proj")
+        # Only one method in symbol_map — one method processed, one module-level ref
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {"/proj/app.py": _make_parsed_file("/proj/app.py")}
+        module_name_resolver = lambda fp: "pkg.main_module"
+
+        ls.request_references.return_value = [_make_ref("/proj/main.py", 5, 0)]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        # batch_upsert_module_calls must have been called (final flush executed)
+        mock_module_calls.assert_called()
+        all_rows = [row for c in mock_module_calls.call_args_list for row in c.args[1]]
+        assert len(all_rows) >= 1
+
+
+class TestTypeCheckingExclusion:
+    """References inside if TYPE_CHECKING: blocks must NOT produce CALLS edges.
+
+    Uses a real ParsedFile (not MagicMock) because _is_in_type_checking_block
+    does AST traversal on the actual tree.
+    """
+
+    def test_module_level_ref_inside_type_checking_block_is_excluded(self):
+        """Reference at module scope inside TYPE_CHECKING block does NOT produce a CALLS edge."""
+        source = """\
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    create_app()
+"""
+        file_path = "/proj/caller.py"
+        pf = _make_real_parsed_file(source, file_path=file_path)
+
+        ls = _make_ls(root="/proj")
+        symbol_map = {("/proj/app.py", 10): "pkg.app.create_app"}
+        parsed_cache = {
+            "/proj/app.py": _make_parsed_file("/proj/app.py"),
+            file_path: pf,
+        }
+        module_name_resolver = lambda fp: "pkg.caller_module"
+
+        # Reference at line 2 (0-based), col 4 — inside the TYPE_CHECKING block
+        ls.request_references.return_value = [_make_ref(file_path, 2, 4)]
+
+        resolver, _ = _make_resolver(
+            ls=ls, parsed_cache=parsed_cache, symbol_map=symbol_map,
+            module_name_resolver=module_name_resolver,
+        )
+
+        with patch("synapps.indexer.references_resolver.find_enclosing_method_ast",
+                   return_value=None), \
+             patch("synapps.indexer.references_resolver.batch_upsert_module_calls") as mock_module_calls, \
+             patch("synapps.indexer.references_resolver.batch_upsert_calls"):
+            resolver.resolve()
+
+        mock_module_calls.assert_not_called()
+        assert resolver._stats.refs_skipped_none_scope == 1

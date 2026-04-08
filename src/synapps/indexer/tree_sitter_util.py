@@ -64,6 +64,49 @@ def find_enclosing_scope(
     return best
 
 
+def _condition_is_type_checking(if_node) -> bool:
+    """Return True if the if_statement's condition is TYPE_CHECKING or typing.TYPE_CHECKING.
+
+    Handles both the bare identifier form (`if TYPE_CHECKING:`) and the qualified
+    attribute form (`if typing.TYPE_CHECKING:`).
+    """
+    condition = if_node.child_by_field_name("condition")
+    if condition is None:
+        return False
+    if condition.type == "identifier":
+        return node_text(condition) == "TYPE_CHECKING"
+    if condition.type == "attribute":
+        # Find the last named child (should be the attribute name identifier)
+        for child in reversed(condition.children):
+            if child.type == "identifier":
+                return node_text(child) == "TYPE_CHECKING"
+    return False
+
+
+def _is_in_type_checking_block(
+    file_path: str,
+    line_0: int,
+    col_0: int,
+    parsed_cache: dict[str, ParsedFile],
+) -> bool:
+    """Return True if (line_0, col_0) is inside an `if TYPE_CHECKING:` or `if typing.TYPE_CHECKING:` block.
+
+    Uses AST parent-chain traversal. Returns False if the file is not in the parsed_cache
+    (safe default — avoids blocking module-level call attribution on missing cache entries).
+    """
+    pf = parsed_cache.get(file_path)
+    if pf is None:
+        return False
+
+    node = pf.tree.root_node.descendant_for_point_range((line_0, col_0), (line_0, col_0))
+    current = node
+    while current is not None:
+        if current.type == "if_statement" and _condition_is_type_checking(current):
+            return True
+        current = current.parent
+    return False
+
+
 def find_enclosing_method_ast(
     file_path: str,
     line_0: int,
