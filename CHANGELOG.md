@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 - **External base type tracking** — added `set_external_bases` graph function for storing unresolved base type names on Class nodes; MATCH/MERGE invariant tested
-- **Indexer wires external base collection** — `_index_base_types` now collects unresolved (external library) base type names per class and writes them to the graph via `set_external_bases`; graph writes flushed after LSP context closes
+- **Indexer wires external base collection** — `_index_base_types` now collects unresolved (external library) base type names per class and writes them to the graph via `set_external_bases`; graph writes flushed after LSP context closes; empty LSP definitions now also treated as external (catches NuGet/Maven interfaces that LSP can't resolve)
 - **Expanded dead code deny-lists** — added C#/Java framework method names, annotations, and class-level framework attributes for dead code false positive reduction
 - **Dead code structural heuristics** — `_build_base_exclusion_where` now excludes methods on classes with external bases, virtual methods, abstract methods, and methods on framework-managed classes; class-level attribute OR chain parenthesized for Memgraph parser safety
 

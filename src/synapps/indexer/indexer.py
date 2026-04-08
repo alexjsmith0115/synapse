@@ -1027,6 +1027,9 @@ class Indexer:
                     )
                     if not definitions:
                         log.debug("No definition for base type '%s' at %s:%d:%d", base_simple, rel_path, line, col)
+                        # LSP returned nothing — treat as external (if it were in-project, LSP would resolve it)
+                        for type_full in file_type_names.get(type_simple, []):
+                            external_bases_by_type.setdefault(type_full, []).append(base_simple)
                         continue
                     base_full: str | None = None
                     for defn in definitions:

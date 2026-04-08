@@ -82,6 +82,33 @@ class TestIndexBaseTypesExternalBases:
         mock_set_ext.assert_not_called()
 
     @patch("synapps.indexer.indexer.set_external_bases")
+    def test_empty_definitions_treats_base_as_external(
+        self, mock_set_ext: MagicMock,
+    ) -> None:
+        """LSP returns no definitions — base type is external (e.g. NuGet interface)."""
+        indexer = self._make_indexer()
+        indexer._base_type_extractor.extract.return_value = [
+            ("CorrelationIdEnricher", "ILogEventEnricher", True, 5, 30),
+        ]
+
+        symbol_map = {("/src/Logging.cs", 3): "MyApp.CorrelationIdEnricher"}
+        kind_map = {"MyApp.CorrelationIdEnricher": MagicMock()}
+
+        ls = MagicMock()
+        ls.request_definition.return_value = []  # LSP can't resolve it
+        ls.open_file.return_value.__enter__ = MagicMock(return_value=None)
+        ls.open_file.return_value.__exit__ = MagicMock(return_value=False)
+
+        indexer._index_base_types(
+            "/src/Logging.cs", MagicMock(), symbol_map, kind_map,
+            ls, "/src", {},
+        )
+
+        mock_set_ext.assert_called_once_with(
+            indexer._conn, "MyApp.CorrelationIdEnricher", ["ILogEventEnricher"],
+        )
+
+    @patch("synapps.indexer.indexer.set_external_bases")
     def test_no_triples_does_not_trigger_set_external_bases(
         self, mock_set_ext: MagicMock,
     ) -> None:
