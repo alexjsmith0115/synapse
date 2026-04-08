@@ -709,3 +709,196 @@ def test_line_numbers_are_1_based() -> None:
     sym_c = adapter._convert_as_class(raw, "/proj/src/mod.ts", "/proj", parent_full_name=None)
     assert sym_c.line == 1, f"_convert_as_class: Expected line=1, got {sym_c.line}"
     assert sym_c.end_line == 10, f"_convert_as_class: Expected end_line=10, got {sym_c.end_line}"
+
+
+# ---------------------------------------------------------------------------
+# _is_noise_symbol — callback, <unknown>, and array-literal filtering
+# ---------------------------------------------------------------------------
+
+class TestIsNoiseSymbol:
+    """Regression tests for tsserver-synthesized noise symbols (Issues 1-5, 7)."""
+
+    def test_callback_suffix_is_noise(self) -> None:
+        """Issue 1: .map() callback, forEach() callback, etc."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": ".map() callback", "kind": 6}) is True
+        assert _is_noise_symbol({"name": "forEach() callback", "kind": 6}) is True
+        assert _is_noise_symbol({"name": "useEffect() callback", "kind": 12}) is True
+        assert _is_noise_symbol({"name": "describe('test suite') callback", "kind": 12}) is True
+        assert _is_noise_symbol({"name": "it('should work') callback", "kind": 12}) is True
+
+    def test_unknown_is_noise(self) -> None:
+        """Issue 2: <unknown> JSX fragment placeholders."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": "<unknown>", "kind": 7}) is True
+
+    def test_empty_name_is_noise(self) -> None:
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": "", "kind": 6}) is True
+        assert _is_noise_symbol({"kind": 6}) is True
+
+    def test_array_literal_is_noise(self) -> None:
+        """Issue 5: [1, 2, 3, 4] as parent scope name."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": "[1, 2, 3, 4]", "kind": 13}) is True
+
+    def test_css_class_callback_is_noise(self) -> None:
+        """Issue 4: .map("cursor-pointer") callback with CSS class strings."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": '.map("cursor-pointer") callback', "kind": 6}) is True
+        assert _is_noise_symbol({"name": '.map("font-medium mb-1") callback', "kind": 6}) is True
+
+    def test_legitimate_names_not_noise(self) -> None:
+        """Ensure real symbols are not false-positived."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        assert _is_noise_symbol({"name": "CallbackHandler", "kind": 5}) is False
+        assert _is_noise_symbol({"name": "handleCallback", "kind": 6}) is False
+        assert _is_noise_symbol({"name": "MyComponent", "kind": 12}) is False
+        assert _is_noise_symbol({"name": "constructor", "kind": 9}) is False
+        assert _is_noise_symbol({"name": "getData", "kind": 6}) is False
+
+
+class TestTraverseNoiseFiltering:
+    """Regression: _traverse skips noise symbols and their entire subtrees."""
+
+    def _make_adapter(self) -> object:
+        from synapps.lsp.typescript import TypeScriptLSPAdapter
+        return TypeScriptLSPAdapter(MagicMock(), "/proj")
+
+    def _make_raw(self, name: str, kind: int, children: list | None = None,
+                  line: int = 0, end_line: int = 10) -> dict:
+        raw: dict = {
+            "name": name,
+            "kind": kind,
+            "location": {"range": {"start": {"line": line}, "end": {"line": end_line}}},
+        }
+        if children is not None:
+            raw["children"] = children
+        return raw
+
+    def test_callback_children_pruned_from_class(self) -> None:
+        """Issue 1/7: Callbacks inside a class are not indexed."""
+        adapter = self._make_adapter()
+        callback = self._make_raw(".map() callback", 6, children=[
+            self._make_raw("inner", 6, children=[], line=5),
+        ], line=3)
+        real_method = self._make_raw("getData", 6, children=[], line=1)
+        cls = self._make_raw("MyClass", 5, children=[real_method, callback])
+
+        result: list = []
+        adapter._traverse(cls, "/proj/src/mod.ts", parent_full_name=None, result=result)
+
+        names = [s.name for s in result]
+        assert "MyClass" in names
+        assert "getData" in names
+        assert ".map() callback" not in names
+        assert "inner" not in names  # subtree also pruned
+
+    def test_unknown_property_pruned(self) -> None:
+        """Issue 2: <unknown> properties are not indexed."""
+        adapter = self._make_adapter()
+        unknown = self._make_raw("<unknown>", 7, children=[], line=5)
+        component = self._make_raw("NotesList", 12, children=[unknown])
+
+        result: list = []
+        adapter._traverse(component, "/proj/src/NotesList.tsx", parent_full_name=None, result=result)
+
+        names = [s.name for s in result]
+        assert "NotesList" in names
+        assert "<unknown>" not in names
+
+    def test_test_file_describe_it_pruned(self) -> None:
+        """Issue 7: describe/it callbacks in test files are not indexed."""
+        adapter = self._make_adapter()
+        it_cb = self._make_raw("it('should delete') callback", 12, children=[], line=5)
+        describe_cb = self._make_raw("describe('deleteMeeting') callback", 12,
+                                     children=[it_cb], line=2)
+        root_describe = self._make_raw("describe('meetingService') callback", 12,
+                                       children=[describe_cb])
+
+        result: list = []
+        adapter._traverse(root_describe, "/proj/src/meeting.test.ts",
+                          parent_full_name=None, result=result)
+        assert result == []
+
+    def test_array_literal_parent_pruned(self) -> None:
+        """Issue 5: Array literal scoping nodes and their subtrees are pruned."""
+        adapter = self._make_adapter()
+        inner = self._make_raw(".map() callback", 6, children=[], line=3)
+        array_lit = self._make_raw("[1, 2, 3, 4]", 13, children=[inner], line=1)
+
+        result: list = []
+        adapter._traverse(array_lit, "/proj/src/skeleton.tsx",
+                          parent_full_name="src/skeleton.DashboardSkeleton", result=result)
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# col extraction from selectionRange (Issue 6)
+# ---------------------------------------------------------------------------
+
+class TestColExtraction:
+    """Regression: all three _convert paths extract col from selectionRange."""
+
+    def _make_adapter(self) -> object:
+        from synapps.lsp.typescript import TypeScriptLSPAdapter
+        return TypeScriptLSPAdapter(MagicMock(), "/proj")
+
+    def _make_raw_with_selection_range(self, name: str, kind: int,
+                                       sel_char: int = 4) -> dict:
+        return {
+            "name": name,
+            "kind": kind,
+            "location": {"range": {
+                "start": {"line": 5, "character": 0},
+                "end": {"line": 15, "character": 0},
+            }},
+            "selectionRange": {
+                "start": {"line": 5, "character": sel_char},
+                "end": {"line": 5, "character": sel_char + len(name)},
+            },
+        }
+
+    def test_convert_extracts_col(self) -> None:
+        adapter = self._make_adapter()
+        raw = self._make_raw_with_selection_range("myMethod", 6, sel_char=8)
+        sym = adapter._convert(raw, "/proj/src/mod.ts", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.col == 8
+
+    def test_convert_as_method_extracts_col(self) -> None:
+        adapter = self._make_adapter()
+        raw = self._make_raw_with_selection_range("MyComponent", 14, sel_char=13)
+        sym = adapter._convert_as_method(raw, "/proj/src/comp.tsx", "/proj", parent_full_name=None)
+        assert sym.col == 13
+
+    def test_convert_as_class_extracts_col(self) -> None:
+        adapter = self._make_adapter()
+        raw = self._make_raw_with_selection_range("myService", 14, sel_char=13)
+        sym = adapter._convert_as_class(raw, "/proj/src/svc.ts", "/proj", parent_full_name=None)
+        assert sym.col == 13
+
+    def test_col_falls_back_to_location_range_when_no_selection_range(self) -> None:
+        adapter = self._make_adapter()
+        raw = {
+            "name": "myFunc",
+            "kind": 12,
+            "location": {"range": {
+                "start": {"line": 2, "character": 7},
+                "end": {"line": 10, "character": 0},
+            }},
+        }
+        sym = adapter._convert(raw, "/proj/src/mod.ts", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.col == 7
+
+    def test_col_defaults_to_zero_when_character_missing(self) -> None:
+        adapter = self._make_adapter()
+        raw = {
+            "name": "myFunc",
+            "kind": 12,
+            "location": {"range": {"start": {"line": 0}, "end": {"line": 5}}},
+        }
+        sym = adapter._convert(raw, "/proj/src/mod.ts", "/proj", parent_full_name=None)
+        assert sym is not None
+        assert sym.col == 0

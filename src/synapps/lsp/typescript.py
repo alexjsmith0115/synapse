@@ -36,6 +36,24 @@ _LSP_KIND_MAP: dict[int, SymbolKind | None] = {
 }
 
 
+def _is_noise_symbol(raw: dict) -> bool:
+    """Detect tsserver-synthesized noise symbols that should not be indexed.
+
+    tsserver reports arrow-function callbacks (.map(), forEach(), describe(), it(), etc.)
+    as children with names ending in " callback". It also synthesizes "<unknown>" for
+    anonymous JSX fragments, and uses array-literal content (e.g. "[1, 2, 3]") as names
+    for inline expressions.  None of these are meaningful structural symbols.
+    """
+    name = raw.get("name", "")
+    if not name or name == "<unknown>":
+        return True
+    if name.endswith(" callback"):
+        return True
+    if name.startswith("["):
+        return True
+    return False
+
+
 def _build_ts_full_name(raw: dict, file_path: str, root_path: str) -> str:
     """Build a forward-slash path-prefixed full name from file path + symbol parent chain.
 
@@ -116,6 +134,8 @@ class TypeScriptLSPAdapter:
         parent_full_name: str | None,
         result: list[IndexSymbol],
     ) -> None:
+        if _is_noise_symbol(raw):
+            return
         sym = self._convert(raw, file_path, self._root_path, parent_full_name=parent_full_name)
         if sym is not None:
             result.append(sym)
@@ -154,7 +174,9 @@ class TypeScriptLSPAdapter:
 
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0) + 1
+        sel_range = raw.get("selectionRange", range_obj)
+        line = sel_range.get("start", {}).get("line", 0) + 1
+        col = sel_range.get("start", {}).get("character", 0)
         end_line = range_obj.get("end", {}).get("line", 0) + 1
 
         # Signature carries 'module' marker for ES module symbols (kind 2).
@@ -167,6 +189,7 @@ class TypeScriptLSPAdapter:
             file_path=file_path,
             line=line,
             end_line=end_line,
+            col=col,
             signature=signature,
             parent_full_name=parent_full_name,
         )
@@ -181,7 +204,9 @@ class TypeScriptLSPAdapter:
         """Convert a Variable/Constant symbol to METHOD for arrow functions, components, and hooks."""
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0) + 1
+        sel_range = raw.get("selectionRange", range_obj)
+        line = sel_range.get("start", {}).get("line", 0) + 1
+        col = sel_range.get("start", {}).get("character", 0)
         end_line = range_obj.get("end", {}).get("line", 0) + 1
         return IndexSymbol(
             name=name,
@@ -190,6 +215,7 @@ class TypeScriptLSPAdapter:
             file_path=file_path,
             line=line,
             end_line=end_line,
+            col=col,
             signature="const_function",
             parent_full_name=parent_full_name,
         )
@@ -204,7 +230,9 @@ class TypeScriptLSPAdapter:
         """Convert a Variable/Constant symbol to CLASS for object literals with methods."""
         name = raw.get("name", "")
         range_obj = raw.get("location", {}).get("range", {})
-        line = range_obj.get("start", {}).get("line", 0) + 1
+        sel_range = raw.get("selectionRange", range_obj)
+        line = sel_range.get("start", {}).get("line", 0) + 1
+        col = sel_range.get("start", {}).get("character", 0)
         end_line = range_obj.get("end", {}).get("line", 0) + 1
         return IndexSymbol(
             name=name,
@@ -213,6 +241,7 @@ class TypeScriptLSPAdapter:
             file_path=file_path,
             line=line,
             end_line=end_line,
+            col=col,
             signature="const_object",
             parent_full_name=parent_full_name,
         )
