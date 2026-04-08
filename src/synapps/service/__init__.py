@@ -557,8 +557,8 @@ class SynappsService:
     def get_architecture_overview(self, limit: int = 10) -> dict:
         return get_architecture_overview(self._conn, limit=limit)
 
-    def find_dead_code(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0, subdirectory: str = "") -> dict:
-        return find_dead_code(self._conn, exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
+    def find_dead_code(self, exclude_pattern: str = "", exclude_file_pattern: str = "", limit: int = 15, offset: int = 0, subdirectory: str = "") -> dict:
+        return find_dead_code(self._conn, exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
 
     def find_tests_for(self, full_name: str) -> list[dict]:
         full_name = self._resolve(full_name)
@@ -567,6 +567,6 @@ class SynappsService:
             result = query_find_test_coverage(self._conn, full_name)
         return result
 
-    def find_untested(self, exclude_pattern: str = "", limit: int = 15, offset: int = 0, subdirectory: str = "") -> dict:
-        return find_untested(self._conn, exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
+    def find_untested(self, exclude_pattern: str = "", exclude_file_pattern: str = "", limit: int = 15, offset: int = 0, subdirectory: str = "") -> dict:
+        return find_untested(self._conn, exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
 

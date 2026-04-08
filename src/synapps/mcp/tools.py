@@ -486,6 +486,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def find_dead_code(
         path: str,
         exclude_pattern: str = "",
+        exclude_file_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
         subdirectory: str = "",
@@ -509,14 +510,20 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
+        exclude_file_pattern: optional regex applied to file_path to filter additional methods
+          (e.g. '.*test_helpers.*' excludes files whose path contains 'test_helpers',
+          '.*generated.*' excludes generated source files).
+          Use alternation for multiple patterns: 'pattern1|pattern2'.
+          Empty string means no additional filtering.
         limit: max number of dead methods to return per page (default 15). Stats always reflect full count.
         offset: number of methods to skip for pagination (default 0).
         subdirectory: optional path fragment to restrict results to a subdirectory
-          (e.g. 'src/api'). Matches against file_path using substring containment.
+          (e.g. 'src/api'). Matches against file_path using path-segment-bounded regex
+          ('api' matches '/src/api/' but not '/src/graphapi/').
         Returns {methods: [{full_name, file_path, line, inbound_call_count}], stats: {total_methods, dead_count, dead_ratio, truncated, limit, offset}}.
         """
         _auto_sync_check()
-        return service.find_dead_code(exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
+        return service.find_dead_code(exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
 
     @mcp.tool()
     def find_tests_for(
@@ -543,6 +550,7 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def find_untested(
         path: str,
         exclude_pattern: str = "",
+        exclude_file_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
         subdirectory: str = "",
@@ -566,13 +574,19 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
           (e.g. 'MyApp\\.Generated\\..*' excludes generated code namespaces).
           Use alternation for multiple patterns: 'pattern1|pattern2'.
           Empty string means no additional filtering.
+        exclude_file_pattern: optional regex applied to file_path to filter additional methods
+          (e.g. '.*test_helpers.*' excludes files whose path contains 'test_helpers',
+          '.*generated.*' excludes generated source files).
+          Use alternation for multiple patterns: 'pattern1|pattern2'.
+          Empty string means no additional filtering.
         limit: max number of untested methods to return per page (default 15). Stats always reflect full count.
         offset: number of methods to skip for pagination (default 0).
         subdirectory: optional path fragment to restrict results to a subdirectory
-          (e.g. 'src/api'). Matches against file_path using substring containment.
+          (e.g. 'src/api'). Matches against file_path using path-segment-bounded regex
+          ('api' matches '/src/api/' but not '/src/graphapi/').
         Returns {methods: [{full_name, file_path, line}], stats: {total_methods, untested_count, untested_ratio, truncated, limit, offset}}.
         """
         _auto_sync_check()
-        return service.find_untested(exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
+        return service.find_untested(exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
 
 

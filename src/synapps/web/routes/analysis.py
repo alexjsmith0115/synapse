@@ -22,11 +22,12 @@ def router(service: SynappsService) -> APIRouter:
         path: str | None = None,
         subdirectory: str | None = None,
         exclude_pattern: str = "",
+        exclude_file_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
     ) -> dict:
         try:
-            result = service.find_dead_code(exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory or "")
+            result = service.find_dead_code(exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory or "")
             return serialize_result(result)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -36,11 +37,12 @@ def router(service: SynappsService) -> APIRouter:
         path: str | None = None,
         subdirectory: str | None = None,
         exclude_pattern: str = "",
+        exclude_file_pattern: str = "",
         limit: int = 15,
         offset: int = 0,
     ) -> dict:
         try:
-            result = service.find_untested(exclude_pattern=exclude_pattern, limit=limit, offset=offset, subdirectory=subdirectory or "")
+            result = service.find_untested(exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory or "")
             return serialize_result(result)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
