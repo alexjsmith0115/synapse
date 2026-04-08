@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Empty LSP definitions not treated as external** — when LSP returns no definitions for a base type (e.g. NuGet/Maven interfaces), treat it as external rather than silently skipping
 - **Java parameterized constructors not excluded from dead code** — JDT LS stores constructor names as `ClassName(Type, Type)` which didn't match the exact `p.name = m.name` check; now uses `STARTS WITH p.name + '('` fallback
 - **Dead code query crashes with `bool + string` type error** — Memgraph evaluates `STARTS WITH` with higher precedence than `+`, so `m.name STARTS WITH p.name + '('` was parsed as `(m.name STARTS WITH p.name) + '('`; parenthesized the concatenation
+- **C# generic class constructors flagged as dead code** — generic classes like `Repository<T>` have constructors named `Repository` which don't match `p.name = m.name` or `STARTS WITH (p.name + '(')`; added `p.name STARTS WITH (m.name + '<')` check
+- **ASP.NET `IConfigureOptions<T>` Configure methods flagged as dead code** — added `'Options'` suffix to the configure-method class exclusion list
 
 ### Fixed
 - **Subdirectory filter not working in dead code and untested methods tabs** — the `subdirectory` parameter was accepted by web routes but silently ignored; now threaded through web route → service → graph analysis layer, adding a `file_path CONTAINS` filter to Cypher queries when non-empty

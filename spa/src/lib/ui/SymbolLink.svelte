@@ -26,6 +26,7 @@
     font-size: inherit;
     font-family: inherit;
     padding: 0;
+    text-align: left;
     text-decoration: none;
   }
   .symbol-name:hover {

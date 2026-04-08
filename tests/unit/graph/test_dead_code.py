@@ -184,6 +184,12 @@ class TestBuildExclusionWhere:
         # This test ensures the parenthesized form is used and the broken form is absent.
         assert "m.name STARTS WITH p.name + '('" not in self.clause
 
+    def test_constructor_excluded_for_generic_class(self) -> None:
+        # C# generic classes: class name is "Repository<T>" but constructor name is "Repository".
+        # Neither p.name = m.name nor m.name STARTS WITH (p.name + '(') matches.
+        # Must also check p.name STARTS WITH (m.name + '<') to catch generic type suffix.
+        assert "p.name STARTS WITH (m.name + '<')" in self.clause
+
     # --- .NET Startup/Program convention exclusions ---
 
     def test_configure_services_in_name_check(self) -> None:
@@ -194,6 +200,10 @@ class TestBuildExclusionWhere:
 
     def test_program_class_excluded(self) -> None:
         assert "cfg.name = 'Program'" in self.clause
+
+    def test_configure_excluded_in_options_class(self) -> None:
+        # ASP.NET IConfigureOptions<T> pattern: Configure() in classes ending with "Options"
+        assert "ENDS WITH 'Options'" in self.clause
 
     # --- Heuristic 1: External bases exclusion ---
 
