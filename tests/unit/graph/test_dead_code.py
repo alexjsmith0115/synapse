@@ -13,6 +13,7 @@ import pytest
 from synapps.graph.analysis import (
     _EXCLUDED_METHOD_NAMES,
     _FRAMEWORK_ATTRIBUTES,
+    _FRAMEWORK_CLASS_ATTRIBUTES,
     _build_base_exclusion_where,
 )
 
@@ -176,3 +177,141 @@ class TestBuildExclusionWhere:
 
     def test_program_class_excluded(self) -> None:
         assert "cfg.name = 'Program'" in self.clause
+
+
+class TestExpandedExcludedMethodNames:
+    """New method names added for C# and Java false positive reduction."""
+
+    def test_contains_doGet(self) -> None:
+        assert "doGet" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_doPost(self) -> None:
+        assert "doPost" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_service(self) -> None:
+        assert "service" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_init(self) -> None:
+        assert "init" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_destroy(self) -> None:
+        assert "destroy" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_contextInitialized(self) -> None:
+        assert "contextInitialized" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_contextDestroyed(self) -> None:
+        assert "contextDestroyed" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_afterPropertiesSet(self) -> None:
+        assert "afterPropertiesSet" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_onApplicationEvent(self) -> None:
+        assert "onApplicationEvent" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnGet(self) -> None:
+        assert "OnGet" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnPost(self) -> None:
+        assert "OnPost" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnGetAsync(self) -> None:
+        assert "OnGetAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnPostAsync(self) -> None:
+        assert "OnPostAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnConnectedAsync(self) -> None:
+        assert "OnConnectedAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_OnDisconnectedAsync(self) -> None:
+        assert "OnDisconnectedAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_StartAsync(self) -> None:
+        assert "StartAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_StopAsync(self) -> None:
+        assert "StopAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_ExecuteAsync(self) -> None:
+        assert "ExecuteAsync" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_Invoke(self) -> None:
+        assert "Invoke" in _EXCLUDED_METHOD_NAMES
+
+    def test_contains_InvokeAsync(self) -> None:
+        assert "InvokeAsync" in _EXCLUDED_METHOD_NAMES
+
+
+class TestExpandedFrameworkAttributes:
+    """New method-level framework attributes for C# and Java."""
+
+    def test_contains_Route(self) -> None:
+        assert "Route" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_TestInitialize(self) -> None:
+        assert "TestInitialize" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_TestCleanup(self) -> None:
+        assert "TestCleanup" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_Benchmark(self) -> None:
+        assert "Benchmark" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_kafkalistener(self) -> None:
+        assert "kafkalistener" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_rabbitlistener(self) -> None:
+        assert "rabbitlistener" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_jmslistener(self) -> None:
+        assert "jmslistener" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_path(self) -> None:
+        assert "path" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_jsoncreator(self) -> None:
+        assert "jsoncreator" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_exceptionhandler(self) -> None:
+        assert "exceptionhandler" in _FRAMEWORK_ATTRIBUTES
+
+    def test_contains_transactional(self) -> None:
+        assert "transactional" in _FRAMEWORK_ATTRIBUTES
+
+
+class TestFrameworkClassAttributes:
+    """New class-level framework attributes constant."""
+
+    def test_contains_component(self) -> None:
+        assert "component" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_service(self) -> None:
+        assert "service" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_repository(self) -> None:
+        assert "repository" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_controller(self) -> None:
+        assert "controller" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_restcontroller(self) -> None:
+        assert "restcontroller" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_configuration(self) -> None:
+        assert "configuration" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_ApiController(self) -> None:
+        assert "ApiController" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_TestClass(self) -> None:
+        assert "TestClass" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_TestFixture(self) -> None:
+        assert "TestFixture" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_webservlet(self) -> None:
+        assert "webservlet" in _FRAMEWORK_CLASS_ATTRIBUTES
+
+    def test_contains_singleton(self) -> None:
+        assert "singleton" in _FRAMEWORK_CLASS_ATTRIBUTES

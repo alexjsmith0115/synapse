@@ -211,6 +211,23 @@ _EXCLUDED_METHOD_NAMES = [
     "OnNavigatedTo", "OnInitialized", "OnInitializedAsync",
     # ASP.NET Core IWebHostBuilder / Program conventions (always framework-invoked)
     "ConfigureWebHost", "CreateHostBuilder", "CreateWebHostBuilder",
+    # Java Servlet lifecycle
+    "doGet", "doPost", "doPut", "doDelete", "doHead", "doOptions", "doTrace",
+    "service", "init", "destroy",
+    # Java Servlet listener callbacks
+    "contextInitialized", "contextDestroyed",
+    "sessionCreated", "sessionDestroyed",
+    # Java Spring lifecycle
+    "afterPropertiesSet", "onApplicationEvent",
+    # C# ASP.NET Razor Pages
+    "OnGet", "OnPost", "OnPut", "OnDelete",
+    "OnGetAsync", "OnPostAsync", "OnPutAsync", "OnDeleteAsync",
+    # C# SignalR hub methods
+    "OnConnectedAsync", "OnDisconnectedAsync",
+    # C# IHostedService / BackgroundService
+    "StartAsync", "StopAsync", "ExecuteAsync",
+    # C# Middleware convention
+    "Invoke", "InvokeAsync",
 ]
 
 # Framework decorator/attribute names that mark methods as entry points.
@@ -242,6 +259,46 @@ _FRAMEWORK_ATTRIBUTES = [
     "Authorize", "AllowAnonymous",
     # BenchmarkDotNet lifecycle attributes (PascalCase)
     "GlobalSetup", "GlobalCleanup",
+    # --- New entries for C# and Java false positive reduction ---
+    # C# ASP.NET routing (PascalCase)
+    "Route",
+    "NonAction",
+    # C# DI-resolved filters (PascalCase)
+    "ServiceFilter", "TypeFilter",
+    # C# MSTest lifecycle (PascalCase)
+    "TestInitialize", "TestCleanup",
+    "ClassInitialize", "ClassCleanup",
+    "AssemblyInitialize", "AssemblyCleanup",
+    # C# BenchmarkDotNet (PascalCase)
+    "Benchmark",
+    # Java message consumers (lowercase)
+    "kafkalistener", "rabbitlistener", "jmslistener",
+    # Java JAX-RS (lowercase)
+    "path", "get", "post", "put", "delete", "patch",
+    "produces", "consumes",
+    # Java Jackson serialization hooks (lowercase)
+    "jsoncreator", "jsonvalue", "jsongetter", "jsonsetter", "jsonproperty",
+    # Java Spring MVC (lowercase)
+    "exceptionhandler", "initbinder", "modelattribute",
+    # Java Spring proxy-invoked (lowercase)
+    "async", "transactional",
+]
+
+
+# Framework attributes that mark CLASSES as framework-managed.
+# Methods on such classes are likely invoked by the framework, not user code.
+# Same casing rules as _FRAMEWORK_ATTRIBUTES: Java=lowercase, C#=PascalCase.
+_FRAMEWORK_CLASS_ATTRIBUTES = [
+    # Java Spring stereotypes (lowercase)
+    "component", "service", "repository", "controller", "restcontroller",
+    "configuration", "springbootapplication",
+    # Java EE / Jakarta (lowercase)
+    "stateless", "stateful", "singleton", "messagedriven",
+    "webservlet", "webfilter", "weblistener",
+    # C# ASP.NET (PascalCase)
+    "ApiController",
+    # C# test classes (PascalCase)
+    "TestClass", "TestFixture",
 ]
 
 
