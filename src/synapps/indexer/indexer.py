@@ -1067,7 +1067,7 @@ class Indexer:
                             upsert_implements(self._conn, type_full, base_full)
                         else:
                             upsert_implements(self._conn, type_full, base_full)
-            # Write external base type names for types that had unresolved bases
+            # Flush outside the open_file context so LSP I/O is complete before graph writes
             for type_full, bases in external_bases_by_type.items():
                 set_external_bases(self._conn, type_full, bases)
                 log.debug("Set external_bases for %s: %s", type_full, bases)
