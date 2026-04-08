@@ -563,7 +563,7 @@ def get_architecture_overview(conn: GraphConnection, limit: int = 10, max_packag
             "total_packages": total_packages,
             "packages_shown": len(packages),
             "total_endpoints": total_endpoints,
-            "endpoints_shown": len(serves),
+            "endpoints_hosted": len(serves),
             "files_by_language": files_by_language,
         },
     }

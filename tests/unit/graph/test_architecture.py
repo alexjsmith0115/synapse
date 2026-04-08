@@ -123,15 +123,15 @@ def test_get_architecture_http_map_empty_when_no_serves():
     assert result["http_service_map"] == []
 
 
-def test_get_architecture_endpoints_shown_equals_len_serves():
-    """endpoints_shown stat must equal number of serves entries only."""
+def test_get_architecture_endpoints_hosted_equals_len_serves():
+    """endpoints_hosted stat must equal number of serves entries only."""
     serves_rows = [
         ("/api/x", "GET", "App.X.Get", "/src/X.cs"),
     ]
     conn = _arch_conn(serves_rows=serves_rows)
     result = get_architecture_overview(conn)
 
-    assert result["stats"]["endpoints_shown"] == len(serves_rows)
+    assert result["stats"]["endpoints_hosted"] == len(serves_rows)
 
 
 def test_get_architecture_http_map_does_not_include_client_calls():

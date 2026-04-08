@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Expanded dead code deny-lists** — added C#/Java framework method names, annotations, and class-level framework attributes for dead code false positive reduction
 - **Dead code structural heuristics** — `_build_base_exclusion_where` now excludes methods on classes with external bases, virtual methods, abstract methods, and methods on framework-managed classes; class-level attribute OR chain parenthesized for Memgraph parser safety
 
+### Changed
+- **Architecture stat `endpoints_shown` renamed to `endpoints_hosted`** — the stat only counts endpoints with SERVES edges (hosted by this codebase), not a pagination cap; label now reflects the actual semantics
+
 ### Fixed
 - **Wrapping text centered in web UI table cells** — SymbolLink's `inline-flex` display caused long symbol names to appear centered when wrapping; changed to block display with explicit left-alignment
 - **Empty LSP definitions not treated as external** — when LSP returns no definitions for a base type (e.g. NuGet/Maven interfaces), treat it as external rather than silently skipping
