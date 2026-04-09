@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import concurrent.futures
 import logging
 import os
+import threading
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,11 +11,13 @@ from synapps.graph.connection import GraphConnection
 from synapps.graph.lookups import get_method_symbol_map
 from synapps.graph.nodes import get_last_indexed_commit, set_last_indexed_commit
 from synapps.indexer.git import is_git_repo, rev_parse_head, compute_git_diff
+from synapps.indexer.http_phase import HttpPhase
 from synapps.indexer.indexer import Indexer
 from synapps.indexer.method_implements_indexer import MethodImplementsIndexer
 from synapps.indexer.sync import git_sync_project as _git_sync_project, sync_project as _sync_project, SyncResult
 from synapps.indexer.overrides_indexer import OverridesIndexer
 from synapps.indexer.symbol_resolver import SymbolResolver
+from synapps.indexer.tests_phase import TestsPhase
 from synapps.lsp.interface import LSPAdapter
 from synapps.plugin import LanguagePlugin, LanguageRegistry, default_registry
 from synapps.watcher.watcher import FileWatcher
@@ -45,20 +49,36 @@ class IndexingService:
         if not plugin_files:
             raise ValueError(f"No language plugin found for project at {path!r}")
         all_http_results: list = []
-        for plugin, files in plugin_files:
+        http_lock = threading.Lock()
+
+        def _index_language(plugin: LanguagePlugin, files: list[str]) -> None:
             if on_progress:
                 on_progress(f"Starting language server for {plugin.name}...")
             lsp = plugin.create_lsp_adapter(path)
             indexer = Indexer(self._conn, lsp, plugin=plugin)
             indexer.index_project(path, plugin.name, on_progress=on_progress, files=files)
-            all_http_results.extend(indexer._http_extraction_results)
+            with http_lock:
+                all_http_results.extend(indexer._http_extraction_results)
+
+        if len(plugin_files) == 1:
+            plugin, files = plugin_files[0]
+            _index_language(plugin, files)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(plugin_files)) as pool:
+                futures = [
+                    pool.submit(_index_language, plugin, files)
+                    for plugin, files in plugin_files
+                ]
+                for fut in concurrent.futures.as_completed(futures):
+                    exc = fut.exception()
+                    if exc is not None:
+                        log.error("Language indexing failed: %s", exc, exc_info=True)
 
         # HTTP endpoint matching — runs once after all languages are indexed
         # so frontend client calls can be matched to backend server endpoints
         if all_http_results:
             import time
             t_http = time.monotonic()
-            from synapps.indexer.http_phase import HttpPhase
             http_phase = HttpPhase(self._conn, path)
             http_phase.run(all_http_results)
             http_phase.cleanup_orphans()
@@ -68,7 +88,6 @@ class IndexingService:
         # so all CALLS edges exist for test->prod derivation (D-04)
         import time
         t_tests = time.monotonic()
-        from synapps.indexer.tests_phase import TestsPhase
         tests_phase = TestsPhase(self._conn, path)
         tests_phase.run()
         log.info("TESTS edge derivation: %.1fs", time.monotonic() - t_tests)
@@ -276,7 +295,6 @@ class IndexingService:
         matching. Clears existing HTTP edges first to avoid call_sites
         duplication from re-MERGE over existing edges.
         """
-        from synapps.indexer.http_phase import HttpPhase
         from synapps.indexer.http.interface import HttpExtractionResult
         http_phase = HttpPhase(self._conn, path)
         existing_defs, existing_calls = http_phase.rebuild_from_graph()
@@ -296,7 +314,6 @@ class IndexingService:
         Unlike HttpPhase, TestsPhase is fully derivable from the live graph --
         no rebuild_from_graph() needed since CALLS edges are already present.
         """
-        from synapps.indexer.tests_phase import TestsPhase
         tests_phase = TestsPhase(self._conn, path)
         tests_phase.run()
 
