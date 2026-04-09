@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Missing database indexes** — added indexes on `Class(file_path)`, `Interface(file_path)`, `Property(name)`, and `Field(name)` to speed up MERGE operations and symbol search queries
 - **Default 4 concurrent workers for ReferencesResolver** — `ReferencesResolver` is now instantiated with `max_workers=4` during `index_project`, processing 4 methods concurrently for call resolution
 
+### Fixed
+- **Thread-safe LSP file buffer management** — `open_file` in solidlsp now uses a `threading.Lock` to protect file buffer ref counting and `didOpen`/`didClose` notifications, preventing assertion errors and duplicate-open crashes when ReferencesResolver processes methods concurrently
+
 ## [1.9.2] - 2026-04-08
 
 ### Added

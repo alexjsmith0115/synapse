@@ -512,6 +512,7 @@ class SolidLanguageServer(ABC):
 
         self.language_id = language_id
         self.open_file_buffers: dict[str, LSPFileBuffer] = {}
+        self._open_file_lock = threading.Lock()
         self.language = Language(language_id)
 
         # initialise symbol caches
@@ -747,36 +748,39 @@ class SolidLanguageServer(ABC):
         absolute_file_path = Path(self.repository_root_path, relative_file_path)
         uri = absolute_file_path.as_uri()
 
-        if uri in self.open_file_buffers:
-            fb = self.open_file_buffers[uri]
-            assert fb.uri == uri
-            assert fb.ref_count >= 1
+        # Acquire file buffer under lock (thread-safe for concurrent ReferencesResolver)
+        with self._open_file_lock:
+            if uri in self.open_file_buffers:
+                fb = self.open_file_buffers[uri]
+                assert fb.uri == uri
+                assert fb.ref_count >= 1
+                fb.ref_count += 1
+                if open_in_ls:
+                    fb.ensure_open_in_ls()
+            else:
+                version = 0
+                language_id = self._get_language_id_for_file(relative_file_path)
+                fb = LSPFileBuffer(
+                    abs_path=absolute_file_path,
+                    uri=uri,
+                    encoding=self._encoding,
+                    version=version,
+                    language_id=language_id,
+                    ref_count=1,
+                    language_server=self,
+                    open_in_ls=open_in_ls,
+                )
+                self.open_file_buffers[uri] = fb
 
-            fb.ref_count += 1
-            if open_in_ls:
-                fb.ensure_open_in_ls()
+        try:
             yield fb
-            fb.ref_count -= 1
-        else:
-            version = 0
-            language_id = self._get_language_id_for_file(relative_file_path)
-            fb = LSPFileBuffer(
-                abs_path=absolute_file_path,
-                uri=uri,
-                encoding=self._encoding,
-                version=version,
-                language_id=language_id,
-                ref_count=1,
-                language_server=self,
-                open_in_ls=open_in_ls,
-            )
-            self.open_file_buffers[uri] = fb
-            yield fb
-            fb.ref_count -= 1
-
-        if self.open_file_buffers[uri].ref_count == 0:
-            self.open_file_buffers[uri].close()
-            del self.open_file_buffers[uri]
+        finally:
+            # Release file buffer under lock
+            with self._open_file_lock:
+                fb.ref_count -= 1
+                if fb.ref_count == 0:
+                    fb.close()
+                    del self.open_file_buffers[uri]
 
     @contextmanager
     def _open_file_context(
