@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ## [Unreleased]
 
 ### Added
+- **Concurrent ReferencesResolver** — `ReferencesResolver` now accepts a `max_workers` parameter; when greater than 1, methods are processed concurrently via `ThreadPoolExecutor` with thread-safe accumulation of pending calls (`threading.Lock`); default `max_workers=1` preserves sequential behavior
 - **Parallel language indexing** — `IndexingService.index_project()` now processes multiple languages concurrently using `ThreadPoolExecutor` (one worker per language), reducing full-index time proportionally to the number of detected languages; single-language projects skip the thread pool entirely; HTTP and TESTS phases still run sequentially after all languages complete
 - **Batch CONTAINS/IMPORTS edge functions** — `batch_upsert_file_contains_symbol`, `batch_upsert_contains_symbol`, `batch_upsert_dir_contains`, and `batch_upsert_symbol_imports` added to `graph/edges.py` using UNWIND for efficient bulk writes; existing single-row functions are unchanged
 - **Batch node upsert functions** — `batch_upsert_files`, `batch_upsert_directories`, `batch_upsert_packages`, `batch_upsert_classes`, `batch_upsert_interfaces`, `batch_upsert_methods`, `batch_upsert_properties`, and `batch_upsert_fields` added to `graph/nodes.py` using UNWIND for efficient bulk structural node writes; existing single-row functions are unchanged

@@ -14,6 +14,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import os
+import threading
 import time
 from typing import TYPE_CHECKING, Callable
 
@@ -78,6 +79,7 @@ class ReferencesResolver:
         per_request_timeout: float = _DEFAULT_TIMEOUT,
         symbol_col_map: dict[tuple[str, int], int] | None = None,
         module_name_resolver: Callable[[str], str | None] | None = None,
+        max_workers: int = 1,
     ) -> None:
         self._conn = conn
         self._ls = ls
@@ -92,6 +94,9 @@ class ReferencesResolver:
         self._pending_calls: list[dict] = []
         self._pending_module_calls: list[dict] = []
         self._stats = _RefStats()
+        self._max_workers = max(1, max_workers)
+        self._pending_lock = threading.Lock()
+        self._stats_lock = threading.Lock()
 
     def resolve(self) -> None:
         """Run the full references-based CALLS resolution pass."""
@@ -104,15 +109,29 @@ class ReferencesResolver:
             for (file_path, line_1), full_name in self._symbol_map.items()
         ]
         log.info(
-            "ReferencesResolver: %d method symbols to process, %d files in cache",
-            len(methods), len(self._parsed_cache),
+            "ReferencesResolver: %d method symbols to process, %d files in cache, %d workers",
+            len(methods), len(self._parsed_cache), self._max_workers,
         )
 
-        for file_path, line_1, full_name in methods:
-            self._process_method(file_path, line_1, full_name)
+        if self._max_workers <= 1:
+            for file_path, line_1, full_name in methods:
+                self._process_method(file_path, line_1, full_name)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+                futures = [
+                    executor.submit(self._process_method, file_path, line_1, full_name)
+                    for file_path, line_1, full_name in methods
+                ]
+                for fut in concurrent.futures.as_completed(futures):
+                    # Propagate unexpected exceptions so they are not silently swallowed
+                    exc = fut.exception()
+                    if exc is not None:
+                        log.error("ReferencesResolver: worker raised an exception", exc_info=exc)
 
         # Flush any remaining pending calls (method-level and module-level)
-        if self._pending_calls or self._pending_module_calls:
+        with self._pending_lock:
+            has_pending = bool(self._pending_calls or self._pending_module_calls)
+        if has_pending:
             self._flush()
 
         elapsed = time.monotonic() - start
@@ -157,8 +176,9 @@ class ReferencesResolver:
         if refs is None:
             return
 
-        self._stats.methods_processed += 1
-        self._stats.refs_seen += len(refs)
+        with self._stats_lock:
+            self._stats.methods_processed += 1
+            self._stats.refs_seen += len(refs)
 
         for ref in refs:
             self._attribute_reference(ref, callee_full_name, file_path, line_1)
@@ -190,7 +210,8 @@ class ReferencesResolver:
                     "ReferencesResolver: request_references timed out after %.1fs for %s — skipping",
                     elapsed, callee_name,
                 )
-                self._stats.methods_timed_out += 1
+                with self._stats_lock:
+                    self._stats.methods_timed_out += 1
                 return None
             except Exception:
                 log.warning(
@@ -217,7 +238,8 @@ class ReferencesResolver:
         # declaration line of the callee itself.  This is not a call — it's the
         # symbol definition that the language server always includes in its response.
         if abs_path == callee_file_path and ref_line_0 + 1 == callee_line_1:
-            self._stats.refs_skipped_self += 1
+            with self._stats_lock:
+                self._stats.refs_skipped_self += 1
             return
 
         caller_full_name = find_enclosing_method_ast(
@@ -233,27 +255,34 @@ class ReferencesResolver:
                 abs_path, callee_simple, self._parsed_cache, self._symbol_map,
             )
             for jsx_caller, jsx_line_1, jsx_col_0 in jsx_hits:
-                self._pending_calls.append({
-                    "caller": jsx_caller,
-                    "callee": callee_full_name,
-                    "line": jsx_line_1,
-                    "col": jsx_col_0,
-                })
-                self._stats.refs_attributed += 1
+                with self._pending_lock:
+                    self._pending_calls.append({
+                        "caller": jsx_caller,
+                        "callee": callee_full_name,
+                        "line": jsx_line_1,
+                        "col": jsx_col_0,
+                    })
+                with self._stats_lock:
+                    self._stats.refs_attributed += 1
             if not jsx_hits:
                 if not self._try_attribute_as_module_call(abs_path, ref_line_0, ref_col_0, callee_full_name):
-                    self._stats.refs_skipped_none_scope += 1
+                    with self._stats_lock:
+                        self._stats.refs_skipped_none_scope += 1
             return
 
-        self._pending_calls.append({
-            "caller": caller_full_name,
-            "callee": callee_full_name,
-            "line": ref_line_0 + 1,
-            "col": ref_col_0,
-        })
-        self._stats.refs_attributed += 1
+        with self._pending_lock:
+            self._pending_calls.append({
+                "caller": caller_full_name,
+                "callee": callee_full_name,
+                "line": ref_line_0 + 1,
+                "col": ref_col_0,
+            })
+            should_flush = len(self._pending_calls) >= _FLUSH_BATCH_SIZE
 
-        if len(self._pending_calls) >= _FLUSH_BATCH_SIZE:
+        with self._stats_lock:
+            self._stats.refs_attributed += 1
+
+        if should_flush:
             self._flush()
 
     def _try_attribute_as_module_call(
@@ -275,42 +304,55 @@ class ReferencesResolver:
         module_full_name = self._module_name_resolver(abs_path)
         if module_full_name is None:
             return False
-        self._pending_module_calls.append({
-            "caller": module_full_name,
-            "callee": callee_full_name,
-            "line": ref_line_0 + 1,
-            "col": ref_col_0,
-        })
-        self._stats.refs_attributed_as_module_calls += 1
+        with self._pending_lock:
+            self._pending_module_calls.append({
+                "caller": module_full_name,
+                "callee": callee_full_name,
+                "line": ref_line_0 + 1,
+                "col": ref_col_0,
+            })
+        with self._stats_lock:
+            self._stats.refs_attributed_as_module_calls += 1
         return True
 
     def _flush(self) -> None:
-        """Deduplicate pending calls by (caller, callee) pair and write to graph."""
-        if self._pending_calls:
+        """Deduplicate pending calls by (caller, callee) pair and write to graph.
+
+        Atomically swaps out both pending lists under the lock so concurrent workers
+        that append entries during the flush do not lose data or observe a torn state.
+        Deduplication and graph writes happen outside the lock to keep critical section small.
+        """
+        with self._pending_lock:
+            pending_calls = self._pending_calls
+            pending_module_calls = self._pending_module_calls
+            self._pending_calls = []
+            self._pending_module_calls = []
+
+        if pending_calls:
             # Keep first occurrence of each (caller, callee) pair — duplicates arise
             # when the same method is called multiple times in the same caller or when
             # the same reference location is returned more than once by the language server.
             seen: set[tuple[str, str]] = set()
             deduplicated: list[dict] = []
-            for row in self._pending_calls:
+            for row in pending_calls:
                 key = (row["caller"], row["callee"])
                 if key not in seen:
                     seen.add(key)
                     deduplicated.append(row)
 
             batch_upsert_calls(self._conn, deduplicated)
-            self._stats.edges_written += len(deduplicated)
-            self._pending_calls = []
+            with self._stats_lock:
+                self._stats.edges_written += len(deduplicated)
 
-        if self._pending_module_calls:
+        if pending_module_calls:
             seen_module: set[tuple[str, str]] = set()
             deduplicated_module: list[dict] = []
-            for row in self._pending_module_calls:
+            for row in pending_module_calls:
                 key = (row["caller"], row["callee"])
                 if key not in seen_module:
                     seen_module.add(key)
                     deduplicated_module.append(row)
 
             batch_upsert_module_calls(self._conn, deduplicated_module)
-            self._stats.edges_written += len(deduplicated_module)
-            self._pending_module_calls = []
+            with self._stats_lock:
+                self._stats.edges_written += len(deduplicated_module)
