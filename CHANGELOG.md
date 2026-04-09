@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **Batch CONTAINS/IMPORTS edge functions** — `batch_upsert_file_contains_symbol`, `batch_upsert_contains_symbol`, `batch_upsert_dir_contains`, and `batch_upsert_symbol_imports` added to `graph/edges.py` using UNWIND for efficient bulk writes; existing single-row functions are unchanged
+
 ## [1.9.2] - 2026-04-08
 
 ### Added

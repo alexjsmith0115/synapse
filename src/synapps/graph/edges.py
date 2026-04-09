@@ -165,6 +165,54 @@ def upsert_references(conn: GraphConnection, source_full_name: str, target_full_
     )
 
 
+def batch_upsert_file_contains_symbol(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write CONTAINS edges from File nodes to symbol nodes."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src:File {path: row.file}), (dst {full_name: row.sym}) "
+        "MERGE (src)-[:CONTAINS]->(dst)",
+        {"batch": batch},
+    )
+
+
+def batch_upsert_contains_symbol(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write CONTAINS edges between two symbol nodes identified by full_name."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src {full_name: row.from_id}), (dst {full_name: row.to_id}) "
+        "MERGE (src)-[:CONTAINS]->(dst)",
+        {"batch": batch},
+    )
+
+
+def batch_upsert_dir_contains(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write CONTAINS edges between directory/file nodes identified by path."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src {path: row.parent}), (dst {path: row.child}) "
+        "MERGE (src)-[:CONTAINS]->(dst)",
+        {"batch": batch},
+    )
+
+
+def batch_upsert_symbol_imports(conn: GraphConnection, batch: list[dict]) -> None:
+    """Batch-write IMPORTS edges from File nodes to any symbol node."""
+    if not batch:
+        return
+    conn.execute(
+        "UNWIND $batch AS row "
+        "MATCH (src:File {path: row.file}), (dst {full_name: row.sym}) "
+        "MERGE (src)-[:IMPORTS]->(dst)",
+        {"batch": batch},
+    )
+
+
 def batch_upsert_calls(conn: GraphConnection, batch: list[dict]) -> None:
     """Batch-write CALLS edges from Method nodes with call_sites."""
     if not batch:
