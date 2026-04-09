@@ -6,6 +6,13 @@
     return col.key === 'full_name' || col.key === 'name';
   }
 
+  function absolutePath(path, root) {
+    if (!path) return '';
+    if (path.startsWith('/')) return path;
+    if (root) return root.endsWith('/') ? root + path : root + '/' + path;
+    return path;
+  }
+
   function relativePath(absPath, root) {
     if (!absPath || !root) return absPath || '';
     if (absPath.startsWith(root)) {
@@ -39,7 +46,7 @@
               <td>
                 {#if col.synthetic && col.key === 'location'}
                   {#if row.file_path}
-                    <a href="vscode://file/{row.file_path}:{row.line}:1" class="location-link">
+                    <a href="vscode://file/{absolutePath(row.file_path, projectRoot)}:{row.line}:1" class="location-link">
                       {relativePath(row.file_path, projectRoot)}:{row.line}
                     </a>
                   {:else}

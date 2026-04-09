@@ -42,7 +42,9 @@ def _is_noise_symbol(raw: dict) -> bool:
     tsserver reports arrow-function callbacks (.map(), forEach(), describe(), it(), etc.)
     as children with names ending in " callback". It also synthesizes "<unknown>" for
     anonymous JSX fragments, and uses array-literal content (e.g. "[1, 2, 3]") as names
-    for inline expressions.  None of these are meaningful structural symbols.
+    for inline expressions.  In JSX/TSX files tsserver also reports string-literal attribute
+    values (CSS classes, SVG paths, UI text) as Property symbols whose name is the quoted
+    string itself.  None of these are meaningful structural symbols.
     """
     name = raw.get("name", "")
     if not name or name == "<unknown>":
@@ -50,6 +52,9 @@ def _is_noise_symbol(raw: dict) -> bool:
     if name.endswith(" callback"):
         return True
     if name.startswith("["):
+        return True
+    # String literals surfaced as symbol names (CSS classes, SVG paths, UI text)
+    if name[0] in ('"', "'", "`"):
         return True
     return False
 

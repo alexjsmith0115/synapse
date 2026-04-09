@@ -123,7 +123,7 @@ export const tools = {
   },
   execute_query: {
     label: 'Cypher Query',
-    category: 'Query',
+    category: 'Search',
     endpoint: 'execute_query',
     method: 'POST',
     cta: 'Execute Query',

@@ -106,8 +106,12 @@
     if (typeof row !== 'object' || row === null) return [];
     const keys = Object.keys(row);
     const hasLocation = keys.includes('file_path') && keys.includes('line');
+    const hide = new Set(hasLocation ? ['file_path', 'line'] : []);
+    // 'name' is redundant when 'full_name' is present; 'language' is visible in the file path
+    if (keys.includes('full_name')) hide.add('name');
+    if (hasLocation) hide.add('language');
     const filtered = keys
-      .filter(key => hasLocation ? (key !== 'file_path' && key !== 'line') : true)
+      .filter(key => !hide.has(key))
       .map(key => ({ key, label: key.replace(/_/g, ' ') }));
     if (hasLocation) {
       filtered.push({ key: 'location', label: 'Location', synthetic: true });

@@ -748,6 +748,21 @@ class TestIsNoiseSymbol:
         assert _is_noise_symbol({"name": '.map("cursor-pointer") callback', "kind": 6}) is True
         assert _is_noise_symbol({"name": '.map("font-medium mb-1") callback', "kind": 6}) is True
 
+    def test_string_literal_is_noise(self) -> None:
+        """String literals surfaced as symbol names (CSS classes, SVG paths, UI text)."""
+        from synapps.lsp.typescript import _is_noise_symbol
+        # Double-quoted CSS classes
+        assert _is_noise_symbol({"name": '"text-xs mb-2"', "kind": 7}) is True
+        assert _is_noise_symbol({"name": '"inline-block px-3 py-1 rounded text-sm"', "kind": 7}) is True
+        # Double-quoted SVG path data
+        assert _is_noise_symbol({"name": '"M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5"', "kind": 7}) is True
+        # Single-quoted UI text
+        assert _is_noise_symbol({"name": "'Click to edit title'", "kind": 7}) is True
+        assert _is_noise_symbol({"name": "'Creating Meeting...'", "kind": 7}) is True
+        assert _is_noise_symbol({"name": "'Edit Employee'", "kind": 7}) is True
+        # Backtick template literals
+        assert _is_noise_symbol({"name": "`some-template`", "kind": 7}) is True
+
     def test_legitimate_names_not_noise(self) -> None:
         """Ensure real symbols are not false-positived."""
         from synapps.lsp.typescript import _is_noise_symbol

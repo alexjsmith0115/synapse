@@ -6,6 +6,7 @@
       name: 'Search',
       tools: [
         { id: 'search_symbols', label: 'Search Symbols' },
+        { id: 'execute_query', label: 'Cypher Query' },
       ],
     },
     {
@@ -23,12 +24,6 @@
         { id: 'get_architecture', label: 'Architecture' },
         { id: 'get_context_for', label: 'Context' },
         { id: 'find_dead_code', label: 'Dead Code' },
-      ],
-    },
-    {
-      name: 'Query',
-      tools: [
-        { id: 'execute_query', label: 'Cypher Query' },
       ],
     },
     {

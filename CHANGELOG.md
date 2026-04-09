@@ -12,8 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **Web UI Experimental sidebar category** — new sidebar section (visually separated, italic label) containing Untested Methods and HTTP Endpoints; Explore moved to Navigate, Context moved to Analysis
 
 ### Fixed
+- **TypeScript string-literal noise in index** — tsserver reports JSX attribute values (CSS classes, SVG paths, UI text) as Property symbols with quoted names; `_is_noise_symbol` now filters names starting with `"`, `'`, or `` ` ``
+- **Web UI location links broken for relative paths** — `vscode://file/` links failed when `file_path` was relative; now prepends `projectRoot` to reconstruct absolute paths
 - **Web UI infinite reactive loop** — `$effect` cycle between `savedFormValues` prop read and `onSaveFormValues` callback caused `effect_update_depth_exceeded`; fixed by wrapping reads/callbacks in `untrack()`
 - **Autocomplete response parsing** — autocomplete expected a plain array but `/api/search_symbols` returns `{ results: [...] }`; now handles both formats
+
+### Changed
+- **Web UI table columns** — removed redundant `name` column (covered by `full_name`) and `language` column (visible in file path)
+- **Web UI sidebar** — moved Cypher Query from its own category into Search
 
 ## [1.9.1] - 2026-04-08
 
