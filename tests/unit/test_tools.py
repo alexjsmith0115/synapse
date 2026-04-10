@@ -306,3 +306,42 @@ def test_removed_tools_not_registered() -> None:
                 "delete_project", "summarize_from_graph", "trace_http_dependency"}
     present = removed & set(fns.keys())
     assert not present, f"Removed tools still registered: {present}"
+
+
+# --- read_symbol MCP tool tests ---
+
+def test_read_symbol_tool_delegates_to_service() -> None:
+    """read_symbol MCP tool passes full_name and max_lines to service.read_symbol."""
+    service = MagicMock()
+    service.read_symbol.return_value = "// src/foo.py:5\ndef bar(): pass\n"
+    fns = _register(service)
+    result = fns["read_symbol"]("Ns.Foo.bar")
+    service.read_symbol.assert_called_once_with("Ns.Foo.bar", max_lines=100)
+    assert "def bar" in result
+
+
+def test_read_symbol_tool_passes_custom_max_lines() -> None:
+    """read_symbol MCP tool forwards a non-default max_lines to the service."""
+    service = MagicMock()
+    service.read_symbol.return_value = "// src/foo.py:1\nclass Foo: pass\n"
+    fns = _register(service)
+    fns["read_symbol"]("Ns.Foo", max_lines=50)
+    service.read_symbol.assert_called_once_with("Ns.Foo", max_lines=50)
+
+
+def test_read_symbol_tool_returns_not_found_on_none() -> None:
+    """read_symbol MCP tool returns 'Symbol not found.' when service returns None."""
+    service = MagicMock()
+    service.read_symbol.return_value = None
+    fns = _register(service)
+    result = fns["read_symbol"]("Nonexistent")
+    assert result == "Symbol not found."
+
+
+def test_read_symbol_tool_catches_value_error() -> None:
+    """read_symbol MCP tool catches ValueError from resolution and returns it as a string."""
+    service = MagicMock()
+    service.read_symbol.side_effect = ValueError("Symbol not found: 'Bad.Name'")
+    fns = _register(service)
+    result = fns["read_symbol"]("Bad.Name")
+    assert "Symbol not found: 'Bad.Name'" in result

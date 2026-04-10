@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 - **`read_symbol` core logic** — `ContextBuilder.read_symbol()` and `SynappsService.read_symbol()` return symbol source with `// path:line` header, parent class signature for class members, and member overview fallback when source exceeds `max_lines` (default 100)
-- **`read_symbol` MCP tool** — exposes `read_symbol` as a callable MCP tool; cheaper than `get_context_for` when only source is needed; handles `ValueError` from name resolution and returns `"Symbol not found."` when the symbol is absent
+- **`read_symbol` MCP tool** — exposes `read_symbol` as a callable MCP tool; cheaper than `get_context_for` when only source is needed; handles `ValueError` from name resolution and returns `"Symbol not found."` when the symbol is absent; 4 unit tests cover delegation, custom `max_lines`, None fallback, and ValueError handling
 
 ## [1.10.0] - 2026-04-08
 
