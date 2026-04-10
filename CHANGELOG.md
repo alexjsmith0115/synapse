@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **`read_symbol` MCP tool** — returns a symbol's source code with containing class signature in fewer tokens than reading the full file; falls back to member signatures overview when source exceeds `max_lines`
+- **`assess_impact` MCP tool** — single-call risk assessment showing direct callers (≤15), transitive callers (≤10), test coverage (≤5), interface contract, and HTTP endpoint info (≤5)
+
 ### Changed
 - **`get_context_for` rework** — removed the `scope` parameter from `ContextBuilder` and `SynappsService`; replaced with `members_only: bool = False` for lightweight type-overview mode; default behavior (full context: source, containing type, interfaces, callees, dependencies, summaries) is unchanged; callers and test coverage sections are no longer part of `get_context_for` (use `assess_impact` instead)
 
