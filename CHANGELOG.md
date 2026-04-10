@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Removed
 - **Tool consolidation** — `find_dependencies`, `get_hierarchy`, `find_tests_for`, and `find_entry_points` MCP tools replaced with deprecation stubs pointing to their replacements (`get_context_for`, `assess_impact`, `get_architecture`); underlying service methods retained for web UI; calling any removed tool returns a clear deprecation message naming the replacement
 
+### Docs
+- **21-02 plan summary** — added `21-02-SUMMARY.md` documenting bench logging and integration test update execution
+
 ### Tests
 - **Bench logging unit tests** — `test_bench_wrap_writes_jsonl_record`, `test_bench_wrap_handles_none_result`, and `test_register_tools_activates_bench_logging` cover JSONL record format and instrumentation activation
 - **Instructions content unit tests** — four tests verify PRIMARY TOOLS section, primary tool names, grep/read replacement mappings, and absence of stale `scope=` references in `SERVER_INSTRUCTIONS`
