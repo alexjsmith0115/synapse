@@ -257,17 +257,9 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
             return {"error": str(e)}
 
     @mcp.tool()
-    def get_hierarchy(full_name: str) -> dict:
-        """Get the inheritance hierarchy for a class or interface (supports short names)."""
-        _auto_sync_check()
-        try:
-            result = service.get_hierarchy(full_name)
-        except ValueError as e:
-            return {"error": str(e)}
-        warning = service._staleness_warning(full_name)
-        if warning:
-            result["_staleness_warning"] = warning
-        return result
+    def get_hierarchy(full_name: str) -> str:
+        """This tool has been removed. Use get_context_for instead -- it includes inheritance and interface information in its output."""
+        return "This tool has been removed. Use get_context_for instead -- it includes inheritance and interface information in its output."
 
     @mcp.tool()
     def search_symbols(
@@ -372,18 +364,9 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
             return str(e)
 
     @mcp.tool()
-    def find_dependencies(full_name: str, depth: int = 1, limit: int = 50) -> list[dict] | dict:
-        """Find field-type dependencies for the given symbol.
-
-        depth: how many hops to traverse (default 1 = direct deps only, max 5).
-        Each result includes a 'depth' field indicating how many hops from the root.
-        Useful for impact analysis — depth=2 shows transitive dependencies.
-        """
-        _auto_sync_check()
-        try:
-            return service.find_dependencies(full_name, depth, limit=limit)
-        except ValueError as e:
-            return {"error": str(e)}
+    def find_dependencies(full_name: str) -> str:
+        """This tool has been removed. Use get_context_for instead -- it includes dependency information in its output."""
+        return "This tool has been removed. Use get_context_for instead -- it includes dependency information in its output."
 
     @mcp.tool()
     def get_context_for(full_name: str, scope: str | None = None, max_lines: int = 200) -> str:
@@ -417,27 +400,9 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return result or "Symbol not found."
 
     @mcp.tool()
-    def find_entry_points(
-        full_name: str,
-        max_depth: int = 8,
-        exclude_pattern: str = "",
-        exclude_test_callers: bool = True,
-    ) -> dict:
-        """Find all root callers (no incoming CALLS edges) that eventually call a method.
-
-        Useful for finding controller/API entry points that reach a given service method.
-        exclude_pattern: optional regex on full_name to filter unwanted entry points
-        (e.g. ".*\\.Tests\\..*" excludes test methods, ".*Controller.*" narrows to controllers).
-        Test entry points are excluded by default. Set exclude_test_callers=False to include them.
-        Returns {entry_points: [{entry, path}], target, max_depth}.
-        Each entry point appears once with the shortest path to the target.
-        When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
-        """
-        _auto_sync_check()
-        try:
-            return service.find_entry_points(full_name, max_depth, exclude_pattern, exclude_test_callers)
-        except ValueError as e:
-            return {"error": str(e)}
+    def find_entry_points(full_name: str) -> str:
+        """This tool has been removed. Use get_architecture instead -- it includes entry point and hotspot information."""
+        return "This tool has been removed. Use get_architecture instead -- it includes entry point and hotspot information."
 
     @mcp.tool()
     def find_http_endpoints(
@@ -526,25 +491,9 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return service.find_dead_code(exclude_pattern=exclude_pattern, exclude_file_pattern=exclude_file_pattern, limit=limit, offset=offset, subdirectory=subdirectory)
 
     @mcp.tool()
-    def find_tests_for(
-        path: str,
-        full_name: str,
-    ) -> list[dict]:
-        """[Experimental] Find test methods that directly cover a production method via TESTS edges.
-
-        Returns test methods that have a direct TESTS relationship to the target method.
-        TESTS edges are derived from CALLS edges where the caller is a test method
-        and the callee is a production method.
-
-        path: project root path (must be indexed)
-        full_name: fully qualified name of the production method (short names supported via resolution)
-        Returns [{full_name, file_path, line}] — one entry per test method covering the target.
-        """
-        _auto_sync_check()
-        try:
-            return service.find_tests_for(full_name)
-        except ValueError as e:
-            return {"error": str(e)}
+    def find_tests_for(path: str, full_name: str) -> str:
+        """This tool has been removed. Use assess_impact instead -- it includes test coverage in its output."""
+        return "This tool has been removed. Use assess_impact instead -- it includes test coverage in its output."
 
     @mcp.tool()
     def find_untested(
