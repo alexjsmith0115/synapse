@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Fixed
+- **TypeScript zero-children arrow functions not indexed** — TSServer reports some top-level `const` arrow functions with `children: []` when the body has no nested const/property symbols; the `_traverse` truthiness guard treated empty lists as falsy, silently dropping these functions from the graph and causing false positives in dead code detection (e.g. `formatDueDate`, `getSemanticStatus`); now uses tree-sitter to confirm arrow function declarations before promoting to Method nodes
+
 ## [1.10.0] - 2026-04-08
 
 ### Added
