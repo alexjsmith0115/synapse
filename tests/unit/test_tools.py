@@ -105,28 +105,6 @@ def test_graph_schema_notes_include_python_kinds() -> None:
     assert "function" in notes_text
 
 
-def test_get_hierarchy_ambiguous_returns_error_dict() -> None:
-    """When name is ambiguous, get_hierarchy should return an error dict, not raise."""
-    from synapps.mcp.tools import register_tools
-
-    mock_mcp = MagicMock()
-    mock_service = MagicMock()
-    mock_service.get_hierarchy.side_effect = ValueError("Ambiguous name 'Path' — matches: A, B, C")
-
-    tools = {}
-    def capture_tool(*args, **kwargs):
-        def decorator(fn):
-            tools[fn.__name__] = fn
-            return fn
-        return decorator
-    mock_mcp.tool = capture_tool
-
-    register_tools(mock_mcp, mock_service)
-    result = tools["get_hierarchy"](full_name="Path")
-    assert "error" in result
-    assert "Ambiguous" in result["error"]
-
-
 # --- summary tool tests ---
 
 def test_summary_action_get() -> None:
@@ -306,3 +284,37 @@ def test_removed_tools_not_registered() -> None:
                 "delete_project", "summarize_from_graph", "trace_http_dependency"}
     present = removed & set(fns.keys())
     assert not present, f"Removed tools still registered: {present}"
+
+
+# --- deprecated tool stub tests ---
+
+def test_find_dependencies_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["find_dependencies"](full_name="Ns.Foo")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_context_for" in result
+
+
+def test_get_hierarchy_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["get_hierarchy"](full_name="Ns.IFoo")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_context_for" in result
+
+
+def test_find_tests_for_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["find_tests_for"](path="/proj", full_name="Ns.Foo.bar")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "assess_impact" in result
+
+
+def test_find_entry_points_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["find_entry_points"](full_name="Ns.Foo.bar")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_architecture" in result
