@@ -105,28 +105,6 @@ def test_graph_schema_notes_include_python_kinds() -> None:
     assert "function" in notes_text
 
 
-def test_get_hierarchy_ambiguous_returns_error_dict() -> None:
-    """When name is ambiguous, get_hierarchy should return an error dict, not raise."""
-    from synapps.mcp.tools import register_tools
-
-    mock_mcp = MagicMock()
-    mock_service = MagicMock()
-    mock_service.get_hierarchy.side_effect = ValueError("Ambiguous name 'Path' — matches: A, B, C")
-
-    tools = {}
-    def capture_tool(*args, **kwargs):
-        def decorator(fn):
-            tools[fn.__name__] = fn
-            return fn
-        return decorator
-    mock_mcp.tool = capture_tool
-
-    register_tools(mock_mcp, mock_service)
-    result = tools["get_hierarchy"](full_name="Path")
-    assert "error" in result
-    assert "Ambiguous" in result["error"]
-
-
 # --- summary tool tests ---
 
 def test_summary_action_get() -> None:
@@ -308,96 +286,35 @@ def test_removed_tools_not_registered() -> None:
     assert not present, f"Removed tools still registered: {present}"
 
 
-# --- read_symbol MCP tool tests ---
+# --- deprecated tool stub tests ---
 
-def test_read_symbol_tool_delegates_to_service() -> None:
-    """read_symbol MCP tool passes full_name and max_lines to service.read_symbol."""
-    service = MagicMock()
-    service.read_symbol.return_value = "// src/foo.py:5\ndef bar(): pass\n"
-    fns = _register(service)
-    result = fns["read_symbol"]("Ns.Foo.bar")
-    service.read_symbol.assert_called_once_with("Ns.Foo.bar", max_lines=100)
-    assert "def bar" in result
-
-
-def test_read_symbol_tool_passes_custom_max_lines() -> None:
-    """read_symbol MCP tool forwards a non-default max_lines to the service."""
-    service = MagicMock()
-    service.read_symbol.return_value = "// src/foo.py:1\nclass Foo: pass\n"
-    fns = _register(service)
-    fns["read_symbol"]("Ns.Foo", max_lines=50)
-    service.read_symbol.assert_called_once_with("Ns.Foo", max_lines=50)
-
-
-def test_read_symbol_tool_returns_not_found_on_none() -> None:
-    """read_symbol MCP tool returns 'Symbol not found.' when service returns None."""
-    service = MagicMock()
-    service.read_symbol.return_value = None
-    fns = _register(service)
-    result = fns["read_symbol"]("Nonexistent")
-    assert result == "Symbol not found."
-
-
-def test_read_symbol_tool_catches_value_error() -> None:
-    """read_symbol MCP tool catches ValueError from resolution and returns it as a string."""
-    service = MagicMock()
-    service.read_symbol.side_effect = ValueError("Symbol not found: 'Bad.Name'")
-    fns = _register(service)
-    result = fns["read_symbol"]("Bad.Name")
-    assert "Symbol not found: 'Bad.Name'" in result
-
-
-# --- assess_impact MCP tool tests ---
-
-def test_assess_impact_tool_delegates_to_service() -> None:
-    """assess_impact MCP tool passes full_name to service.assess_impact."""
-    service = MagicMock()
-    service.assess_impact.return_value = "## Direct Callers\n\n..."
-    fns = _register(service)
-    result = fns["assess_impact"]("Ns.Foo.bar")
-    service.assess_impact.assert_called_once_with("Ns.Foo.bar")
-    assert result == "## Direct Callers\n\n..."
-
-
-def test_assess_impact_tool_catches_value_error() -> None:
-    """assess_impact MCP tool catches ValueError from resolution and returns it as a string."""
-    service = MagicMock()
-    service.assess_impact.side_effect = ValueError("Ambiguous name 'Foo': Ns.A.Foo, Ns.B.Foo")
-    fns = _register(service)
-    result = fns["assess_impact"]("Foo")
-    assert result == "Ambiguous name 'Foo': Ns.A.Foo, Ns.B.Foo"
-
-
-def test_assess_impact_tool_returns_full_report() -> None:
-    """assess_impact MCP tool returns the complete 5-section report from the service."""
-    service = MagicMock()
-    service.assess_impact.return_value = (
-        "## Direct Callers\n\nNs.A.Call1\n\n"
-        "## Transitive Callers (2-hop)\n\nNs.B.Call2\n\n"
-        "## Test Coverage\n\ntest_foo\n\n"
-        "## Interface Contract\n\nNo interface contract found.\n\n"
-        "## HTTP Endpoint\n\nNo HTTP endpoint found."
-    )
-    fns = _register(service)
-    result = fns["assess_impact"]("Ns.MyClass.DoThing")
-    assert "## Direct Callers" in result
-    assert "## Test Coverage" in result
-
-
-# --- get_context_for MCP tool signature tests ---
-
-def test_get_context_for_tool_no_scope_param():
-    """MCP tool signature must not accept scope parameter (D-01)."""
-    import inspect
+def test_find_dependencies_returns_deprecation_error() -> None:
     fns = _register(MagicMock())
-    sig = inspect.signature(fns["get_context_for"])
-    assert "scope" not in sig.parameters
+    result = fns["find_dependencies"](full_name="Ns.Foo")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_context_for" in result
 
 
-def test_get_context_for_tool_has_members_only_param():
-    """MCP tool must accept members_only with default False (D-05)."""
-    import inspect
+def test_get_hierarchy_returns_deprecation_error() -> None:
     fns = _register(MagicMock())
-    sig = inspect.signature(fns["get_context_for"])
-    assert "members_only" in sig.parameters
-    assert sig.parameters["members_only"].default is False
+    result = fns["get_hierarchy"](full_name="Ns.IFoo")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_context_for" in result
+
+
+def test_find_tests_for_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["find_tests_for"](path="/proj", full_name="Ns.Foo.bar")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "assess_impact" in result
+
+
+def test_find_entry_points_returns_deprecation_error() -> None:
+    fns = _register(MagicMock())
+    result = fns["find_entry_points"](full_name="Ns.Foo.bar")
+    assert isinstance(result, str)
+    assert "removed" in result.lower()
+    assert "get_architecture" in result

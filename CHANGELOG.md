@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 - **search_symbols grep-tolerance** — `search_symbols` now pre-processes queries via `_preprocess_query`, stripping language keywords (`def`, `class`, `function`, `public`, `static`, etc.) and syntax characters (`(`, `)`, `{`, `}`, `:`, `@`, etc.) so agents can paste grep-style queries like `def my_function(` and get useful results; dots are preserved for qualified names; single bare keywords are passed through unchanged; when the exact-case query returns no results a case-insensitive `toLower CONTAINS` fallback fires automatically with all original filters preserved
 
+### Removed
+- **Tool consolidation** — `find_dependencies`, `get_hierarchy`, `find_tests_for`, and `find_entry_points` MCP tools replaced with deprecation stubs pointing to their replacements (`get_context_for`, `assess_impact`, `get_architecture`); underlying service methods retained for web UI
+
 ## [1.10.0] - 2026-04-08
 
 ### Added
