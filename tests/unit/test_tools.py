@@ -364,7 +364,7 @@ def test_get_hierarchy_returns_deprecation_error() -> None:
 
 def test_find_tests_for_returns_deprecation_error() -> None:
     fns = _register(MagicMock())
-    result = fns["find_tests_for"](path="/proj", full_name="Ns.Foo.bar")
+    result = fns["find_tests_for"](full_name="Ns.Foo.bar")
     assert isinstance(result, str)
     assert "removed" in result.lower()
     assert "assess_impact" in result

@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **MCP instructions rewrite** — 3-tool primary decision tree (`read_symbol`, `search_symbols`, `find_usages`), explicit grep/read replacement mappings
 
 ### Removed
-- **Tool consolidation** — `find_dependencies`, `get_hierarchy`, `find_tests_for`, and `find_entry_points` MCP tools replaced with deprecation stubs pointing to their replacements (`get_context_for`, `assess_impact`, `get_architecture`); underlying service methods retained for web UI
+- **Tool consolidation** — `find_dependencies`, `get_hierarchy`, `find_tests_for`, and `find_entry_points` MCP tools replaced with deprecation stubs pointing to their replacements (`get_context_for`, `assess_impact`, `get_architecture`); underlying service methods retained for web UI; calling any removed tool returns a clear deprecation message naming the replacement
 
 ## [1.10.0] - 2026-04-08
 
