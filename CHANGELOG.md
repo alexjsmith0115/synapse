@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+- **`get_context_for` rework** — removed the `scope` parameter from `ContextBuilder` and `SynappsService`; replaced with `members_only: bool = False` for lightweight type-overview mode; default behavior (full context: source, containing type, interfaces, callees, dependencies, summaries) is unchanged; callers and test coverage sections are no longer part of `get_context_for` (use `assess_impact` instead)
+
 ## [1.10.0] - 2026-04-08
 
 ### Added

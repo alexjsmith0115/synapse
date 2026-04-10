@@ -39,7 +39,7 @@ class SynappsService:
     ) -> None:
         self._conn = conn
         self._indexing = IndexingService(conn, registry)
-        self._context = ContextBuilder(conn, service=self)
+        self._context = ContextBuilder(conn)
         self._project_roots: list[str] | None = None
 
     # --- Name resolution ---
@@ -469,9 +469,9 @@ class SynappsService:
         full_name = self._resolve(full_name)
         return self._context.get_symbol_source(full_name, include_class_signature)
 
-    def get_context_for(self, full_name: str, scope: str | None = None, max_lines: int = 200, structured: bool = False) -> str | dict | None:
+    def get_context_for(self, full_name: str, members_only: bool = False, max_lines: int = 200, structured: bool = False) -> str | dict | None:
         full_name = self._resolve(full_name, preference="concrete")
-        return self._context.get_context_for(full_name, scope, max_lines, structured=structured)
+        return self._context.get_context_for(full_name, members_only, max_lines, structured=structured)
 
     # --- Graph traversal & analysis ---
 
