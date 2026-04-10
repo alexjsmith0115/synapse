@@ -345,3 +345,41 @@ def test_read_symbol_tool_catches_value_error() -> None:
     fns = _register(service)
     result = fns["read_symbol"]("Bad.Name")
     assert "Symbol not found: 'Bad.Name'" in result
+
+
+# --- assess_impact MCP tool tests ---
+
+def test_assess_impact_tool_delegates_to_service() -> None:
+    """assess_impact MCP tool passes full_name to service.assess_impact."""
+    service = MagicMock()
+    service.assess_impact.return_value = "## Direct Callers\n\n..."
+    fns = _register(service)
+    result = fns["assess_impact"]("Ns.Foo.bar")
+    service.assess_impact.assert_called_once_with("Ns.Foo.bar")
+    assert result == "## Direct Callers\n\n..."
+
+
+def test_assess_impact_tool_catches_value_error() -> None:
+    """assess_impact MCP tool catches ValueError from resolution and returns it as a string."""
+    service = MagicMock()
+    service.assess_impact.side_effect = ValueError("Ambiguous name 'Foo': Ns.A.Foo, Ns.B.Foo")
+    fns = _register(service)
+    result = fns["assess_impact"]("Foo")
+    assert result == "Ambiguous name 'Foo': Ns.A.Foo, Ns.B.Foo"
+
+
+def test_assess_impact_tool_returns_full_report() -> None:
+    """assess_impact MCP tool returns the complete 5-section report from the service."""
+    service = MagicMock()
+    service.assess_impact.return_value = (
+        "## Direct Callers\n\nNs.A.Call1\n\n"
+        "## Transitive Callers (2-hop)\n\nNs.B.Call2\n\n"
+        "## Test Coverage\n\ntest_foo\n\n"
+        "## Interface Contract\n\nNo interface contract found.\n\n"
+        "## HTTP Endpoint\n\nNo HTTP endpoint found."
+    )
+    fns = _register(service)
+    result = fns["assess_impact"]("Ns.MyClass.DoThing")
+    assert "## Direct Callers" in result
+    assert "## Test Coverage" in result
+    assert "## HTTP Endpoint" in result
