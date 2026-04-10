@@ -436,6 +436,24 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
         return result or "Symbol not found."
 
     @mcp.tool()
+    def assess_impact(full_name: str) -> str:
+        """Evaluate the risk of changing a symbol.
+
+        Returns direct callers, transitive callers (2-hop), test coverage,
+        interface contract, and HTTP endpoint exposure. Each section is
+        capped and shows total count when truncated.
+
+        Does not include source code or callees -- use read_symbol and
+        get_context_for for those.
+        """
+        _auto_sync_check()
+        try:
+            result = service.assess_impact(full_name)
+        except ValueError as e:
+            return str(e)
+        return result
+
+    @mcp.tool()
     def find_entry_points(
         full_name: str,
         max_depth: int = 8,

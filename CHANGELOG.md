@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`read_symbol` core logic** — `ContextBuilder.read_symbol()` and `SynappsService.read_symbol()` return symbol source with `// path:line` header, parent class signature for class members, and member overview fallback when source exceeds `max_lines` (default 100)
 - **`read_symbol` MCP tool** — exposes `read_symbol` as a callable MCP tool; cheaper than `get_context_for` when only source is needed; handles `ValueError` from name resolution and returns `"Symbol not found."` when the symbol is absent; 4 unit tests cover delegation, custom `max_lines`, None fallback, and ValueError handling
 - **`assess_impact` unit tests** — 12 failing tests covering direct caller truncation (15), transitive caller truncation (10), test coverage truncation (5), interface contract (present/absent), HTTP endpoint (present/absent), empty sections (all 5 always shown), TOOL-04 exclusions (no source/callees), and service delegation
+- **`assess_impact` MCP tool** — exposes `assess_impact` as a callable MCP tool with a single `full_name` parameter; delegates to `service.assess_impact()`, calls `_auto_sync_check()`, catches `ValueError` from name resolution; always returns content (no `"Symbol not found."` fallback since all 5 sections are always present)
 
 ## [1.10.0] - 2026-04-08
 
