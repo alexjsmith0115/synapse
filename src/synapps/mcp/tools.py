@@ -389,14 +389,14 @@ def register_tools(mcp: object, service: SynappsService, project_path: str = "")
     def get_context_for(full_name: str, members_only: bool = False, max_lines: int = 200) -> str:
         """Recommended starting point for understanding any symbol before reading or editing.
 
-        Returns rich context: source, containing type, interfaces, callees, dependencies, and summaries.
+        Returns: source code, containing type signature, interfaces, callees, dependencies, summaries.
+        No callers or test lists — use assess_impact for those.
 
-        members_only: when True, requires a class or interface — returns constructor source, member
-        signatures, implemented interfaces, and summaries without method bodies or callees.
-        Use this for a quick structural overview of a type.
+        members_only: if True, returns only member signatures (no source bodies). Only valid for
+        classes and interfaces.
 
-        max_lines: if source exceeds this many lines, show structure overview instead of full source.
-        Set to 0 for structure-only. Set to -1 to disable the limit.
+        max_lines: if source exceeds this many lines, show structure overview instead. Set to 0
+        for structure-only. Set to -1 to disable the limit.
         When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity (e.g. CreateAsync on multiple classes) still requires a qualified name.
         """
         _auto_sync_check()

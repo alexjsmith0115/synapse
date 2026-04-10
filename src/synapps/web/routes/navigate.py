@@ -58,13 +58,10 @@ def router(service: SynappsService) -> APIRouter:
     @r.get("/get_context_for")
     def get_context_for(
         full_name: str,
-        scope: str | None = None,
+        members_only: bool = False,
     ) -> str | dict:
         try:
-            if scope == "impact":
-                result = service.analyze_change_impact(full_name, structured=True)
-            else:
-                result = service.get_context_for(full_name, scope=scope, max_lines=-1, structured=True)
+            result = service.get_context_for(full_name, members_only=members_only, max_lines=-1, structured=True)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         if result is None:
