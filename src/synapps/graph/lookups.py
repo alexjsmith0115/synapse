@@ -363,6 +363,7 @@ def search_symbols(
     file_path: str | None = None,
     language: str | None = None,
 ) -> list[dict]:
+    query = _preprocess_query(query)
     if kind and kind not in _VALID_KINDS:
         raise ValueError(
             f"Unknown symbol kind: {kind!r}. Valid values: {sorted(_VALID_KINDS)}"
@@ -383,6 +384,20 @@ def search_symbols(
     rows = conn.query(
         f"MATCH (n{label}) WHERE {where} RETURN n "
         "ORDER BY CASE WHEN n.name = $query THEN 0 ELSE 1 END, n.name",
+        params,
+    )
+    if rows:
+        return [r[0] for r in rows]
+    # Case-insensitive fallback: retry with toLower CONTAINS when exact match is empty.
+    # Uses literal string matching (not =~) to avoid regex injection with user input.
+    ci_conditions = [
+        "toLower(n.name) CONTAINS toLower($query)" if c == "n.name CONTAINS $query" else c
+        for c in conditions
+    ]
+    ci_where = " AND ".join(ci_conditions)
+    rows = conn.query(
+        f"MATCH (n{label}) WHERE {ci_where} RETURN n "
+        "ORDER BY CASE WHEN toLower(n.name) = toLower($query) THEN 0 ELSE 1 END, n.name",
         params,
     )
     return [r[0] for r in rows]

@@ -480,3 +480,72 @@ class TestTestPathPattern:
 ])
 def test_preprocess_query(query: str, expected: str) -> None:
     assert _preprocess_query(query) == expected
+
+
+# --- search_symbols preprocessing integration ---
+
+def test_search_symbols_preprocesses_grep_style_query() -> None:
+    """search_symbols must strip keyword prefix before querying."""
+    conn = _conn([])
+    search_symbols(conn, "def my_function(")
+    _, params = conn.query.call_args[0][0], conn.query.call_args[0][1]
+    assert params["query"] == "my_function"
+
+
+def test_search_symbols_passes_clean_query_unchanged() -> None:
+    """A plain symbol name must not be altered."""
+    conn = _conn([])
+    search_symbols(conn, "Service")
+    _, params = conn.query.call_args[0][0], conn.query.call_args[0][1]
+    assert params["query"] == "Service"
+
+
+# --- search_symbols case-insensitive fallback ---
+
+def test_search_symbols_no_fallback_when_exact_match_returns_results() -> None:
+    """conn.query must be called exactly once when exact match returns results."""
+    result_row = [{"full_name": "Ns.MyFunction", "name": "MyFunction"}]
+    conn = _conn([result_row])
+    search_symbols(conn, "MyFunction")
+    assert conn.query.call_count == 1
+
+
+def test_search_symbols_fallback_fires_when_exact_match_empty() -> None:
+    """conn.query must be called twice when exact match returns nothing."""
+    result_row = [{"full_name": "Ns.MyFunction", "name": "MyFunction"}]
+    conn = MagicMock()
+    conn.query.side_effect = [[], [result_row]]
+    search_symbols(conn, "myfunction")
+    assert conn.query.call_count == 2
+
+
+def test_search_symbols_fallback_uses_toLower_not_regex() -> None:
+    """Fallback query must use toLower CONTAINS, not =~ regex."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    search_symbols(conn, "myfunction")
+    fallback_cypher = conn.query.call_args_list[1][0][0]
+    assert "toLower" in fallback_cypher
+    assert "=~" not in fallback_cypher
+
+
+def test_search_symbols_fallback_preserves_kind_filter() -> None:
+    """Both exact and fallback queries must include the kind filter."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    search_symbols(conn, "myservice", kind="Class")
+    exact_cypher = conn.query.call_args_list[0][0][0]
+    fallback_cypher = conn.query.call_args_list[1][0][0]
+    assert "Class" in exact_cypher
+    assert "Class" in fallback_cypher
+
+
+def test_search_symbols_fallback_preserves_namespace_filter() -> None:
+    """Both queries must include namespace filter when provided."""
+    conn = MagicMock()
+    conn.query.side_effect = [[], []]
+    search_symbols(conn, "myservice", namespace="MyNs")
+    exact_params = conn.query.call_args_list[0][0][1]
+    fallback_params = conn.query.call_args_list[1][0][1]
+    assert exact_params.get("namespace") == "MyNs"
+    assert fallback_params.get("namespace") == "MyNs"

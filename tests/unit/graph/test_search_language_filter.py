@@ -16,10 +16,10 @@ def test_search_symbols_with_language_adds_where_condition() -> None:
     conn = _conn([])
     search_symbols(conn, "Animal", language="python")
 
-    conn.query.assert_called_once()
-    cypher, params = conn.query.call_args.args
-    assert "n.language = $language" in cypher
-    assert params.get("language") == "python"
+    # Check the first (exact-match) call includes the language filter.
+    first_cypher, first_params = conn.query.call_args_list[0].args
+    assert "n.language = $language" in first_cypher
+    assert first_params.get("language") == "python"
 
 
 def test_search_symbols_without_language_omits_condition() -> None:
@@ -27,10 +27,9 @@ def test_search_symbols_without_language_omits_condition() -> None:
     conn = _conn([])
     search_symbols(conn, "Animal", language=None)
 
-    conn.query.assert_called_once()
-    cypher, params = conn.query.call_args.args
-    assert "n.language" not in cypher
-    assert "language" not in params
+    first_cypher, first_params = conn.query.call_args_list[0].args
+    assert "n.language" not in first_cypher
+    assert "language" not in first_params
 
 
 def test_search_symbols_kind_and_language_combined() -> None:
@@ -38,12 +37,11 @@ def test_search_symbols_kind_and_language_combined() -> None:
     conn = _conn([])
     search_symbols(conn, "Animal", kind="Class", language="python")
 
-    conn.query.assert_called_once()
-    cypher, params = conn.query.call_args.args
-    assert ":Class" in cypher
-    assert "n.language = $language" in cypher
-    assert params.get("language") == "python"
-    assert params.get("query") == "Animal"
+    first_cypher, first_params = conn.query.call_args_list[0].args
+    assert ":Class" in first_cypher
+    assert "n.language = $language" in first_cypher
+    assert first_params.get("language") == "python"
+    assert first_params.get("query") == "Animal"
 
 
 def test_search_symbols_default_language_is_none() -> None:
