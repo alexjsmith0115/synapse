@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **`get_context_for` rework** — removed the `scope` parameter from `ContextBuilder` and `SynappsService`; replaced with `members_only: bool = False` for lightweight type-overview mode; default behavior (full context: source, containing type, interfaces, callees, dependencies, summaries) is unchanged; callers and test coverage sections are no longer part of `get_context_for` (use `assess_impact` instead)
 - **`get_context_for` MCP tool** — updated docstring to mention `assess_impact` for callers/tests; `scope` parameter removed from MCP tool signature
 - **`get_context_for` web route** — replaced `scope` query parameter with `members_only: bool = False`; removed `scope="impact"` delegation to `analyze_change_impact`
+- **Tests updated** — added `test_get_context_for_tool_no_scope_param` and `test_get_context_for_tool_has_members_only_param` to MCP tool tests; replaced scope-based web route tests with `members_only` equivalents
 
 ## [1.10.0] - 2026-04-08
 

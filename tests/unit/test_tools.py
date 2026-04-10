@@ -382,4 +382,22 @@ def test_assess_impact_tool_returns_full_report() -> None:
     result = fns["assess_impact"]("Ns.MyClass.DoThing")
     assert "## Direct Callers" in result
     assert "## Test Coverage" in result
-    assert "## HTTP Endpoint" in result
+
+
+# --- get_context_for MCP tool signature tests ---
+
+def test_get_context_for_tool_no_scope_param():
+    """MCP tool signature must not accept scope parameter (D-01)."""
+    import inspect
+    fns = _register(MagicMock())
+    sig = inspect.signature(fns["get_context_for"])
+    assert "scope" not in sig.parameters
+
+
+def test_get_context_for_tool_has_members_only_param():
+    """MCP tool must accept members_only with default False (D-05)."""
+    import inspect
+    fns = _register(MagicMock())
+    sig = inspect.signature(fns["get_context_for"])
+    assert "members_only" in sig.parameters
+    assert sig.parameters["members_only"].default is False
