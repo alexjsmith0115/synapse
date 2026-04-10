@@ -473,6 +473,10 @@ class SynappsService:
         full_name = self._resolve(full_name, preference="concrete")
         return self._context.get_context_for(full_name, scope, max_lines, structured=structured)
 
+    def read_symbol(self, full_name: str, max_lines: int = 100) -> str | None:
+        full_name = self._resolve(full_name, preference="concrete")
+        return self._context.read_symbol(full_name, max_lines=max_lines)
+
     # --- Graph traversal & analysis ---
 
     def trace_call_chain(self, start: str, end: str, max_depth: int = 6) -> dict:

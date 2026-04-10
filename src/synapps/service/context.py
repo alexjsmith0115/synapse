@@ -52,6 +52,39 @@ class ContextBuilder:
                 result = parent + "\n\n" + result
         return result
 
+    def read_symbol(self, full_name: str, max_lines: int = 100) -> str | None:
+        info = get_symbol_source_info(self._conn, full_name)
+        if info is None:
+            return None
+        file_path = info["file_path"]
+        line = info["line"]
+        end_line = info["end_line"]
+        if line is None or not end_line:
+            return f"Symbol '{full_name}' was indexed without line ranges. Re-index the project to enable source retrieval."
+
+        try:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
+                all_lines = f.readlines()
+        except OSError:
+            return f"Source file not found: {file_path}"
+
+        source_lines = all_lines[line - 1:end_line]
+        line_count = len(source_lines)
+
+        if max_lines >= 0 and line_count > max_lines:
+            members = get_members_overview(self._conn, full_name)
+            member_lines = "\n".join(_member_line(m) for m in members)
+            note = f"[source exceeds {max_lines} lines \u2014 showing members]"
+            return f"// {file_path}:{line}\n{note}\n\n{member_lines}"
+
+        result = f"// {file_path}:{line}\n{''.join(source_lines)}"
+
+        parent = self._get_parent_signature(full_name)
+        if parent:
+            result = parent + "\n\n" + result
+
+        return result
+
     # --- Context entry point ---
 
     def get_context_for(self, full_name: str, scope: str | None = None, max_lines: int = 200, structured: bool = False) -> str | dict | None:

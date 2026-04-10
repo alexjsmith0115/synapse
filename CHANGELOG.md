@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+- **`read_symbol` core logic** — `ContextBuilder.read_symbol()` and `SynappsService.read_symbol()` return symbol source with `// path:line` header, parent class signature for class members, and member overview fallback when source exceeds `max_lines` (default 100)
+
 ## [1.10.0] - 2026-04-08
 
 ### Added
