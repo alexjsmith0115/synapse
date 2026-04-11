@@ -33,30 +33,30 @@ relationships, and navigating symbols.
 `index_project` to index a new project, `sync_project` to refresh a stale index.
 - If queries return empty results, call `list_projects(path=...)` to check whether the project is indexed.
 
-### Tool selection (by task)
+### Primary tools (start here)
 | Task | Tool | Instead of |
 |------|------|------------|
-| Understand a symbol before editing | `get_context_for` with scope="edit" | manual file reads |
-| Read source code of a symbol | `get_context_for` | reading files by line range |
-| Symbol metadata (file, line, kind) | `get_context_for` with scope="structure" | — |
-| Find a symbol by name | `search_symbols` | guessing full_name strings |
+| Read source code of a symbol | `read_symbol` | cat/head/tail file reads |
+| Understand a symbol before editing | `get_context_for` | manual file reads |
+| Find a symbol by name | `search_symbols` | grep for symbol name |
 | Find who calls a method | `find_usages` | grep for method name |
+
+### Secondary tools
+| Task | Tool | Instead of |
+|------|------|------------|
+| Impact analysis before changes | `assess_impact` | manual caller tracing |
+| Type member overview without source | `get_context_for` with members_only=True | — |
 | Find what a method calls | `find_callees` (use `depth` for reachable call tree) | `execute_query` |
 | All usages of any symbol | `find_usages` (use `kind` to filter type refs) | grep |
-| Impact analysis before changes | `get_context_for` with scope="impact" | manual caller tracing |
-| Find API/controller entry points | `find_entry_points` | recursive find_callers |
 | Find all implementations of an interface | `find_implementations` | — |
-| Understand class inheritance | `get_hierarchy` | — |
-| Find constructor/field dependencies | `find_dependencies` | — |
 | Architecture overview | `get_architecture` | — |
 | Custom graph queries | `get_schema` then `execute_query` (last resort) | — |
 
 ### Avoid
 - Do not use `execute_query` when a dedicated tool exists for the task.
-- Do not read files with grep or cat when `get_context_for` can retrieve the exact code.
+- Do not read files with grep or cat when `read_symbol` or `get_context_for` can retrieve the exact code.
 - Do not guess symbol names — use `search_symbols` to discover them first.
-- Do not skip `get_context_for` with scope="edit" before modifying a method — it shows \
-callers, dependencies, and tests that might break."""
+- Before modifying a method, use `get_context_for` to understand context and `assess_impact` to check callers and tests."""
 
 # ── Per-agent templates ──────────────────────────────────────────────
 

@@ -113,17 +113,14 @@ def test_find_related_symbols(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_hierarchy(typescript_mcp: FastMCP) -> None:
-    """get_hierarchy for Dog returns Animal in parent chain."""
+def test_get_hierarchy_returns_deprecation(typescript_mcp: FastMCP) -> None:
+    """get_hierarchy returns a deprecation message pointing to get_context_for."""
     result = run(typescript_mcp.call_tool("get_hierarchy", {
         "full_name": "src/animals.Dog"
     }))
-    hierarchy = result_json(result)
-    assert "parents" in hierarchy
-    parent_names = [p.get("full_name", "") for p in hierarchy["parents"]]
-    assert any("Animal" in n for n in parent_names), (
-        f"Expected Animal in Dog's parents, got: {parent_names}"
-    )
+    output = text(result)
+    assert "removed" in output.lower()
+    assert "get_context_for" in output
 
 
 @pytest.mark.integration
@@ -175,13 +172,14 @@ def test_get_call_depth(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_find_dependencies(typescript_mcp: FastMCP) -> None:
-    """find_dependencies returns a list for a TypeScript class."""
+def test_find_dependencies_returns_deprecation(typescript_mcp: FastMCP) -> None:
+    """find_dependencies returns a deprecation message pointing to get_context_for."""
     result = run(typescript_mcp.call_tool("find_dependencies", {
         "full_name": "src/services.AnimalService"
     }))
-    deps = result_json(result)
-    assert isinstance(deps, list)
+    output = text(result)
+    assert "removed" in output.lower()
+    assert "get_context_for" in output
 
 
 @pytest.mark.integration
@@ -214,22 +212,8 @@ def test_find_usages(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_context_for_impact(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='impact') returns compact text summary for a TypeScript method."""
-    result = run(typescript_mcp.call_tool("get_context_for", {
-        "full_name": "src/services.AnimalService.getGreeting",
-        "scope": "impact",
-    }))
-    output = text(result)
-    assert "Change Impact" in output
-    assert "getGreeting" in output
-    assert "affected" in output
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
 def test_get_context_for(typescript_mcp: FastMCP) -> None:
-    """get_context_for returns non-empty context string for a TypeScript class."""
+    """get_context_for returns non-empty context with source and callees for a TypeScript class."""
     result = run(typescript_mcp.call_tool("get_context_for", {
         "full_name": "src/animals.Dog"
     }))
@@ -240,83 +224,49 @@ def test_get_context_for(typescript_mcp: FastMCP) -> None:
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_context_for_structure_scope(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='structure') returns Members but not Called Methods for a TypeScript class."""
+def test_get_context_for_members_only(typescript_mcp: FastMCP) -> None:
+    """get_context_for(members_only=True) returns member signatures for a TypeScript class."""
     result = run(typescript_mcp.call_tool("get_context_for", {
         "full_name": "src/services.AnimalService",
-        "scope": "structure",
+        "members_only": True,
     }))
     ctx = text(result)
-    assert "## Members" in ctx
-    assert "AnimalService" in ctx
-    assert "## Called Methods" not in ctx
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_context_for_method_scope(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='method') returns Target but not Containing Type or Members list."""
-    result = run(typescript_mcp.call_tool("get_context_for", {
-        "full_name": "src/services.AnimalService.getGreeting",
-        "scope": "method",
-    }))
-    ctx = text(result)
-    assert "## Target:" in ctx
-    assert "getGreeting" in ctx
-    assert "## Containing Type:" not in ctx
-    assert "## Members:" not in ctx
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_context_for_edit_scope_method(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='edit') on a method returns Target but not Containing Type or Called Methods."""
-    result = run(typescript_mcp.call_tool("get_context_for", {
-        "full_name": "src/services.AnimalService.getGreeting",
-        "scope": "edit",
-    }))
-    ctx = text(result)
-    assert "## Target:" in ctx
-    assert "getGreeting" in ctx
-    assert "## Containing Type:" not in ctx
-    assert "## Called Methods" not in ctx
-
-
-@pytest.mark.integration
-@pytest.mark.timeout(10)
-def test_get_context_for_edit_scope_class(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='edit') on a class returns Target and the class name."""
-    result = run(typescript_mcp.call_tool("get_context_for", {
-        "full_name": "src/services.AnimalService",
-        "scope": "edit",
-    }))
-    ctx = text(result)
-    assert "## Target:" in ctx
     assert "AnimalService" in ctx
 
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_get_context_for_edit_scope_rejects_field(typescript_mcp: FastMCP) -> None:
-    """get_context_for(scope='edit') on a Field node returns the rejection message."""
-    result = run(typescript_mcp.call_tool("get_context_for", {
-        "full_name": "src/animals.Animal._name",
-        "scope": "edit",
+def test_read_symbol(typescript_mcp: FastMCP) -> None:
+    """read_symbol returns source code for a TypeScript method."""
+    result = run(typescript_mcp.call_tool("read_symbol", {
+        "full_name": "src/services.AnimalService.getGreeting",
     }))
-    ctx = text(result)
-    assert "scope='edit' requires" in ctx
+    output = text(result)
+    assert "getGreeting" in output
 
 
 @pytest.mark.integration
 @pytest.mark.timeout(10)
-def test_find_entry_points(typescript_mcp: FastMCP) -> None:
-    """find_entry_points returns dict with entry_points key without error."""
+def test_assess_impact(typescript_mcp: FastMCP) -> None:
+    """assess_impact returns sections for a TypeScript method."""
+    result = run(typescript_mcp.call_tool("assess_impact", {
+        "full_name": "src/services.AnimalService.getGreeting",
+    }))
+    output = text(result)
+    assert "## Direct Callers" in output
+    assert "## Test Coverage" in output
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(10)
+def test_find_entry_points_returns_deprecation(typescript_mcp: FastMCP) -> None:
+    """find_entry_points returns a deprecation message."""
     result = run(typescript_mcp.call_tool("find_entry_points", {
         "full_name": "src/services.AnimalService.getGreeting",
     }))
-    ep = result_json(result)
-    assert isinstance(ep, dict)
-    assert "entry_points" in ep
+    output = text(result)
+    assert "removed" in output.lower()
+    assert "get_architecture" in output
 
 
 # ---------------------------------------------------------------------------

@@ -812,7 +812,7 @@ def test_get_context_for_falls_back_to_structure_when_source_exceeds_max_lines(t
         result = svc.get_context_for("Ns.BigClass", max_lines=50)
 
     assert "Source exceeds 50 lines" in result
-    assert "scope='method'" in result
+    assert "read_symbol" in result
     assert "DoWork" in result  # member signature visible
 
 

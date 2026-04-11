@@ -109,7 +109,7 @@ class ContextBuilder:
         if source is not None and max_lines >= 0:
             line_count = source.count("\n") + 1
             if line_count > max_lines:
-                note = f"[Source exceeds {max_lines} lines — showing structure. Use scope='method' on individual methods for full source.]"
+                note = f"[Source exceeds {max_lines} lines — showing structure. Use read_symbol on individual methods for full source.]"
                 if labels and labels & {"Class", "Interface"}:
                     members = get_members_overview(self._conn, full_name)
                     member_lines = "\n".join(_member_line(m) for m in members)

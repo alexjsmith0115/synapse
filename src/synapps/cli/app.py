@@ -444,13 +444,13 @@ def dependencies(
 @app.command(rich_help_panel="Symbol Queries")
 def context(
     full_name: str,
-    scope: Annotated[str | None, typer.Option(help="Scope: 'structure', 'method', 'edit', or omit for full")] = None,
+    members_only: Annotated[bool, typer.Option("--members-only", help="Show only member signatures without source bodies")] = False,
     max_lines: int = typer.Option(200, "--max-lines", help="Auto-fallback to structure if source exceeds this many lines (-1 = unlimited)"),
 ) -> None:
     """Get the full context needed to understand or modify a symbol.
 
     When a short type name matches both an interface and concrete class, the concrete implementation is preferred. Method-level ambiguity still requires a qualified name."""
-    result = _get_service().get_context_for(full_name, scope=scope, max_lines=max_lines)
+    result = _get_service().get_context_for(full_name, members_only=members_only, max_lines=max_lines)
     typer.echo(result or "Not found")
 
 
