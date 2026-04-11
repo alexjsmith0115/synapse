@@ -68,6 +68,17 @@ def router(service: SynappsService) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Symbol '{full_name}' not found.")
         return result
 
+    @r.get("/find_implementations")
+    def find_implementations(
+        full_name: str,
+        limit: int = 50,
+    ) -> list | dict:
+        try:
+            result = service.find_implementations(full_name, limit=limit)
+            return serialize_result(result)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
     @r.get("/expand_node")
     def expand_node(full_name: str) -> dict:
         try:

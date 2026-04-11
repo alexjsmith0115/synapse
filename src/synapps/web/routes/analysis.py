@@ -47,4 +47,12 @@ def router(service: SynappsService) -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @r.get("/assess_impact")
+    def assess_impact(full_name: str) -> dict:
+        try:
+            result = service.assess_impact(full_name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {"content": result}
+
     return r

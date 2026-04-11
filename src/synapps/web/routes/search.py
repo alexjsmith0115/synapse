@@ -24,4 +24,17 @@ def router(service: SynappsService) -> APIRouter:
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @r.get("/read_symbol")
+    def read_symbol(
+        full_name: str,
+        max_lines: int = 100,
+    ) -> dict:
+        try:
+            result = service.read_symbol(full_name, max_lines=max_lines)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Symbol '{full_name}' not found.")
+        return {"content": result}
+
     return r
