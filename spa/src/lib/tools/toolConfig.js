@@ -18,6 +18,18 @@ export const tools = {
       { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
     ],
   },
+  read_symbol: {
+    label: 'Read Symbol',
+    category: 'Search',
+    endpoint: 'read_symbol',
+    method: 'GET',
+    cta: 'Read Symbol',
+    resultType: 'text',
+    params: [
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork', autocomplete: true },
+      { name: 'max_lines', label: 'Max lines', type: 'number', required: false, default: 100 },
+    ],
+  },
   find_usages: {
     label: 'Find Usages',
     category: 'Navigate',
@@ -45,15 +57,16 @@ export const tools = {
       { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
     ],
   },
-  get_hierarchy: {
-    label: 'Get Hierarchy',
+  find_implementations: {
+    label: 'Find Implementations',
     category: 'Navigate',
-    endpoint: 'get_hierarchy',
+    endpoint: 'find_implementations',
     method: 'GET',
     cta: 'Run Query',
-    resultType: 'graph',
+    resultType: 'table',
     params: [
-      { name: 'full_name', label: 'Class or interface name', type: 'text', required: true, placeholder: 'e.g. IMyService', autocomplete: true },
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. IMyService', autocomplete: true },
+      { name: 'limit', label: 'Limit', type: 'number', required: false, default: 50 },
     ],
   },
   get_context_for: {
@@ -65,8 +78,18 @@ export const tools = {
     resultType: 'context',
     params: [
       { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork', autocomplete: true },
-      { name: 'scope', label: 'Scope', type: 'select', required: false, default: 'impact',
-        options: ['impact', 'structure', 'method', 'edit'] },
+      { name: 'members_only', label: 'Members only', type: 'checkbox', required: false, default: false },
+    ],
+  },
+  assess_impact: {
+    label: 'Assess Impact',
+    category: 'Analysis',
+    endpoint: 'assess_impact',
+    method: 'GET',
+    cta: 'Assess Impact',
+    resultType: 'text',
+    params: [
+      { name: 'full_name', label: 'Symbol name', type: 'text', required: true, placeholder: 'e.g. MyClass.DoWork', autocomplete: true },
     ],
   },
   get_architecture: {
