@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 ### Added
 - **Contract fixtures module** — `tests/fixtures/contract_fixtures.py` with 19 TypedDict shapes covering all mocked `SynappsService` methods (search, navigate, analysis, HTTP, misc); zero synapps runtime imports; `tests/fixtures/__init__.py` makes the directory a Python package; `pytest.ini` pythonpath updated to include `tests` so fixtures are importable from any test file
 - **Contract validation integration tests** — `tests/integration/test_contract_validation.py` with 19 `@pytest.mark.integration` tests asserting real `SynappsService` output conforms to each TypedDict shape using structural assertions only (keys + types, no exact-value comparisons); `_assert_conforms()` helper uses `get_type_hints()` and `__required_keys__`
+- **CLI golden file tests** — `tests/unit/test_cli_golden.py` with 7 syrupy snapshot tests covering `callers`, `callees`, `hierarchy`, `search`, and `doctor` commands; output normalization strips ANSI codes, replaces absolute paths with `<PATH>`, forces COLUMNS=80 for cross-machine stability
+- **MCP schema unit tests** — `tests/unit/test_mcp_schema.py` with 5 tests validating tool registration metadata and naming conventions: all 21 tools have non-empty descriptions, valid `inputSchema` with `type==object`, correct tool count, no forbidden parameter names, and all parameters use snake_case
 
 ### Fixed
 - **contract_fixtures.py `NotRequired` fields** — removed `from __future__ import annotations` so `NotRequired` wrappers are evaluated at class creation time; previously all fields were incorrectly treated as required
