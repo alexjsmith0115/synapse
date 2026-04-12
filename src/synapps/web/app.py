@@ -26,12 +26,13 @@ def create_app(service: SynappsService, *, static_dir: Path | None = None) -> Fa
     app = FastAPI(title="Synapps Web UI", docs_url=None, redoc_url=None)
 
     # Import and register route modules — /api prefix
-    from synapps.web.routes import search, navigate, analysis, query as query_routes, config
+    from synapps.web.routes import search, navigate, analysis, query as query_routes, config, health
     app.include_router(search.router(service), prefix="/api")
     app.include_router(navigate.router(service), prefix="/api")
     app.include_router(analysis.router(service), prefix="/api")
     app.include_router(query_routes.router(service), prefix="/api")
     app.include_router(config.router(service), prefix="/api")
+    app.include_router(health.router(service), prefix="/api")
 
     # SPA static files — MUST be registered AFTER API routes
     # html=True enables index.html fallback for SPA client-side routing
