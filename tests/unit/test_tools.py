@@ -1,7 +1,9 @@
 import importlib
 import inspect
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec
+
+from synapps.service import SynappsService
 
 from synapps.mcp.tools import _GRAPH_SCHEMA
 
@@ -18,7 +20,7 @@ def test_get_schema_tool_returns_schema():
     real_mcp = MagicMock()
     real_mcp.tool.return_value = lambda f: registered.__setitem__(f.__name__, f) or f
     from synapps.mcp.tools import register_tools
-    register_tools(real_mcp, MagicMock())
+    register_tools(real_mcp, create_autospec(SynappsService))
 
     result = registered["get_schema"]()
     assert result is _GRAPH_SCHEMA
@@ -36,12 +38,12 @@ def _register(service):
 
 def test_list_projects_has_description():
     """list_projects must have a docstring so FastMCP generates a tool description."""
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     assert fns["list_projects"].__doc__, "list_projects must have a docstring"
 
 
 def test_find_usages_tool_delegates_to_service() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_usages.return_value = "## Usages of Ns.Svc (Class)\n\n0 type references"
     fns = _register(service)
     result = fns["find_usages"]("Ns.Svc")
@@ -50,7 +52,7 @@ def test_find_usages_tool_delegates_to_service() -> None:
 
 
 def test_find_usages_tool_passes_exclude_flag() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_usages.return_value = "## Usages of Ns.M (Method)\n\n0 callers"
     fns = _register(service)
     fns["find_usages"]("Ns.M", exclude_test_callers=False)
@@ -86,7 +88,7 @@ def test_graph_schema_nodes_have_language_property() -> None:
 
 def test_tool_docstrings_contain_disambiguation_cues():
     """Verify that key tools have disambiguation guidance in their docstrings."""
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     fns = _register(service)
 
     # get_context_for should indicate it's the recommended starting point
@@ -111,7 +113,7 @@ def test_graph_schema_notes_include_python_kinds() -> None:
 # --- summary tool tests ---
 
 def test_summary_action_get() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.get_summary.return_value = "A summary"
     fns = _register(service)
     result = fns["summary"](action="get", full_name="Ns.Cls")
@@ -120,7 +122,7 @@ def test_summary_action_get() -> None:
 
 
 def test_summary_action_set() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     fns = _register(service)
     result = fns["summary"](action="set", full_name="Ns.Cls", content="My summary")
     service.set_summary.assert_called_once_with("Ns.Cls", "My summary")
@@ -128,7 +130,7 @@ def test_summary_action_set() -> None:
 
 
 def test_summary_action_list() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.list_summarized.return_value = [{"full_name": "Ns.Cls"}]
     fns = _register(service)
     result = fns["summary"](action="list")
@@ -137,7 +139,7 @@ def test_summary_action_list() -> None:
 
 
 def test_summary_set_missing_params() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     fns = _register(service)
     result = fns["summary"](action="set", full_name=None, content=None)
     assert "error" in result.lower()
@@ -145,7 +147,7 @@ def test_summary_set_missing_params() -> None:
 
 
 def test_summary_get_missing_full_name() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     fns = _register(service)
     result = fns["summary"](action="get", full_name=None)
     assert "error" in result.lower()
@@ -155,7 +157,7 @@ def test_summary_get_missing_full_name() -> None:
 # --- find_callees depth tests ---
 
 def test_find_callees_with_depth_delegates_to_get_call_depth() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.get_call_depth.return_value = {"root": "Ns.M", "callees": [], "depth_limit": 3}
     fns = _register(service)
     result = fns["find_callees"](full_name="Ns.M", depth=3)
@@ -165,7 +167,7 @@ def test_find_callees_with_depth_delegates_to_get_call_depth() -> None:
 
 
 def test_find_callees_without_depth_uses_normal_path() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_callees.return_value = [{"name": "callee"}]
     fns = _register(service)
     result = fns["find_callees"](full_name="Ns.M")
@@ -176,7 +178,7 @@ def test_find_callees_without_depth_uses_normal_path() -> None:
 # --- find_usages kind/breakdown tests ---
 
 def test_find_usages_with_kind_delegates_to_type_references() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_type_references.return_value = [{"symbol": {"full_name": "Ns.X"}, "kind": "parameter"}]
     fns = _register(service)
     result = fns["find_usages"](full_name="Ns.Cls", kind="parameter")
@@ -187,7 +189,7 @@ def test_find_usages_with_kind_delegates_to_type_references() -> None:
 # --- list_projects path filter tests ---
 
 def test_list_projects_with_path_returns_index_status() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.get_index_status.return_value = {"path": "/my/proj", "file_count": 10}
     fns = _register(service)
     result = fns["list_projects"](path="/my/proj")
@@ -198,7 +200,7 @@ def test_list_projects_with_path_returns_index_status() -> None:
 
 
 def test_list_projects_without_path_returns_all() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.list_projects.return_value = [{"path": "/a"}, {"path": "/b"}]
     fns = _register(service)
     result = fns["list_projects"]()
@@ -210,7 +212,7 @@ def test_list_projects_without_path_returns_all() -> None:
 # --- HTTP endpoint tool tests ---
 
 def test_find_http_endpoints_delegates_to_service() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_http_endpoints.return_value = [
         {"route": "/api/items", "http_method": "GET", "handler_full_name": "ItemsController.GetAll",
          "file_path": "src/Controllers/Items.cs", "line": 15, "language": "csharp", "has_server_handler": True}
@@ -223,7 +225,7 @@ def test_find_http_endpoints_delegates_to_service() -> None:
 
 
 def test_find_http_endpoints_passes_all_params() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.find_http_endpoints.return_value = []
     fns = _register(service)
     fns["find_http_endpoints"](route="/api", http_method="POST", language="python", limit=10)
@@ -231,7 +233,7 @@ def test_find_http_endpoints_passes_all_params() -> None:
 
 
 def test_find_http_endpoints_trace_delegates_to_service() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.trace_http_dependency.return_value = {
         "route": "/api/items", "http_method": "GET", "has_server_handler": True,
         "server_handler": {"full_name": "ItemsController.GetAll", "file_path": "src/Controllers/Items.cs", "line": 15, "language": "csharp"},
@@ -246,7 +248,7 @@ def test_find_http_endpoints_trace_delegates_to_service() -> None:
 
 
 def test_find_http_endpoints_trace_no_server_handler() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.trace_http_dependency.return_value = {
         "route": "/api/external", "http_method": "GET", "has_server_handler": False,
         "server_handler": None, "client_callers": [{"full_name": "MyService.fetchData", "file_path": "src/service.ts", "line": 42, "language": "typescript"}],
@@ -259,7 +261,7 @@ def test_find_http_endpoints_trace_no_server_handler() -> None:
 
 
 def test_find_http_endpoints_trace_requires_route_and_method() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     fns = _register(service)
     result = fns["find_http_endpoints"](route="/api/items", trace=True)
     assert "error" in result
@@ -268,7 +270,7 @@ def test_find_http_endpoints_trace_requires_route_and_method() -> None:
 
 def test_trace_http_dependency_not_registered() -> None:
     """trace_http_dependency was merged into find_http_endpoints(trace=True) and must not exist as a separate tool."""
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     assert "trace_http_dependency" not in fns
 
 
@@ -280,7 +282,7 @@ def test_graph_schema_no_experimental_note() -> None:
 # --- read_symbol tool tests ---
 
 def test_read_symbol_delegates_to_service() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.read_symbol.return_value = "// src/foo.py:10\ndef foo(): pass"
     fns = _register(service)
     result = fns["read_symbol"](full_name="mod.foo")
@@ -289,7 +291,7 @@ def test_read_symbol_delegates_to_service() -> None:
 
 
 def test_read_symbol_returns_not_found_when_service_returns_none() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.read_symbol.return_value = None
     fns = _register(service)
     result = fns["read_symbol"](full_name="mod.missing")
@@ -297,7 +299,7 @@ def test_read_symbol_returns_not_found_when_service_returns_none() -> None:
 
 
 def test_read_symbol_passes_max_lines() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.read_symbol.return_value = "// src/foo.py:10\ndef foo(): pass"
     fns = _register(service)
     fns["read_symbol"](full_name="mod.foo", max_lines=-1)
@@ -307,7 +309,7 @@ def test_read_symbol_passes_max_lines() -> None:
 # --- assess_impact tool tests ---
 
 def test_assess_impact_delegates_to_service() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.assess_impact.return_value = "## Direct Callers\n\nNo direct callers found."
     fns = _register(service)
     result = fns["assess_impact"](full_name="mod.Cls.method")
@@ -316,7 +318,7 @@ def test_assess_impact_delegates_to_service() -> None:
 
 
 def test_assess_impact_returns_error_string_on_value_error() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.assess_impact.side_effect = ValueError("Ambiguous name 'method' — matches: A.method, B.method")
     fns = _register(service)
     result = fns["assess_impact"](full_name="method")
@@ -327,7 +329,7 @@ def test_assess_impact_returns_error_string_on_value_error() -> None:
 # --- get_context_for uses members_only ---
 
 def test_get_context_for_passes_members_only() -> None:
-    service = MagicMock()
+    service = create_autospec(SynappsService)
     service.get_context_for.return_value = "## Members: Ns.Cls\n\n- method()"
     service._staleness_warning.return_value = None
     fns = _register(service)
@@ -338,7 +340,7 @@ def test_get_context_for_passes_members_only() -> None:
 # --- removed tools absence test ---
 
 def test_removed_tools_not_registered() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     removed = {"set_summary", "get_summary", "list_summarized", "get_call_depth",
                 "find_type_references", "find_type_impact", "get_index_status",
                 "find_interface_contract", "audit_architecture", "check_environment",
@@ -350,7 +352,7 @@ def test_removed_tools_not_registered() -> None:
 # --- deprecated tool stub tests ---
 
 def test_find_dependencies_returns_deprecation_error() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     result = fns["find_dependencies"](full_name="Ns.Foo")
     assert isinstance(result, str)
     assert "removed" in result.lower()
@@ -358,7 +360,7 @@ def test_find_dependencies_returns_deprecation_error() -> None:
 
 
 def test_get_hierarchy_returns_deprecation_error() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     result = fns["get_hierarchy"](full_name="Ns.IFoo")
     assert isinstance(result, str)
     assert "removed" in result.lower()
@@ -366,7 +368,7 @@ def test_get_hierarchy_returns_deprecation_error() -> None:
 
 
 def test_find_tests_for_returns_deprecation_error() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     result = fns["find_tests_for"](full_name="Ns.Foo.bar")
     assert isinstance(result, str)
     assert "removed" in result.lower()
@@ -374,7 +376,7 @@ def test_find_tests_for_returns_deprecation_error() -> None:
 
 
 def test_find_entry_points_returns_deprecation_error() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     result = fns["find_entry_points"](full_name="Ns.Foo.bar")
     assert isinstance(result, str)
     assert "removed" in result.lower()
@@ -433,7 +435,7 @@ def test_register_tools_activates_bench_logging(tmp_path, monkeypatch) -> None:
     mcp = MagicMock()
     original_tool = mcp.tool
 
-    tools_mod.register_tools(mcp, MagicMock())
+    tools_mod.register_tools(mcp, create_autospec(SynappsService))
 
     # When bench logging is active, mcp.tool is replaced by _instrumented_tool
     assert mcp.tool is not original_tool
@@ -468,13 +470,13 @@ def test_instructions_no_stale_scope_references() -> None:
 # --- get_context_for parameter shape tests (restoring Phase 18 tests) ---
 
 def test_get_context_for_tool_no_scope_param() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     sig = inspect.signature(fns["get_context_for"])
     assert "scope" not in sig.parameters
 
 
 def test_get_context_for_tool_has_members_only_param() -> None:
-    fns = _register(MagicMock())
+    fns = _register(create_autospec(SynappsService))
     sig = inspect.signature(fns["get_context_for"])
     assert "members_only" in sig.parameters
     assert sig.parameters["members_only"].default is False

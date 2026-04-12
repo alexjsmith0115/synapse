@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, create_autospec
+
+from synapps.service import SynappsService
 from typer.testing import CliRunner
 from synapps.cli.app import app, _get_service
 
@@ -12,7 +14,7 @@ runner = CliRunner()
 
 def _svc(overrides: dict | None = None):
     """Return a MagicMock SynappsService with sensible defaults."""
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.find_callers.return_value = []
     svc.find_callees.return_value = []
     svc.find_implementations.return_value = []
@@ -98,7 +100,7 @@ def test_index_calls_command_does_not_exist():
 
 
 def test_callers_errors_when_given_a_class():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
     with patch("synapps.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["callers", "A.MyClass"])
@@ -108,7 +110,7 @@ def test_callers_errors_when_given_a_class():
 
 
 def test_callees_errors_when_given_a_class():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
     with patch("synapps.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["callees", "A.MyClass"])
@@ -117,7 +119,7 @@ def test_callees_errors_when_given_a_class():
 
 
 def test_implementations_errors_when_given_a_class():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.get_symbol.return_value = {"full_name": "A.MyClass", "_labels": ["Class"]}
     with patch("synapps.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["implementations", "A.MyClass"])
@@ -126,7 +128,7 @@ def test_implementations_errors_when_given_a_class():
 
 
 def test_callers_errors_when_symbol_not_found():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.get_symbol.return_value = None
     with patch("synapps.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["callers", "A.Missing"])
@@ -135,7 +137,7 @@ def test_callers_errors_when_symbol_not_found():
 
 
 def test_implementations_accepts_abstract_class():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.get_symbol.return_value = {"full_name": "A.IAnimal", "_labels": ["Class"], "is_abstract": True}
     svc.find_implementations.return_value = [{"full_name": "A.Dog", "signature": None}]
     with patch("synapps.cli.app._get_service", return_value=svc):
@@ -145,7 +147,7 @@ def test_implementations_accepts_abstract_class():
 
 
 def test_index_missing_dependency_shows_reinstall_hint():
-    svc = MagicMock()
+    svc = create_autospec(SynappsService)
     svc.smart_index.side_effect = ModuleNotFoundError("No module named 'tree_sitter_typescript'")
     with patch("synapps.cli.app._get_service", return_value=svc):
         result = runner.invoke(app, ["index", "/some/path"])
