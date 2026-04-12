@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - **MCP response schema validation tests** — `tests/integration/test_mcp_schema.py` with 22 `@pytest.mark.integration` tests validating MCP-layer response shapes via `call_tool()` against live Memgraph; covers all 21 tools (structured-output shape checks via `_assert_conforms` and text-output string assertions); `find_usages` tested for both code paths (with `kind=` and without)
 
 ### Fixed
+- **TypeScript extractor `RecursionError` on deeply nested ASTs** — converted all 5 TypeScript tree-sitter extractor `_walk()` methods from recursive to iterative (stack-based) traversal; deeply nested files (e.g. minified bundles) no longer crash indexing by exceeding Python's default recursion limit
 - **`execute_query` route unhandled `Neo4jError`** — `src/synapps/web/routes/query.py` now catches `neo4j.exceptions.Neo4jError` alongside `ValueError` and maps it to HTTP 400; previously invalid Cypher queries propagated as unhandled `ClientError` and caused 500 responses
 - **contract_fixtures.py `NotRequired` fields** — removed `from __future__ import annotations` so `NotRequired` wrappers are evaluated at class creation time; previously all fields were incorrectly treated as required
 - **`FindDeadCodeResult` and `FindUntestedResult` shapes** — corrected `total: int` to `stats: dict` to match actual `SynappsService.find_dead_code()` and `find_untested()` return shapes

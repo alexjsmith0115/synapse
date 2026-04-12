@@ -25,12 +25,14 @@ class TypeScriptBaseTypeExtractor:
         return results
 
     def _walk(self, node, results: list[tuple[str, str, bool, int, int]]) -> None:
-        if node.type in _CLASS_DECL_TYPES:
-            self._handle_class_decl(node, results)
-        elif node.type == "interface_declaration":
-            self._handle_interface_decl(node, results)
-        for child in node.children:
-            self._walk(child, results)
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            if current.type in _CLASS_DECL_TYPES:
+                self._handle_class_decl(current, results)
+            elif current.type == "interface_declaration":
+                self._handle_interface_decl(current, results)
+            stack.extend(current.children)
 
     def _handle_class_decl(self, node, results: list[tuple[str, str, bool, int, int]]) -> None:
         class_name: str | None = None

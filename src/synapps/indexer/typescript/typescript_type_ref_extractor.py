@@ -72,23 +72,24 @@ class TypeScriptTypeRefExtractor:
     # ------------------------------------------------------------------
 
     def _walk(self, node, method_lines, class_lines, results: list[TypeRef]) -> None:
-        node_type = node.type
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            node_type = current.type
 
-        if node_type in _PARAM_PARENT_TYPES:
-            self._handle_parameter(node, method_lines, results)
-            # Still recurse — parameters can be nested in other structures
+            if node_type in _PARAM_PARENT_TYPES:
+                self._handle_parameter(current, method_lines, results)
 
-        elif node_type in _RETURN_TYPE_PARENTS:
-            self._handle_return_type(node, method_lines, results)
+            elif node_type in _RETURN_TYPE_PARENTS:
+                self._handle_return_type(current, method_lines, results)
 
-        elif node_type == "public_field_definition":
-            self._handle_field(node, class_lines, results)
+            elif node_type == "public_field_definition":
+                self._handle_field(current, class_lines, results)
 
-        elif node_type == "property_signature":
-            self._handle_property_sig(node, class_lines, results)
+            elif node_type == "property_signature":
+                self._handle_property_sig(current, class_lines, results)
 
-        for child in node.children:
-            self._walk(child, method_lines, class_lines, results)
+            stack.extend(current.children)
 
     # ------------------------------------------------------------------
     # Node handlers

@@ -169,15 +169,17 @@ class TypeScriptImportExtractor:
         results: list[tuple[str, str | None]],
         seen: set[tuple[str, str | None]],
     ) -> None:
-        if node.type == "import_statement":
-            self._handle_import_statement(node, file_path, results, seen)
-        elif node.type == "export_statement":
-            self._handle_export_statement(node, file_path, results, seen)
-        elif node.type == "call_expression":
-            self._handle_call_expression(node, file_path, results, seen)
-        else:
-            for child in node.children:
-                self._walk(child, file_path, results, seen)
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            if current.type == "import_statement":
+                self._handle_import_statement(current, file_path, results, seen)
+            elif current.type == "export_statement":
+                self._handle_export_statement(current, file_path, results, seen)
+            elif current.type == "call_expression":
+                self._handle_call_expression(current, file_path, results, seen)
+            else:
+                stack.extend(current.children)
 
     def _handle_import_statement(
         self,

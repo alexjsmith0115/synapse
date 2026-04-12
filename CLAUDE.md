@@ -6,22 +6,6 @@
 - Make sure all unit and integration tests pass before considering a task complete.
 - Every bugfix must include a regression test that would have caught the bug.
 
-## Synapps MCP
-
-This project is indexed by the Synapps MCP server. Use it instead of grep/read for navigating code relationships:
-
-- Before modifying a method, use `get_context_for` to understand its callees, dependencies, and type context, and `assess_impact` to check callers and test coverage
-- Use `find_usages` to trace how a symbol is used across the codebase — prefer this over grep
-- Use `find_callees` (with optional `depth` param for reachable call tree) to understand what a method depends on downstream
-- Before making changes, use `assess_impact` to verify no unexpected breakage
-- Use `get_context_for` with `members_only=True` for a quick structural overview of a class
-- Use `search_symbols` to find symbols by name, kind, file, or namespace — faster and more precise than file search
-- Use `execute_query` for ad-hoc Cypher queries; call `get_schema` first to see available labels and relationships
-- Use `summary` with action='set'/'get'/'list' to manage symbol summaries
-- Use `find_usages` with `kind` param to filter type references
-- CLI-only tools (not available via MCP): `synapps doctor`, `synapps delete <path>`, `synapps status <path>`
-- If any issues with the MCP or inconsistencies in the graph vs filesystem are found, report this to the user as a side note.
-
 ## Common Commands
 
 ```bash
@@ -244,3 +228,39 @@ Do not make direct repo edits outside a GSD workflow unless the user explicitly 
 > Profile not yet configured. Run `/gsd:profile-user` to generate your developer profile.
 > This section is managed by `generate-claude-profile` -- do not edit manually.
 <!-- GSD:profile-end -->
+
+<!-- synapps:start -->
+## Synapps MCP
+
+This project is indexed by the **Synapps** code-intelligence graph.
+Use Synapps MCP tools instead of grep or file reads for understanding code structure, relationships, and navigating symbols.
+
+### Workflow
+- Projects must be indexed before querying. Call `list_projects` to check what is indexed, `index_project` to index a new project, `sync_project` to refresh a stale index.
+- If queries return empty results, call `list_projects(path=...)` to check whether the project is indexed.
+
+### Primary tools (start here)
+| Task | Tool | Instead of |
+|------|------|------------|
+| Read source code of a symbol | `read_symbol` | cat/head/tail file reads |
+| Understand a symbol before editing | `get_context_for` | manual file reads |
+| Find a symbol by name | `search_symbols` | grep for symbol name |
+| Find who calls a method | `find_usages` | grep for method name |
+
+### Secondary tools
+| Task | Tool | Instead of |
+|------|------|------------|
+| Impact analysis before changes | `assess_impact` | manual caller tracing |
+| Type member overview without source | `get_context_for` with members_only=True | — |
+| Find what a method calls | `find_callees` (use `depth` for reachable call tree) | `execute_query` |
+| All usages of any symbol | `find_usages` (use `kind` to filter type refs) | grep |
+| Find all implementations of an interface | `find_implementations` | — |
+| Architecture overview | `get_architecture` | — |
+| Custom graph queries | `get_schema` then `execute_query` (last resort) | — |
+
+### Avoid
+- Do not use `execute_query` when a dedicated tool exists for the task.
+- Do not read files with grep or cat when `read_symbol` or `get_context_for` can retrieve the exact code.
+- Do not guess symbol names — use `search_symbols` to discover them first.
+- Before modifying a method, use `get_context_for` to understand context and `assess_impact` to check callers and tests.
+<!-- synapps:end -->

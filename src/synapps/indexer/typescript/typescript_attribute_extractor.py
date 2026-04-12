@@ -33,38 +33,41 @@ class TypeScriptAttributeExtractor:
 
     def _walk(self, node, results: list[tuple[str, list[str]]], pending_decorators: list[str]) -> None:
         """Walk the AST and emit (symbol_name, markers) pairs."""
-        ntype = node.type
+        stack: list[tuple] = [(node, pending_decorators)]
+        while stack:
+            current, decorators = stack.pop()
+            ntype = current.type
 
-        if ntype == "export_statement":
-            self._handle_export(node, results)
+            if ntype == "export_statement":
+                self._handle_export(current, results)
 
-        elif ntype == "abstract_class_declaration":
-            self._handle_class(node, results, pending_decorators, auto_abstract=True)
+            elif ntype == "abstract_class_declaration":
+                self._handle_class(current, results, decorators, auto_abstract=True)
 
-        elif ntype == "class_declaration":
-            self._handle_class(node, results, pending_decorators, auto_abstract=False)
+            elif ntype == "class_declaration":
+                self._handle_class(current, results, decorators, auto_abstract=False)
 
-        elif ntype == "interface_declaration":
-            self._handle_interface(node, results, pending_decorators)
+            elif ntype == "interface_declaration":
+                self._handle_interface(current, results, decorators)
 
-        elif ntype == "function_declaration":
-            self._handle_function(node, results, pending_decorators)
+            elif ntype == "function_declaration":
+                self._handle_function(current, results, decorators)
 
-        elif ntype == "method_definition":
-            self._handle_method(node, results, pending_decorators, auto_abstract=False)
+            elif ntype == "method_definition":
+                self._handle_method(current, results, decorators, auto_abstract=False)
 
-        elif ntype == "abstract_method_signature":
-            self._handle_method(node, results, pending_decorators, auto_abstract=True)
+            elif ntype == "abstract_method_signature":
+                self._handle_method(current, results, decorators, auto_abstract=True)
 
-        elif ntype == "public_field_definition":
-            self._handle_field(node, results, pending_decorators)
+            elif ntype == "public_field_definition":
+                self._handle_field(current, results, decorators)
 
-        elif ntype in ("lexical_declaration", "variable_declaration"):
-            self._handle_variable_declaration(node, results, pending_decorators)
+            elif ntype in ("lexical_declaration", "variable_declaration"):
+                self._handle_variable_declaration(current, results, decorators)
 
-        else:
-            for child in node.children:
-                self._walk(child, results, [])
+            else:
+                for child in current.children:
+                    stack.append((child, []))
 
     def _handle_export(self, node, results: list[tuple[str, list[str]]]) -> None:
         """Handle export_statement: collect decorators that precede the declaration."""

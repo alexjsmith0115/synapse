@@ -147,3 +147,20 @@ def test_qualified_extends_position_points_to_property(extractor: TypeScriptBase
     assert base_name == "Base"
     # 'Base' comes after 'class Service extends ns.' (24 chars), col >= 23
     assert col >= 3
+
+
+def test_deeply_nested_ast_does_not_hit_recursion_limit(extractor: TypeScriptBaseTypeExtractor) -> None:
+    """Regression: deeply nested TypeScript ASTs must not cause RecursionError.
+
+    Minified bundles or generated code can produce ASTs deeper than Python's
+    default recursion limit (~1000). The extractor must handle them via
+    iterative traversal.
+    """
+    import sys
+    depth = sys.getrecursionlimit() + 500
+    # Deeply nested ternary: ((((...true ? 1 : 2)))) — each paren adds AST depth
+    source = "const x = " + "(" * depth + "1" + ")" * depth
+    tree = _parse(source, "test.ts")
+    # Must complete without RecursionError; no base types expected
+    result = extractor.extract("test.ts", tree)
+    assert result == []

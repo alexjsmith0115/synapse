@@ -63,10 +63,12 @@ def _walk(
     endpoint_defs: list[HttpEndpointDef],
     client_calls: list[HttpClientCall],
 ) -> None:
-    if node.type == "call_expression":
-        _handle_call_expression(node, constants, sorted_symbols, endpoint_defs, client_calls)
-    for child in node.children:
-        _walk(child, constants, sorted_symbols, endpoint_defs, client_calls)
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current.type == "call_expression":
+            _handle_call_expression(current, constants, sorted_symbols, endpoint_defs, client_calls)
+        stack.extend(current.children)
 
 
 def _handle_call_expression(
