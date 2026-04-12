@@ -1,0 +1,112 @@
+# serializer version: 1
+# name: test_callees_golden
+  '''
+  Namespace.Helper.Log — Log(string msg) : void
+  Namespace.Db.Save — Save() : Task
+  
+  '''
+# ---
+# name: test_callers_golden
+  '''
+  Namespace.ClassA.Invoke — Invoke(string arg) : void
+  Namespace.ClassB.Process — Process() : bool
+  Namespace.ClassC.Handle
+  
+  '''
+# ---
+# name: test_doctor_all_pass_golden
+  '''
+  
+  core
+   Check                     Status 
+   Docker daemon             pass   
+   Memgraph                  pass   
+  
+  csharp
+   Check                     Status 
+   .NET SDK                  pass   
+   Roslyn Language Server    pass   
+  
+  typescript
+   Check                     Status 
+   Node.js                   pass   
+   npm                       pass   
+  
+  python
+   Check                     Status 
+   Python 3                  pass   
+   pyright                   pass   
+  
+  java
+   Check                     Status 
+   Java                      pass   
+   Eclipse JDT LS            pass   
+  
+  10 passed, 0 warnings, 0 failed
+  
+  '''
+# ---
+# name: test_doctor_with_failure_golden
+  '''
+  
+  core
+   Check                     Status 
+   Docker daemon             fail   
+   Memgraph                  pass   
+    Fix (Docker daemon): Install Docker Desktop and start it
+  
+  csharp
+   Check                     Status 
+   .NET SDK                  pass   
+   Roslyn Language Server    pass   
+  
+  typescript
+   Check                     Status 
+   Node.js                   pass   
+   npm                       pass   
+  
+  python
+   Check                     Status 
+   Python 3                  pass   
+   pyright                   pass   
+  
+  java
+   Check                     Status 
+   Java                      pass   
+   Eclipse JDT LS            pass   
+  
+  9 passed, 0 warnings, 1 failed
+  
+  '''
+# ---
+# name: test_hierarchy_empty_golden
+  '''
+  Parents:
+    (none)
+  Children:
+    (none)
+  Implements:
+    (none)
+  
+  '''
+# ---
+# name: test_hierarchy_golden
+  '''
+  Parents:
+    Namespace.BaseService
+  Children:
+    Namespace.DerivedA
+    Namespace.DerivedB
+  Implements:
+    Namespace.IService
+  
+  '''
+# ---
+# name: test_search_golden
+  '''
+  Namespace.MyClass
+  Namespace.MyClass.MyMethod — MyMethod(int x) : string
+  Other.MyClassHelper
+  
+  '''
+# ---
